@@ -1,0 +1,38 @@
+{
+  "name": "ali-agent-kit",
+  "version": "0.1.0",
+  "description": "Shared skills (and more) for Claude Code, GitHub Copilot CLI and Codex CLI — installed and synced over npm.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "ali-agent-kit": "bin/cli.js"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "sync": "node bin/cli.js install"
+  },
+  "keywords": [
+    "claude-code",
+    "codex",
+    "copilot",
+    "skills",
+    "agent",
+    "ai"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
