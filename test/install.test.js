@@ -175,6 +175,43 @@ test('uninstall removes managed skills only', () => {
   assert.ok(existsSync(join(home, '.claude/skills/other')));
 });
 
+test('leftovers from another tool are neither swept nor restored', () => {
+  const home = fakeHome();
+  const skillsDir = join(home, '.claude/skills');
+  sync({ skills: sourceSkills({ one: 'a' }), home, env });
+  const nonce = '22222222-0000-4000-8000-000000000000';
+  mkdirSync(join(skillsDir, `.other-tool.backup-${nonce}`), { recursive: true });
+  writeFileSync(join(skillsDir, `.other-tool.backup-${nonce}/data`), 'not ours\n');
+
+  sync({ skills: sourceSkills({ one: 'a' }), home, env });
+
+  assert.ok(
+    existsSync(join(skillsDir, `.other-tool.backup-${nonce}/data`)),
+    'another tool’s temp dir must survive'
+  );
+  assert.ok(!existsSync(join(skillsDir, 'other-tool')), 'and must not be restored into a skill');
+});
+
+test('an older marker schema still counts as ours', () => {
+  const home = fakeHome();
+  const skillsDir = join(home, '.claude/skills');
+  sync({ skills: sourceSkills({ one: 'a', two: 'b' }), home, env });
+
+  for (const name of ['ali-one', 'ali-two']) {
+    const marker = join(skillsDir, name, MARKER);
+    const data = JSON.parse(readFileSync(marker, 'utf8'));
+    delete data.schemaVersion; // pre-versioning marker
+    if (name === 'ali-two') data.schemaVersion = MARKER_SCHEMA_VERSION - 1;
+    writeFileSync(marker, JSON.stringify(data));
+  }
+
+  const result = sync({ skills: sourceSkills({ one: 'a' }), home, env });
+
+  assert.deepEqual(result.conflicts, [], 'an old install must update, not conflict');
+  assert.deepEqual(result.agents[0].updated, ['ali-one']);
+  assert.deepEqual(result.agents[0].removed, ['ali-two'], 'and must still be prunable');
+});
+
 test('a marker from a newer schema is not treated as ours', () => {
   const home = fakeHome();
   sync({ skills: sourceSkills({ one: 'a' }), home, env });

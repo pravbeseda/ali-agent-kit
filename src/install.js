@@ -72,9 +72,17 @@ function readMarker(dir) {
   }
 }
 
+/**
+ * Ownership is decided by the package name plus a marker layout we can still
+ * read: our own older markers stay ours, so bumping the schema updates installs
+ * instead of turning every skill on every machine into a conflict. A newer
+ * layout than this release knows about is left alone.
+ */
 function isOurs(dir) {
   const marker = readMarker(dir);
-  return marker?.packageName === pkg.name && marker?.schemaVersion === MARKER_SCHEMA_VERSION;
+  if (marker?.packageName !== pkg.name) return false;
+  const schema = marker.schemaVersion ?? 0;
+  return Number.isInteger(schema) && schema <= MARKER_SCHEMA_VERSION;
 }
 
 /** Skills previously installed by this package into `skillsDir`. */
@@ -90,7 +98,10 @@ export function installedSkills(skillsDir) {
     .sort();
 }
 
-const LEFTOVER_RE = /^\.(.+)\.(staging|backup)-[0-9a-f-]{36}$/;
+// Only ever matches what this package writes: skill names are kebab-case, so a
+// dot in the middle cannot come from us, and someone else's dotted temp dir must
+// not be swept — let alone restored into a skill that never existed.
+const LEFTOVER_RE = new RegExp(`^\\.(${PREFIX}[a-z0-9-]+)\\.(staging|backup)-[0-9a-f-]{36}$`);
 
 /**
  * Clean up after a run that was killed mid-swap. A staging dir is always

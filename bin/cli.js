@@ -74,7 +74,9 @@ try {
 try {
   run(opts.command ?? 'help');
 } catch (error) {
-  fail(error instanceof SkillError ? `Invalid skill: ${error.message}` : error.stack ?? error.message);
+  // A CLI user gets the message; the stack is one env var away when debugging.
+  if (process.env.ALI_AGENT_KIT_DEBUG) console.error(c.dim(error.stack ?? ''));
+  fail(error instanceof SkillError ? `Invalid skill: ${error.message}` : error.message);
 }
 
 function run(command) {
