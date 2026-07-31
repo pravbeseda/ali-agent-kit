@@ -1,6 +1,6 @@
 {
   "name": "ali-agent-kit",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Shared skills (and more) for Claude Code, GitHub Copilot CLI and Codex CLI — installed and synced over npm.",
   "type": "module",
   "license": "MIT",
