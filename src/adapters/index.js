@@ -49,10 +49,6 @@ export function getAdapter(id) {
   return byName.get(id);
 }
 
-export function agentNames() {
-  return adapters.map((a) => [a.id, ...(a.aliases ?? [])].join('|'));
-}
-
 /** Resolve `--agent` values (ids, aliases, `all`) to adapters, deduplicated. */
 export function resolveAdapters(requested = []) {
   if (!requested.length || requested.includes('all')) {

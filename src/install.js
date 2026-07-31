@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -38,19 +39,29 @@ export function detectAgents({ env = process.env, home = homedir(), only = null 
     });
 
     if (found.length) detected.push(...found.map((location) => ({ adapter, ...location })));
-    else skipped.push({ adapter, configDir: locations[0].configDir });
+    else {
+      // Report every path we looked at, not just the first, or an agent with
+      // several profiles looks like it was searched for in one place only.
+      const configDirs = locations.map((location) => location.configDir);
+      skipped.push({ adapter, configDir: configDirs[0], configDirs });
+    }
   }
 
   return { detected, skipped };
 }
 
-function isDirectory(path) {
+/** lstat that tolerates a path disappearing under us mid-run. */
+function safeLstat(path) {
   try {
-    return lstatSync(path).isDirectory();
+    return lstatSync(path);
   } catch (error) {
-    if (error.code === 'ENOENT') return false;
+    if (error.code === 'ENOENT') return null;
     throw error;
   }
+}
+
+function isDirectory(path) {
+  return safeLstat(path)?.isDirectory() ?? false;
 }
 
 function readMarker(dir) {
@@ -73,9 +84,41 @@ export function installedSkills(skillsDir) {
     .filter((entry) => entry.startsWith(PREFIX))
     .filter((entry) => {
       const full = join(skillsDir, entry);
-      return !lstatSync(full).isSymbolicLink() && isDirectory(full) && isOurs(full);
+      const stat = safeLstat(full);
+      return stat?.isDirectory() === true && isOurs(full);
     })
     .sort();
+}
+
+const LEFTOVER_RE = /^\.(.+)\.(staging|backup)-[0-9a-f-]{36}$/;
+
+/**
+ * Clean up after a run that was killed mid-swap. A staging dir is always
+ * garbage; a backup dir means the destination was moved aside and never
+ * replaced, so restore it when the destination is missing.
+ *
+ * @returns {string[]} names of skills restored from a backup
+ */
+function reclaimLeftovers(skillsDir, { dryRun = false } = {}) {
+  if (!isDirectory(skillsDir)) return [];
+  const restored = [];
+
+  for (const entry of readdirSync(skillsDir).sort()) {
+    const match = entry.match(LEFTOVER_RE);
+    if (!match) continue;
+
+    const [, name, kind] = match;
+    const leftover = join(skillsDir, entry);
+    const destination = join(skillsDir, name);
+    const recoverable = kind === 'backup' && !existsSync(destination);
+
+    if (recoverable) restored.push(name);
+    if (dryRun) continue;
+    if (recoverable) renameSync(leftover, destination);
+    else rmSync(leftover, { recursive: true, force: true });
+  }
+
+  return restored;
 }
 
 /**
@@ -95,6 +138,9 @@ function writeSkillAtomically(skillsDir, skill) {
       const target = join(staging, file.path);
       mkdirSync(dirname(target), { recursive: true });
       writeFileSync(target, file.content);
+      // chmod rather than the write mode option: that one is masked by umask,
+      // which would silently drop the executable bit of bundled scripts.
+      if (file.mode !== undefined) chmodSync(target, file.mode);
     }
     writeFileSync(
       join(staging, MARKER),
@@ -123,6 +169,17 @@ function writeSkillAtomically(skillsDir, skill) {
   } finally {
     rmSync(staging, { recursive: true, force: true });
   }
+}
+
+/** Apply an adapter's transform and check that it returned a usable skill. */
+function reshape(target, skill) {
+  const shaped = target.adapter.transform(skill);
+  if (!shaped?.name?.startsWith(PREFIX) || !shaped.files?.length) {
+    throw new Error(
+      `Agent "${target.adapter.id}": transform() returned an invalid skill for "${skill.name}" — it must keep the "${PREFIX}" prefix and at least one file`
+    );
+  }
+  return shaped;
 }
 
 /** Plan one location: what to write, what to prune, what we must not touch. */
@@ -180,22 +237,26 @@ export function sync({
   const results = [];
 
   for (const target of detected) {
-    const plan = inspect(target, skills, prune);
+    // Reshape first: the plan below must reason about the paths we will really
+    // write, or a renaming transform would make us prune what we just installed.
+    const shaped = target.adapter.transform ? skills.map((skill) => reshape(target, skill)) : skills;
+    const restored = reclaimLeftovers(target.skillsDir, { dryRun });
+    const plan = inspect(target, shaped, prune);
     const skip = new Set(plan.conflicts.map((conflict) => conflict.name));
     const blocked = plan.conflicts.some((conflict) => conflict.name === null);
 
     if (!dryRun && !blocked) {
       mkdirSync(target.skillsDir, { recursive: true });
-      for (const skill of skills) {
+      for (const skill of shaped) {
         if (skip.has(skill.name)) continue;
-        writeSkillAtomically(target.skillsDir, target.adapter.transform ? target.adapter.transform(skill) : skill);
+        writeSkillAtomically(target.skillsDir, skill);
       }
       for (const name of plan.removed) {
         rmSync(join(target.skillsDir, name), { recursive: true, force: true });
       }
     }
 
-    results.push({ ...target, ...plan });
+    results.push({ ...target, ...plan, restored });
   }
 
   return {
@@ -212,6 +273,7 @@ export function uninstall({ only = null, dryRun = false, env = process.env, home
   const agents = [];
 
   for (const target of detected) {
+    reclaimLeftovers(target.skillsDir, { dryRun });
     const removed = installedSkills(target.skillsDir);
     if (!dryRun) {
       for (const name of removed) rmSync(join(target.skillsDir, name), { recursive: true, force: true });

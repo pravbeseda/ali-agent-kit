@@ -1,12 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, symlinkSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  symlinkSync,
+  writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sync, uninstall, detectAgents, installedSkills } from '../src/install.js';
 import { loadSkills } from '../src/skills.js';
 import { MARKER, MARKER_SCHEMA_VERSION } from '../src/config.js';
-import { resolveAdapters } from '../src/adapters/index.js';
+import { adapters, resolveAdapters } from '../src/adapters/index.js';
 
 /** Fake home with only the named agents present. */
 function fakeHome(agents = ['claude']) {
@@ -174,6 +185,89 @@ test('a marker from a newer schema is not treated as ours', () => {
   const result = sync({ skills: sourceSkills({ two: 'b' }), home, env });
   assert.equal(result.conflicts.length, 0);
   assert.ok(existsSync(join(home, '.claude/skills/ali-one')), 'unknown schema is left alone, not pruned');
+});
+
+test('the executable bit of bundled scripts survives the install', () => {
+  const home = fakeHome();
+  const source = mkdtempSync(join(tmpdir(), 'ali-src-'));
+  mkdirSync(join(source, 'scripted/scripts'), { recursive: true });
+  writeFileSync(
+    join(source, 'scripted/SKILL.md'),
+    '---\nname: scripted\ndescription: Ships a script.\n---\nbody\n'
+  );
+  writeFileSync(join(source, 'scripted/scripts/run.sh'), '#!/bin/sh\necho hi\n', { mode: 0o755 });
+  chmodSync(join(source, 'scripted/scripts/run.sh'), 0o755);
+
+  sync({ skills: loadSkills(source), home, env });
+
+  const installed = join(home, '.claude/skills/ali-scripted/scripts/run.sh');
+  assert.equal(statSync(installed).mode & 0o111, 0o111, 'run.sh must stay executable');
+  assert.equal(statSync(join(home, '.claude/skills/ali-scripted/SKILL.md')).mode & 0o111, 0);
+});
+
+/** Give one adapter a transform for the duration of a test. */
+function withTransform(t, id, transform) {
+  const adapter = adapters.find((a) => a.id === id);
+  adapter.transform = transform;
+  t.after(() => {
+    delete adapter.transform;
+  });
+}
+
+test('a renaming transform drives the plan, so nothing is pruned by mistake', (t) => {
+  const home = fakeHome();
+  withTransform(t, 'claude-code', (skill) => ({ ...skill, name: `${skill.name}-x` }));
+
+  const first = sync({ skills: sourceSkills({ one: 'a' }), home, env, only: ['claude'] });
+  assert.deepEqual(first.agents[0].added, ['ali-one-x']);
+  assert.ok(existsSync(join(home, '.claude/skills/ali-one-x/SKILL.md')));
+
+  const second = sync({ skills: sourceSkills({ one: 'a' }), home, env, only: ['claude'] });
+  assert.deepEqual(second.agents[0].updated, ['ali-one-x'], 'the transformed name must be recognized');
+  assert.deepEqual(second.agents[0].removed, [], 'the transformed skill must not be pruned');
+  assert.ok(existsSync(join(home, '.claude/skills/ali-one-x/SKILL.md')));
+});
+
+test('a transform that breaks the contract fails loudly', (t) => {
+  const home = fakeHome();
+  withTransform(t, 'claude-code', (skill) => ({ ...skill, name: skill.name.replace('ali-', '') }));
+
+  assert.throws(
+    () => sync({ skills: sourceSkills({ one: 'a' }), home, env, only: ['claude'] }),
+    /transform\(\) returned an invalid skill/
+  );
+});
+
+test('a run killed mid-swap is repaired on the next install', () => {
+  const home = fakeHome();
+  const skillsDir = join(home, '.claude/skills');
+  sync({ skills: sourceSkills({ one: 'a', two: 'b' }), home, env });
+
+  // Simulate the crash window: destination moved aside, replacement never landed.
+  const nonce = '00000000-0000-4000-8000-000000000000';
+  renameSync(join(skillsDir, 'ali-one'), join(skillsDir, `.ali-one.backup-${nonce}`));
+  mkdirSync(join(skillsDir, `.ali-two.staging-${nonce}`), { recursive: true });
+
+  const result = sync({ skills: sourceSkills({ one: 'a', two: 'b' }), home, env });
+
+  assert.deepEqual(result.agents[0].restored, ['ali-one']);
+  assert.ok(existsSync(join(skillsDir, 'ali-one/SKILL.md')), 'the backup must come back');
+  assert.deepEqual(readdirSync(skillsDir).sort(), ['ali-one', 'ali-two'], 'no leftovers remain');
+});
+
+test('a backup is dropped, not restored, when the destination is already there', () => {
+  const home = fakeHome();
+  const skillsDir = join(home, '.claude/skills');
+  sync({ skills: sourceSkills({ one: 'a' }), home, env });
+  const nonce = '11111111-0000-4000-8000-000000000000';
+  mkdirSync(join(skillsDir, `.ali-one.backup-${nonce}`), { recursive: true });
+  writeFileSync(join(skillsDir, `.ali-one.backup-${nonce}/SKILL.md`), 'stale copy\n');
+
+  const result = sync({ skills: sourceSkills({ one: 'a' }), home, env });
+
+  assert.deepEqual(result.agents[0].restored, []);
+  assert.deepEqual(readdirSync(skillsDir), ['ali-one']);
+  assert.match(readFileSync(join(skillsDir, 'ali-one/SKILL.md'), 'utf8'), /description: a/);
 });
 
 test('env overrides relocate an agent config dir', () => {

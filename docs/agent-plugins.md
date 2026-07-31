@@ -38,6 +38,10 @@ export default {
 5. Add tests: path resolution (with and without the env var) and the missing-agent case.
 6. `npm run check`.
 
+## transform()
+
+`transform(skill)` reshapes a skill for one agent only. It runs **before** the installer plans the write, so a transform may rename the skill and pruning still works. It must return a skill that keeps the `ali-` prefix and at least one file; anything else fails the run instead of writing something the next update would not recognize as ours. File modes carried on `skill.files[].mode` are preserved on install, so bundled scripts stay executable.
+
 ## Per-agent files inside a skill
 
 Some agents read extra metadata from the skill directory — Codex, for example, picks up `agents/openai.yaml` (display name, starter prompt); see `skills/hello/`. Ship such files in the skill itself when other agents ignore them, and use `transform()` only when a file would confuse another agent.

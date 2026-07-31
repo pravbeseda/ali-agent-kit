@@ -116,6 +116,9 @@ function runSync() {
   const label = opts.dryRun ? c.dim(' (dry run)') : '';
   for (const agent of result.agents) {
     console.log(`\n${c.bold(agent.adapter.label)}${label} ${c.dim(agent.skillsDir)}`);
+    for (const name of agent.restored) {
+      console.log(`  ${c.yellow('↻')} ${name} ${c.dim('(restored after an interrupted run)')}`);
+    }
     for (const name of agent.added) console.log(`  ${c.green('+')} ${name}`);
     for (const name of agent.updated) console.log(`  ${c.dim('~')} ${name}`);
     for (const name of agent.removed) console.log(`  ${c.red('-')} ${name} ${c.dim('(removed from package)')}`);
@@ -171,12 +174,14 @@ function runAgents() {
     console.log(`${target.adapter.id.padEnd(12)} ${c.green('detected')}   ${c.dim(target.skillsDir)}`);
   }
   for (const agent of skipped) {
-    console.log(`${agent.adapter.id.padEnd(12)} ${c.dim('not found')}  ${c.dim(agent.configDir)}`);
+    const where = (agent.configDirs ?? [agent.configDir]).join(', ');
+    console.log(`${agent.adapter.id.padEnd(12)} ${c.dim('not found')}  ${c.dim(where)}`);
   }
 }
 
 function printSkipped(skipped) {
   for (const agent of skipped) {
-    console.log(c.dim(`\n${agent.adapter.label}: not installed (${agent.configDir}) — skipped`));
+    const where = (agent.configDirs ?? [agent.configDir]).join(', ');
+    console.log(c.dim(`\n${agent.adapter.label}: not installed (${where}) — skipped`));
   }
 }

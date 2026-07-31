@@ -8,7 +8,9 @@ import { MARKER, PREFIX, skillsSourceDir } from './config.js';
  * @property {string} sourceName  name in the repo, e.g. `review-branch`
  * @property {string} name        published name, e.g. `ali-review-branch`
  * @property {string} description from frontmatter
- * @property {{path: string, content: Buffer|string}[]} files  paths relative to the skill dir
+ * @property {{path: string, content: Buffer|string, mode: number}[]} files
+ *           paths relative to the skill dir; `mode` keeps the executable bit of
+ *           bundled scripts, which a plain write would drop
  */
 
 const SOURCE_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -49,7 +51,7 @@ export function loadSkills(dir = skillsSourceDir) {
       files = readSkillDir(full);
     } else if (entry.toLowerCase().endsWith('.md')) {
       sourceName = entry.slice(0, -3);
-      files = [{ path: 'SKILL.md', content: readFileSync(full) }];
+      files = [{ path: 'SKILL.md', content: readFileSync(full), mode: stat.mode & 0o777 }];
     } else {
       continue;
     }
@@ -81,7 +83,12 @@ function readSkillDir(dir) {
         throw new SkillError(`${full}: ${MARKER} is reserved for installed-skill ownership`);
       }
       if (stat.isDirectory()) walk(full);
-      else out.push({ path: relative(dir, full).split(sep).join('/'), content: readFileSync(full) });
+      else
+        out.push({
+          path: relative(dir, full).split(sep).join('/'),
+          content: readFileSync(full),
+          mode: stat.mode & 0o777
+        });
     }
   };
   walk(dir);
@@ -106,7 +113,8 @@ function buildSkill(sourceName, files, sourcePath) {
   }
 
   const index = files.findIndex((f) => f.path === 'SKILL.md');
-  const raw = files[index].content.toString('utf8');
+  // A leading BOM would hide the frontmatter from every parser downstream.
+  const raw = files[index].content.toString('utf8').replace(/^\uFEFF/, '');
   const { fields, description } = parseFrontmatter(raw);
 
   if (!FRONTMATTER_RE.test(raw)) {
@@ -127,7 +135,11 @@ function buildSkill(sourceName, files, sourcePath) {
   }
 
   const rewritten = files.slice();
-  rewritten[index] = { path: 'SKILL.md', content: rewriteFrontmatter(raw, { name, description }) };
+  rewritten[index] = {
+    path: 'SKILL.md',
+    content: rewriteFrontmatter(raw, { name, description }),
+    mode: files[index].mode
+  };
 
   return { sourceName, name, description, files: rewritten };
 }

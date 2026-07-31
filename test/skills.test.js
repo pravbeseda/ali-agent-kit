@@ -95,6 +95,15 @@ test('rejects symlinks and the reserved marker file inside a skill', () => {
   assert.throws(() => loadSkills(other), /reserved for installed-skill ownership/);
 });
 
+test('a UTF-8 BOM does not hide the frontmatter', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'bommed.md'), `\uFEFF${skillFile('bommed')}`);
+
+  const [skill] = loadSkills(dir);
+  assert.equal(skill.name, 'ali-bommed');
+  assert.ok(!skill.files[0].content.startsWith('\uFEFF'), 'the BOM must be stripped on the way out');
+});
+
 test('adds frontmatter when the source has none', () => {
   const out = rewriteFrontmatter('# Just a body\n', { name: 'ali-x', description: 'd' });
   assert.equal(out, '---\nname: ali-x\ndescription: d\n---\n\n# Just a body\n');
