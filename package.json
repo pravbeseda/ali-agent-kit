@@ -17,11 +17,22 @@
     "README.md",
     "LICENSE"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pravbeseda/ali-agent-kit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pravbeseda/ali-agent-kit/issues"
+  },
+  "homepage": "https://github.com/pravbeseda/ali-agent-kit#readme",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
     "test": "node --test \"test/*.test.js\"",
+    "validate": "node bin/cli.js validate",
+    "check": "npm run validate && npm test",
+    "prepublishOnly": "npm run check",
     "sync": "node bin/cli.js install"
   },
   "keywords": [

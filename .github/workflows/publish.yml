@@ -13,9 +13,13 @@ on:
           - minor
           - major
       dry-run:
-        description: 'Build and pack only, do not publish'
+        description: 'Validate and pack only, publish nothing'
         type: boolean
         default: false
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -23,6 +27,7 @@ permissions:
 
 jobs:
   publish:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,8 +39,8 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - name: Test
-        run: npm test
+      - name: Validate skills and run tests
+        run: npm run check
 
       - name: Configure git
         run: |
@@ -44,9 +49,16 @@ jobs:
 
       - name: Bump version (${{ inputs.release }})
         id: bump
+        env:
+          RELEASE: ${{ inputs.release }}
         run: |
-          version=$(npm version "${{ inputs.release }}" -m "chore(release): v%s")
+          version=$(npm version "$RELEASE" -m "chore(release): v%s")
           echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      # Fail here rather than after publishing: an npm release whose tag never
+      # landed in git cannot be undone.
+      - name: Verify the release can be pushed
+        run: git push --dry-run --follow-tags origin HEAD:main
 
       - name: Pack (dry run)
         if: ${{ inputs.dry-run }}
@@ -60,7 +72,7 @@ jobs:
 
       - name: Push commit and tag
         if: ${{ !inputs.dry-run }}
-        run: git push --follow-tags origin HEAD:${{ github.ref_name }}
+        run: git push --follow-tags origin HEAD:main
 
       - name: Create GitHub release
         if: ${{ !inputs.dry-run }}

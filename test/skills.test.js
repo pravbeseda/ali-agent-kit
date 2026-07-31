@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadSkills, prefixed, parseFrontmatter, rewriteFrontmatter } from '../src/skills.js';
-import { skillsSourceDir } from '../src/config.js';
+import { loadSkills, prefixed, parseFrontmatter, rewriteFrontmatter, SkillError } from '../src/skills.js';
+import { skillsSourceDir, MARKER } from '../src/config.js';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'ali-kit-'));
+const skillFile = (name, extra = '') =>
+  `---\nname: ${name}\ndescription: Test skill for ${name}.${extra}\n---\n\nbody\n`;
 
 test('prefixed adds ali- once', () => {
   assert.equal(prefixed('review-branch'), 'ali-review-branch');
@@ -33,15 +35,64 @@ test('loads a single-file skill and prefixes its frontmatter name', () => {
 test('loads a directory skill with extra assets', () => {
   const dir = tmp();
   mkdirSync(join(dir, 'deep/refs'), { recursive: true });
-  writeFileSync(join(dir, 'deep/SKILL.md'), '---\nname: deep\n---\nbody\n');
+  writeFileSync(join(dir, 'deep/SKILL.md'), skillFile('deep'));
   writeFileSync(join(dir, 'deep/refs/notes.md'), 'notes');
 
   const [skill] = loadSkills(dir);
   assert.equal(skill.name, 'ali-deep');
-  assert.deepEqual(
-    skill.files.map((f) => f.path).sort(),
-    ['SKILL.md', 'refs/notes.md']
-  );
+  assert.deepEqual(skill.files.map((f) => f.path).sort(), ['SKILL.md', 'refs/notes.md']);
+});
+
+test('rejects a missing description', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'bad.md'), '---\nname: bad\n---\nbody\n');
+  assert.throws(() => loadSkills(dir), SkillError, /description/);
+});
+
+test('rejects frontmatter name that does not match the file name', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'one.md'), skillFile('two'));
+  assert.throws(() => loadSkills(dir), /must match the source name/);
+});
+
+test('rejects missing frontmatter', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'bare.md'), '# no frontmatter\n');
+  assert.throws(() => loadSkills(dir), /frontmatter/);
+});
+
+test('rejects the reserved prefix in a source name', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'ali-thing.md'), skillFile('ali-thing'));
+  assert.throws(() => loadSkills(dir), /reserved "ali-" prefix/);
+});
+
+test('rejects a non-kebab-case source name', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'Bad_Name.md'), skillFile('Bad_Name'));
+  assert.throws(() => loadSkills(dir), /lowercase letters/);
+});
+
+test('rejects the same skill defined twice', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'twice.md'), skillFile('twice'));
+  mkdirSync(join(dir, 'twice'));
+  writeFileSync(join(dir, 'twice/SKILL.md'), skillFile('twice'));
+  assert.throws(() => loadSkills(dir), /duplicate skill/);
+});
+
+test('rejects symlinks and the reserved marker file inside a skill', () => {
+  const dir = tmp();
+  mkdirSync(join(dir, 'linky'));
+  writeFileSync(join(dir, 'linky/SKILL.md'), skillFile('linky'));
+  symlinkSync('/etc/hosts', join(dir, 'linky/hosts'));
+  assert.throws(() => loadSkills(dir), /symbolic links/);
+
+  const other = tmp();
+  mkdirSync(join(other, 'marked'));
+  writeFileSync(join(other, 'marked/SKILL.md'), skillFile('marked'));
+  writeFileSync(join(other, 'marked', MARKER), '{}');
+  assert.throws(() => loadSkills(other), /reserved for installed-skill ownership/);
 });
 
 test('adds frontmatter when the source has none', () => {
@@ -50,9 +101,11 @@ test('adds frontmatter when the source has none', () => {
 });
 
 test('keeps unrelated frontmatter fields untouched', () => {
-  const out = rewriteFrontmatter('---\nname: x\nallowed-tools: Bash\n---\nb\n', { name: 'ali-x' });
-  assert.match(out, /allowed-tools: Bash/);
-  assert.match(out, /name: ali-x/);
+  const dir = tmp();
+  writeFileSync(join(dir, 'tooled.md'), '---\nname: tooled\ndescription: d\nallowed-tools: Bash\n---\nb\n');
+  const [skill] = loadSkills(dir);
+  assert.match(skill.files[0].content, /allowed-tools: Bash/);
+  assert.match(skill.files[0].content, /name: ali-tooled/);
 });
 
 test('parses folded multi-line descriptions', () => {
