@@ -1,5 +1,10 @@
 name: Publish to npm
 
+# The registry is the source of truth for versions: this workflow reads the
+# published version, bumps it in the working copy only, publishes, and records
+# the release as a tag. Nothing is ever committed to main, so the branch can
+# stay protected. The version in package.json is a placeholder.
+
 on:
   workflow_dispatch:
     inputs:
@@ -31,8 +36,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -42,23 +45,19 @@ jobs:
       - name: Validate skills and run tests
         run: npm run check
 
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Bump version (${{ inputs.release }})
-        id: bump
+      - name: Resolve the next version
+        id: version
         env:
           RELEASE: ${{ inputs.release }}
         run: |
-          version=$(npm version "$RELEASE" -m "chore(release): v%s")
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-
-      # Fail here rather than after publishing: an npm release whose tag never
-      # landed in git cannot be undone.
-      - name: Verify the release can be pushed
-        run: git push --dry-run --follow-tags origin HEAD:main
+          set -euo pipefail
+          name=$(node -p "require('./package.json').name")
+          current=$(npm view "$name" version 2>/dev/null || echo "0.0.0")
+          echo "Published: $current"
+          npm pkg set version="$current"
+          next=$(npm version "$RELEASE" --no-git-tag-version --allow-same-version)
+          echo "Releasing: $next"
+          echo "version=$next" >> "$GITHUB_OUTPUT"
 
       - name: Pack (dry run)
         if: ${{ inputs.dry-run }}
@@ -70,12 +69,14 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Push commit and tag
+      # Creates the tag on the released commit as well as the release entry, so
+      # the repository page shows the version without a commit landing on main.
+      - name: Create the GitHub release
         if: ${{ !inputs.dry-run }}
-        run: git push --follow-tags origin HEAD:main
-
-      - name: Create GitHub release
-        if: ${{ !inputs.dry-run }}
-        run: gh release create "${{ steps.bump.outputs.version }}" --generate-notes
+        run: |
+          gh release create "${{ steps.version.outputs.version }}" \
+            --target "$GITHUB_SHA" \
+            --title "${{ steps.version.outputs.version }}" \
+            --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}

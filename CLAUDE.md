@@ -13,3 +13,5 @@ Skills distributed over npm and installed into Claude Code, Copilot CLI and Code
 - Never write to a path without our ownership marker (`.ali-agent-kit.json`).
 - Skill sources carry no `ali-` prefix; it is added on install.
 - `npm run check` (validate + tests) must pass before a commit.
+- `main` is protected: work on a branch and open a pull request, never push to it.
+- `version` in package.json is a placeholder. Releases take the published version from the registry, bump it in the workflow's working copy, and record the result as a tag — do not "fix" it in the repo.
