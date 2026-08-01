@@ -1,5 +1,8 @@
 # ali-agent-kit
 
+[![npm](https://img.shields.io/npm/v/ali-agent-kit)](https://www.npmjs.com/package/ali-agent-kit)
+[![CI](https://github.com/pravbeseda/ali-agent-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/pravbeseda/ali-agent-kit/actions/workflows/ci.yml)
+
 Shared agent skills, distributed over npm, installed into **Claude Code**, **GitHub Copilot CLI** and **Codex CLI** at once.
 
 Every skill is published with an `ali-` prefix: `skills/review-branch.md` in this repo becomes the skill `ali-review-branch` in each agent.
@@ -102,7 +105,9 @@ Register it in the `adapters` array in `src/adapters/index.js`; the loader valid
 
 GitHub Actions → **Publish to npm** → Run workflow → pick `patch` / `minor` / `major`.
 
-Runs `npm run check`, bumps the version, verifies the tag can be pushed (`git push --dry-run`) **before** publishing, publishes with provenance, pushes commit and tag, cuts a GitHub release. Requires an `NPM_TOKEN` repo secret (automation token). Only runs on `main`.
+The workflow runs `npm run check`, reads the currently published version from the registry, applies the bump **in the working copy only**, publishes with provenance, and records the release as a tag plus a GitHub release. Requires an `NPM_TOKEN` repo secret (an *automation* token — a publish token would ask for an OTP that CI cannot provide). Only runs on `main`.
+
+Nothing is ever committed to `main`, so the branch stays protected and every change reaches it through a pull request. The consequence: **`version` in `package.json` is a placeholder** (`0.0.0`) and is not the released version. The real one lives in the registry, in the tags, and in the badge above; published tarballs always carry the correct version.
 
 ## Testing it works
 
