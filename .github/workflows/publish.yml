@@ -52,7 +52,19 @@ jobs:
         run: |
           set -euo pipefail
           name=$(node -p "require('./package.json').name")
-          current=$(npm view "$name" version 2>/dev/null || echo "0.0.0")
+          # Only "the package does not exist yet" may fall back to 0.0.0. Any
+          # other registry failure must stop the run: treating it as "nothing
+          # published" would recompute the version from scratch and could
+          # release backwards over the current one.
+          err=$(mktemp)
+          if ! current=$(npm view "$name" version 2>"$err"); then
+            if grep -q 'E404' "$err"; then
+              current=0.0.0
+            else
+              cat "$err" >&2
+              exit 1
+            fi
+          fi
           echo "Published: $current"
           npm pkg set version="$current"
           next=$(npm version "$RELEASE" --no-git-tag-version --allow-same-version)
