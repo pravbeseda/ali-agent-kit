@@ -69,17 +69,17 @@ An agent counts as installed when its config dir exists. Missing agents are skip
 Two layouts, both work:
 
 ```
-skills/review-branch.md          # single file
-skills/review-branch/SKILL.md    # directory, may carry references/, scripts/, agents/
+skills/my-skill.md               # single file
+skills/my-other-skill/SKILL.md   # directory, may carry references/, scripts/, agents/
 ```
 
 ```markdown
 ---
-name: review-branch
-description: Review current branch changes against main. Use when the user asks for a branch review.
+name: my-skill
+description: One line on what the skill does. Use when the user asks for ... — this is what makes an agent trigger it.
 ---
 
-# Review Branch
+# My Skill
 ...
 ```
 
@@ -121,3 +121,5 @@ Nothing is ever committed to `main`, so the branch stays protected and every cha
 ## Checking an install
 
 `ali-agent-kit list` shows the source skills and where each one is installed; `ali-agent-kit agents` shows which agents were detected.
+
+Both answer from this side of the fence: the files are on disk, in a directory we own. Whether the agent actually picked a skill up is a separate question — a skill can sit in the right place with a valid marker and still be invisible (a directory that agent's version does not read, frontmatter it does not accept, a shared `~/.agents/skills/` shadowing it). Nothing here verifies that; ask the agent itself — *"list your skills"* — or invoke one of the `ali-*` skills and see whether it triggers.

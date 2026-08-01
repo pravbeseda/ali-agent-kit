@@ -44,7 +44,16 @@ export default {
 
 ## Per-agent files inside a skill
 
-Some agents read extra metadata from the skill directory — Codex, for example, picks up `agents/openai.yaml` (display name, starter prompt) from `<skill>/agents/openai.yaml`. Ship such files in the skill itself when other agents ignore them, and use `transform()` only when a file would confuse another agent.
+Some agents read extra metadata from the skill directory. Codex, for example, takes a display name and a starter prompt from `<skill>/agents/openai.yaml`:
+
+```yaml
+interface:
+  display_name: "Ali Review Branch"
+  short_description: "Review the current branch against main"
+  default_prompt: "Use $ali-review-branch to review my changes."
+```
+
+No adapter reads that file: nested files are copied verbatim, so a per-agent file needs no code here (`test/install.test.js` pins the copy, executable bit included). Ship such files in the skill itself when other agents ignore them, and use `transform()` only when a file would confuse another agent.
 
 ## Other artifact types
 
