@@ -1,4 +1,0 @@
-interface:
-  display_name: "Ali Hello"
-  short_description: "Verify that ali-agent-kit skills are installed"
-  default_prompt: "Use $ali-hello to verify that shared skills are installed here."

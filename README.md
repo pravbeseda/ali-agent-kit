@@ -7,6 +7,15 @@ Shared agent skills, distributed over npm, installed into **Claude Code**, **Git
 
 Every skill is published with an `ali-` prefix: `skills/review-branch.md` in this repo becomes the skill `ali-review-branch` in each agent.
 
+## Skills
+
+| Skill | What it does |
+| --- | --- |
+| `ali-review-branch` | Reviews the current branch against `main`, then walks you through the findings one at a time. |
+| `ali-review-pr` | Reviews a pull request and posts each finding as an inline comment through `gh api` — questions and doubts only, no fixes. |
+| `ali-process-pr-comments` | Takes the unresolved review comments on a pull request one by one: verifies the claim, decides with you, applies the change, resolves the thread. |
+| `ali-one-by-one` | Resolves the open questions in a plan one at a time — context, rated options, a recommendation, then records the decision in the plan file. |
+
 ## Install / update
 
 ```sh
@@ -60,17 +69,17 @@ An agent counts as installed when its config dir exists. Missing agents are skip
 Two layouts, both work:
 
 ```
-skills/review-branch.md          # single file
-skills/hello/SKILL.md            # directory, may carry references/, scripts/, agents/
+skills/my-skill.md               # single file
+skills/my-other-skill/SKILL.md   # directory, may carry references/, scripts/, agents/
 ```
 
 ```markdown
 ---
-name: review-branch
-description: Review current branch changes against main. Use when the user asks for a branch review.
+name: my-skill
+description: One line on what the skill does. Use when the user asks for ... — this is what makes an agent trigger it.
 ---
 
-# Review Branch
+# My Skill
 ...
 ```
 
@@ -83,7 +92,7 @@ description: Review current branch changes against main. Use when the user asks 
 
 Deleting a skill file is enough to have it removed from every consumer on their next update.
 
-Agent-specific extras live in the skill: Codex reads `agents/openai.yaml` for its display name and starter prompt (see `skills/hello/`), other agents ignore it.
+Agent-specific extras live in the skill: Codex reads `agents/openai.yaml` for its display name and starter prompt, other agents ignore it.
 
 ## Adding an agent
 
@@ -109,6 +118,8 @@ The workflow runs `npm run check`, reads the currently published version from th
 
 Nothing is ever committed to `main`, so the branch stays protected and every change reaches it through a pull request. The consequence: **`version` in `package.json` is a placeholder** (`0.0.0`) and is not the released version. The real one lives in the registry, in the tags, and in the badge above; published tarballs always carry the correct version.
 
-## Testing it works
+## Checking an install
 
-`ali-hello` ships as a smoke test. In any agent: *"use the ali hello skill"* — it prints `ali-agent-kit works ✅`, the running agent, and the path it was loaded from.
+`ali-agent-kit list` shows the source skills and where each one is installed; `ali-agent-kit agents` shows which agents were detected.
+
+Both answer from this side of the fence: the files are on disk, in a directory we own. Whether the agent actually picked a skill up is a separate question — a skill can sit in the right place with a valid marker and still be invisible (a directory that agent's version does not read, frontmatter it does not accept, a shared `~/.agents/skills/` shadowing it). Nothing here verifies that; ask the agent itself — *"list your skills"* — or invoke one of the `ali-*` skills and see whether it triggers.

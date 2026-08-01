@@ -5,8 +5,14 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { packageRoot } from '../src/config.js';
+import { loadSkills } from '../src/skills.js';
 
 const CLI = join(packageRoot, 'bin/cli.js');
+
+// The CLI always installs from the package's own `skills/`, so these tests
+// cannot supply fixtures the way install.test.js does. They take the names
+// they need from the source instead of hardcoding shipped ones.
+const shipped = loadSkills().map((skill) => skill.name);
 
 /** Run the CLI against a throwaway HOME so no real agent is touched. */
 function run(args, { home = mkdtempSync(join(tmpdir(), 'ali-cli-')), env = {} } = {}) {
@@ -42,16 +48,19 @@ test('install into a home with no agents exits 0 and writes nothing', () => {
 });
 
 test('a conflict makes install exit 2 while still installing the rest', () => {
+  const [blocked, untouched] = shipped;
+  assert.ok(untouched, 'this case needs at least two source skills');
+
   const home = mkdtempSync(join(tmpdir(), 'ali-cli-'));
   const skillsDir = join(home, '.claude/skills');
-  mkdirSync(join(skillsDir, 'ali-hello'), { recursive: true });
-  writeFileSync(join(skillsDir, 'ali-hello/SKILL.md'), 'not ours\n');
+  mkdirSync(join(skillsDir, blocked), { recursive: true });
+  writeFileSync(join(skillsDir, blocked, 'SKILL.md'), 'not ours\n');
 
   const { status, stdout } = run(['install'], { home });
 
   assert.equal(status, 2);
   assert.match(stdout, /is not owned by ali-agent-kit/);
-  assert.match(stdout, /\+ ali-review-branch/, 'other skills still install');
+  assert.ok(stdout.includes(`+ ${untouched}`), 'other skills still install');
 });
 
 test('dry run reports the plan and leaves the exit code intact', () => {
@@ -62,7 +71,7 @@ test('dry run reports the plan and leaves the exit code intact', () => {
 
   assert.equal(status, 0);
   assert.match(stdout, /\(dry run\)/);
-  assert.match(stdout, /\+ ali-hello/);
+  assert.match(stdout, /\+ ali-\S+/, 'the plan names the skills it would write');
 });
 
 test('validate passes for the shipped skills', () => {
