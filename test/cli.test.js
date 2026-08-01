@@ -44,14 +44,14 @@ test('install into a home with no agents exits 0 and writes nothing', () => {
 test('a conflict makes install exit 2 while still installing the rest', () => {
   const home = mkdtempSync(join(tmpdir(), 'ali-cli-'));
   const skillsDir = join(home, '.claude/skills');
-  mkdirSync(join(skillsDir, 'ali-hello'), { recursive: true });
-  writeFileSync(join(skillsDir, 'ali-hello/SKILL.md'), 'not ours\n');
+  mkdirSync(join(skillsDir, 'ali-review-branch'), { recursive: true });
+  writeFileSync(join(skillsDir, 'ali-review-branch/SKILL.md'), 'not ours\n');
 
   const { status, stdout } = run(['install'], { home });
 
   assert.equal(status, 2);
   assert.match(stdout, /is not owned by ali-agent-kit/);
-  assert.match(stdout, /\+ ali-review-branch/, 'other skills still install');
+  assert.match(stdout, /\+ ali-review-pr/, 'other skills still install');
 });
 
 test('dry run reports the plan and leaves the exit code intact', () => {
@@ -62,7 +62,7 @@ test('dry run reports the plan and leaves the exit code intact', () => {
 
   assert.equal(status, 0);
   assert.match(stdout, /\(dry run\)/);
-  assert.match(stdout, /\+ ali-hello/);
+  assert.match(stdout, /\+ ali-review-branch/);
 });
 
 test('validate passes for the shipped skills', () => {
