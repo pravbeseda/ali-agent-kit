@@ -71,6 +71,19 @@ jobs:
           echo "Releasing: $next"
           echo "version=$next" >> "$GITHUB_OUTPUT"
 
+      # Fail here rather than after publishing: `gh release create` reuses an
+      # existing tag and silently ignores --target, so a leftover tag would
+      # attach the release to the wrong commit. Runs on dry runs too.
+      - name: Verify the tag is free
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists; refusing to release over it" >&2
+            exit 1
+          fi
+
       - name: Pack (dry run)
         if: ${{ inputs.dry-run }}
         run: npm publish --dry-run
