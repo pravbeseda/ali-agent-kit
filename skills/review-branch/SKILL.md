@@ -1,23 +1,32 @@
 ---
 name: review-branch
-description: Review the current branch against main and walk the user through the findings one at a time. Use when the user asks to "review the branch", "review my changes", "check this branch before the PR", or runs /ali-review-branch.
+description: Review the current branch against the repository's base branch and walk the user through the findings one at a time. Use when the user asks to "review the branch", "review my changes", "check this branch before the PR", or runs /ali-review-branch.
 ---
 
 # Review Branch
 
-Review every change on the current branch compared to `main`, then work through the findings interactively.
+Review every change on the current branch compared to the repository's base branch, then work through the findings interactively.
 
 ## Step 1. Collect the context
 
-Run these first and base the review on their output:
+Resolve the base branch first — never assume `main`, and never diff against a local branch that may be weeks behind:
 
 ```sh
-git rev-parse --abbrev-ref HEAD        # current branch
-git diff main...HEAD --name-status     # changed files
-git diff main...HEAD                   # full diff
+git fetch origin --quiet
+git symbolic-ref --quiet --short refs/remotes/origin/HEAD   # e.g. origin/master
 ```
 
-If the default branch is not `main`, use the repository's default branch instead.
+If that prints nothing (a fresh or shallow clone often has no `origin/HEAD`), run `git remote set-head origin --auto` and try again; if it still fails, ask the user which branch to compare against instead of guessing.
+
+Then, with `origin/{base}` from above:
+
+```sh
+git rev-parse --abbrev-ref HEAD               # current branch
+git diff origin/{base}...HEAD --name-status   # changed files
+git diff origin/{base}...HEAD                 # full diff
+```
+
+The three-dot form compares against the merge base, so commits that landed on the base branch after this one forked stay out of the review.
 
 ## Step 2. Review
 

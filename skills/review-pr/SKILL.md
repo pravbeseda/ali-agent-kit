@@ -8,7 +8,7 @@ description: Review a pull request and post the findings as inline comments on t
 Review the changes in a pull request and publish each finding as an inline comment on the exact line, through `gh api` — the way a human reviewer works: point at the problem or the doubt, do not fix the code and do not hand over a finished solution.
 
 > **Not `ali-process-pr-comments`:** that skill triages existing threads and resolves them. This one posts NEW comments on the PR diff.
-> **Not a summary review:** every finding is its own inline comment on a line. Do not write one big review comment, and do not apply fixes.
+> **Not a summary review:** the findings are published together as one review, but each one is still its own inline comment anchored to a line. Do not collapse them into a single prose comment, and do not apply fixes.
 
 ## Step 1. PR context
 
@@ -19,6 +19,8 @@ gh pr view --json number,headRefOid --jq '{number: .number, sha: .headRefOid}'
 gh repo view --json nameWithOwner --jq '.nameWithOwner'
 gh pr diff {number}
 ```
+
+`gh pr view` without an argument resolves the PR of the current branch. Pass the number explicitly (`gh pr view {number} --json ...`) when the user named one. If the command fails because the branch has no open PR, **stop**: say there is no PR to review and ask for a number — do not review the branch instead, that is `ali-review-branch`.
 
 `headRefOid` — the SHA of the PR's latest commit — is required; without it GitHub rejects inline comments.
 
@@ -44,28 +46,33 @@ A finding can only be attached to a line that actually appears in the diff — a
 
 ## Step 3. Publish
 
-No questions, no confirmations: post every finding straight away.
+No questions, no confirmations: publish all findings straight away, as **one** review — a human reviewer leaves a single review, not eight loose comments. One call, so the author gets one notification and a half-published review is impossible:
 
 ```sh
-gh api repos/{owner}/{repo}/pulls/{number}/comments \
-  -f body="{the finding, in English}" \
-  -f commit_id="{sha}" \
-  -f path="{path}" \
-  -F line={line} \
-  -f side=RIGHT
+gh api repos/{owner}/{repo}/pulls/{number}/reviews -X POST --input - <<'JSON'
+{
+  "commit_id": "{sha}",
+  "event": "COMMENT",
+  "comments": [
+    { "path": "{path}", "line": {line}, "side": "RIGHT", "body": "{the finding, in English}" }
+  ]
+}
+JSON
 ```
 
-Use `side=LEFT` for deleted lines.
+Use `"side": "LEFT"` for deleted lines. Write the JSON to a file and pass `--input {file}` instead when a finding's body contains characters that would be awkward inside a heredoc.
+
+**On 422** — a line the API will not accept takes the whole batch down with it. Read which entry it names, drop that one finding, and retry **once**. Never retry the same payload unchanged, and never re-post the entries that a successful call already published.
 
 Do not reply to your own comments, do not resolve them, do not edit the code — publishing findings is the whole job.
 
-When done, print one summary line: how many comments were posted, and in which files.
+When done, print one summary line: how many comments were posted, in which files, and which findings were dropped on 422.
 
 ## Language
 
 - Discussion with the user — the language they write in.
 - Comments posted to the PR — always English.
 
-## Context for the analysis
+## Extra context
 
-$ARGUMENTS
+If the user passed anything along with the invocation — a PR number, an area to focus on, a specific worry — treat it as the scope of the review.
