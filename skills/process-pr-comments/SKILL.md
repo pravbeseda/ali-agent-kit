@@ -55,7 +55,23 @@ Two details that decide whether "every unresolved comment" is true:
 
 - **Page through.** While `pageInfo.hasNextPage`, repeat the query with `reviewThreads(first: 100, after: "{endCursor}")`. A truncated list looks exactly like a complete one.
 - **Take the tail of each thread, and always keep its head.** `comments(last: 20)` because the newest replies hold the current state — a thread can be settled in its last reply and still sit at `isResolved: false` because nobody clicked resolve. Judge the thread by its end, not its opening. `root` is fetched separately so the original objection is never among the comments the tail drops; it also carries the `databaseId` to reply to in step 4.
-- **Notice when a thread is truncated.** `totalCount` is the full length of the thread, so `totalCount > 20` means everything between the root and the last 20 replies is missing from the response. Do not judge such a thread from what you have — read it in full first with `gh api repos/{owner}/{repo}/pulls/comments/{root_databaseId}` plus the thread's replies, or say in step 3 that the middle of the discussion was not read. A verdict like "this was already agreed" is exactly the one a missing middle makes wrong.
+- **Notice when a thread is truncated.** `totalCount` is the full length of the thread, so `totalCount > 20` means everything between the root and the last 20 replies is missing from the response. Do not judge such a thread from what you have — read it in full first, by asking for that one thread by its node id:
+
+  ```sh
+  gh api graphql -f query='
+  query {
+    node(id: "{thread_id}") {
+      ... on PullRequestReviewThread {
+        comments(first: 100) {
+          pageInfo { hasNextPage endCursor }
+          nodes { body author { login } createdAt }
+        }
+      }
+    }
+  }'
+  ```
+
+  Keep paging with `comments(first: 100, after: "{endCursor}")` while `hasNextPage`. A single `gh api repos/{owner}/{repo}/pulls/comments/{root_databaseId}` is not a substitute: it returns the root comment you already have and none of the replies. If for some reason the thread cannot be read in full, say in step 3 that the middle of the discussion was not read. A verdict like "this was already agreed" is exactly the one a missing middle makes wrong.
 
 Keep only threads where `isResolved == false` and store each thread `id`. Ignore resolved threads entirely.
 
@@ -122,9 +138,13 @@ When no unresolved thread is left, end with a verdict on whether the PR should g
 
 **The rule:** while a round is still finding things that change behaviour, another round pays for itself. Once a round produces only wording and polish, stop — the next one will cost attention and return noise.
 
-Counts as behaviour-changing: a wrong result or a crash, a call that cannot succeed as written, a silently wrong default, a lost error, a missing case in the logic, a check that was removed and still had a job to do.
+Sort every thread of this pass into exactly one of three buckets, by **what the assessment concluded**, never by what the comment claimed. `B + P + R` always equals `N`:
 
-Counts as polish: "the wording is imprecise", "this test is weaker than it looks", naming, comment phrasing, ordering, formatting, restating something already true elsewhere.
+- **B — behaviour-changing.** Accepted, and it was about a wrong result or a crash, a call that cannot succeed as written, a silently wrong default, a lost error, a missing case in the logic, or a check that was removed and still had a job to do.
+- **P — polish.** Accepted, but it was about wording, naming, comment phrasing, ordering, formatting, a test that reads weaker than it is, or restating something already true elsewhere.
+- **R — rejected.** The comment was not acted on. A rejected comment lands here whatever it claimed: one that predicted a crash but turned out not to apply is `R`, not `B`, because there is no defect for the next round to find.
+
+Only `B` moves the verdict.
 
 Print it as the last block of the pass, with the verdict on its own line and nothing after it:
 
@@ -152,7 +172,7 @@ Rules for the verdict:
 - Exactly one of the two lines, never both, never a hedged "maybe one more".
 - Base it on the findings of this pass only. A long queue of comments that all turned out to be polish still means stop.
 - A single behavioural finding is enough to recommend another round. Behavioural defects cluster; a round rarely finds exactly one.
-- Rejected comments count towards neither side — they say something about the reviewer, not about the code.
+- Rejected threads never argue for another round, however alarming the claim was: they say something about the reviewer, not about the code.
 - It is a recommendation. If the user asks for another round after a stop verdict, run it without arguing.
 
 ## Language
@@ -162,4 +182,6 @@ Rules for the verdict:
 
 ## Extra context
 
-If the user passed anything along with the invocation — a PR number, an author to filter on, a decision already made — treat it as the scope of this pass.
+If the user passed anything along with the invocation — a PR number, an author to filter on, a decision already made — treat it as the scope of this pass. It arrives below; an empty line there means no arguments were given, not that something went missing.
+
+$ARGUMENTS

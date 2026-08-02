@@ -13,12 +13,21 @@ Resolve the base branch first — never assume `main`, and never diff against a 
 
 ```sh
 git fetch origin --quiet
-git ls-remote --symref origin HEAD   # ref: refs/heads/master	HEAD
+gh pr view --json baseRefName --jq '.baseRefName'   # the branch this work will actually merge into
 ```
 
-Read the default branch from the `ref:` line — `refs/heads/master` means the base is `master`, so `{base_ref}` is `origin/master`. This asks the remote directly, so it stays read-only and reports the branch the repository defaults to *now*; a local `refs/remotes/origin/HEAD` can be missing in a fresh clone, and a plain fetch never retargets it after the default branch is renamed.
+**The base is what this branch merges into, which is not always the repository default.** A repository can default to `main` and still integrate everything through `develop` — diff such a branch against `main` and every `develop` commit it never touched shows up as a finding.
 
-If the command fails (no network, no such remote), fall back to the local ref — `git symbolic-ref --quiet --short refs/remotes/origin/HEAD`, which already prints a remote-qualified `origin/master`. Say that the answer comes from a possibly stale local ref. If that prints nothing either, ask the user which branch to compare against instead of guessing, and never run `git remote set-head` or any other command that writes to their repository.
+1. **If the branch has a pull request**, `baseRefName` is the answer, full stop: it is the branch the code will be merged into. It comes back as a plain branch name (`develop`), so `{base_ref}` is `origin/develop`.
+2. **If it has none**, fall back to the repository default, read-only:
+   ```sh
+   git ls-remote --symref origin HEAD   # ref: refs/heads/master	HEAD
+   ```
+   The `ref:` line names the default branch — `refs/heads/master` means `{base_ref}` is `origin/master`. Asking the remote reports the branch the repository defaults to *now*; a local `refs/remotes/origin/HEAD` can be missing in a fresh clone, and a plain fetch never retargets it after a rename.
+3. **Before settling for the default, check for an integration branch.** If `git ls-remote --heads origin develop` (or `release/*`, `staging`, whatever the repo uses) comes back non-empty, the repository has two plausible bases: ask the user which one to review against rather than assuming the default.
+4. **If nothing resolves** — `ls-remote` fails offline, no remote — fall back to the local `git symbolic-ref --quiet --short refs/remotes/origin/HEAD`, which already prints a remote-qualified `origin/master`, and say the answer comes from a possibly stale local ref. If that prints nothing either, ask. Never run `git remote set-head` or any other command that writes to the user's repository.
+
+Whatever the source, state in one line which base was chosen and why before showing findings — a review against the wrong base is worse than no review.
 
 With `{base_ref}` resolved — a remote-qualified ref, so never add a second `origin/`:
 

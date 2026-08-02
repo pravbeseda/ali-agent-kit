@@ -69,9 +69,8 @@ Use `"side": "LEFT"` for deleted lines. Write the JSON to a file and pass `--inp
 
 The error body names the resource and the field (`line must be part of the diff`), not which entry in `comments` is at fault, so it usually cannot be used to pick the offender out of the batch. Recover like this:
 
-1. If the message does identify the finding, drop that one and repost the batch.
-2. Otherwise fall back to posting each finding on its own with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST` (`commit_id`, `path`, `line`, `side`, `body`). The bad ones fail one by one, every other finding still lands. This gives up the single-notification property, which is the right trade — a degraded review beats a lost one.
-3. Never retry an unchanged payload, and never repost a finding that already went through in step 2.
+1. If the message does identify the finding, drop that one and repost the batch. Never repost the payload unchanged — the same batch fails the same way.
+2. Otherwise fall back to posting each finding on its own with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST` (`commit_id`, `path`, `line`, `side`, `body`). Each of these calls stands alone: one that returns 201 has published its comment for good, and one that returns 422 has published nothing. Work down the list once, skip the finding whose line the API rejected, and never resend one that already returned 201.
 
 Do not reply to your own comments, do not resolve them, do not edit the code — publishing findings is the whole job.
 
@@ -84,4 +83,6 @@ When done, print one summary line: how many comments were posted, in which files
 
 ## Extra context
 
-If the user passed anything along with the invocation — a PR number, an area to focus on, a specific worry — treat it as the scope of the review.
+If the user passed anything along with the invocation — a PR number, an area to focus on, a specific worry — treat it as the scope of the review. It arrives below; an empty line there means no arguments were given, not that something went missing.
+
+$ARGUMENTS

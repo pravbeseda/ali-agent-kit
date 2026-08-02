@@ -44,13 +44,18 @@ Compare the current Git branch with `origin/develop` and generate a complete PR 
 
 4. **Read the template.** Read `references/pr-template.md` from this skill's directory. It holds the four dynamic sections as italic placeholders (Problem, Solution, Changes, Affected Areas) followed by the three checklists.
 
-5. **Fill the template in place.** Replace the italic placeholder lines under each dynamic heading with what step 3 found. Everything from `# Review persons Checklist` down is data, not prose to rewrite: reproduce it exactly as read — same wording, same numbering, same 11 `[ ]` items. Never modify or drop a checklist.
+5. **Fill the template in place.** Replace the italic placeholder lines under each dynamic heading with what step 3 found — but only the ones that ask for a description. Some italic lines are requests to the author, not placeholders for you:
+
+   - Under `# Affected Areas and visual reference`, replace only *"Describe the affected areas of the codebase…"*. Keep *"Provide gif/video of main affected scenarios"* and *"If changes affects various targets … provide proof for each target"* exactly as they are: nobody can produce a recording or a per-target screenshot from a diff, and deleting the lines removes the reminder the team put there. When the changed paths show that several targets are involved, name them next to the targets line instead of dropping it.
+   - The same rule holds anywhere else in the template: an italic line asking for evidence stays, an italic line asking for a description gets replaced.
+
+   Everything from `# Review persons Checklist` down is data, not prose to rewrite: reproduce it exactly as read — same wording, same numbering, same 11 `[ ]` items. Never modify or drop a checklist.
 
 6. **Self-check before showing it to the user.** Each check has its own fix:
    - *The sections you wrote* (Problem, Solution, Changes, Affected Areas) — look for a substring of 4+ characters repeating 3 or more times in a row (e.g. `####fected A####fected A####fected A`). This is a real corruption that has been observed in this output, and reading the template from a file does nothing to prevent it, because it happens in the text you generate. If found, redo step 5 for the affected section (up to 2 retries).
    - *The parts copied from the template* — every `# Section` header present exactly once, and 11 `[ ]` items in total across the three checklists. A failure here means the copy went wrong, not the generation: read `references/pr-template.md` again and reproduce the checklists from it.
 
-7. **Output the filled template** as a fenced Markdown source code block (` ```markdown ... ``` `) so the user can copy-paste it into the PR on GitHub.
+7. **Output the filled template** as a fenced Markdown source code block (` ```markdown ... ``` `) so the user can copy-paste it into the PR on GitHub. After the block, remind the user in one line what the description still needs from them: the gif or video, and the per-target proof when more than one target is affected.
    Do NOT save to a file. Do NOT publish to GitHub. The user handles that manually.
 
 # Guidelines

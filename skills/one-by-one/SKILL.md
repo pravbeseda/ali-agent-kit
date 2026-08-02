@@ -1,6 +1,6 @@
 ---
 name: one-by-one
-description: Work through the open questions in a plan or list one at a time — context, options with a rated comparison, a recommendation — record each decision, then implement what was decided. Use when the user asks to "go through the questions one by one", "resolve the plan questions", or runs /ali-one-by-one.
+description: Work through the open questions in a plan or list one at a time — context, options with a rated comparison, a recommendation — record each decision, then implement what was decided once the user confirms. Use when the user asks to "go through the questions one by one", "resolve the plan questions", or runs /ali-one-by-one.
 ---
 
 # Resolve the open questions one by one, then build it
@@ -62,9 +62,10 @@ Once the user picks an option (or proposes their own):
 
 ## 5. Implement
 
-Once no open question is left, do not stop to write a polished plan document — build what was decided.
+Once no open question is left, do not stop to write a polished plan document — build what was decided. This is the one place in the loop that asks before acting: answering the last question settled a choice, it did not authorise changing the repository.
 
 - Restate the decisions as one compact list, so the user sees what is about to be built.
+- Ask once, in one line, whether to start implementing — and wait. If the user only wanted the decisions made, this is where they stop, with the questions resolved and the working tree untouched. If they already said "resolve these and build it" when invoking the skill, take that as the answer and say that you are treating it as such.
 - Implement them, in an order the dependencies between the decisions allow.
 - Follow the project's conventions and its CLAUDE.md / AGENTS.md, and run whatever check the project uses before calling the work done.
 - If a decision turns out to be unbuildable as chosen, stop at that point, say what broke, and put the question back to the user in the step 3 format rather than silently picking something else.
