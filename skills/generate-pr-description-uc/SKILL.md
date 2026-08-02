@@ -1,6 +1,6 @@
 ---
 name: generate-pr-description-uc
-description: Generate a PR description for the Unite Client (UC) project in Markdown by comparing the current branch with origin/develop and filling the UC pull request template — Problem, Solution, Changes, Affected Areas plus the mandatory review, testing and self checklists. Use only in Unite Client repositories, when the user asks to "write the PR description", "generate a description for this PR", or runs /ali-generate-pr-description-uc.
+description: Generate a PR description for the Unite Client (UC) project in Markdown by comparing the current branch with origin/develop and filling the UC pull request template — Problem, Solution, Changes, Affected Areas plus the mandatory review, testing and self checklists. Use only in repositories of the Unite Client project, the ones that integrate through an origin/develop branch; in any other repository this skill stops at its first step instead of producing a description. Triggers when the user asks to "write the PR description", "generate a description for this PR", or runs /ali-generate-pr-description-uc.
 ---
 
 # Goal
@@ -9,12 +9,18 @@ Compare the current Git branch with `origin/develop` and generate a complete PR 
 
 # Steps
 
-1. **Fetch latest origin/develop**
+1. **Check the preconditions, then fetch.** This skill only applies to Unite Client repositories, and `origin/develop` is what identifies one:
+   ```bash
+   git ls-remote --exit-code --heads origin develop
+   ```
+   If that exits non-zero (no such remote branch, or not a Git repository at all), **stop right here**: tell the user this skill is for Unite Client repositories, which integrate through `origin/develop`, and that this repository has no such branch. Do not fall back to another base branch, do not diff against anything else, do not continue to step 2.
+
+   Otherwise fetch the latest state:
    ```bash
    git fetch origin develop
    ```
 
-2. **Gather branch info** (run these in parallel — they are independent):
+2. **Gather branch info** (the summary and the commit messages are independent — run them in parallel; the detailed diff depends on what the summary shows):
 
    - Diff summary:
      ```bash
@@ -24,11 +30,11 @@ Compare the current Git branch with `origin/develop` and generate a complete PR 
      ```bash
      git --no-pager log origin/develop..HEAD --oneline
      ```
-   - Detailed diff (limited to avoid context overflow):
+   - Detailed diff — only when the change is small. Read `--stat` first: if it reports more than 20 changed files or more than 800 changed lines, skip the full diff entirely and read the important files individually (`git --no-pager diff origin/develop...HEAD -- path/to/file`), picking them by the size of their `--stat` bar. Otherwise:
      ```bash
-     git --no-pager diff origin/develop...HEAD -- . ':!*.lock' ':!*package-lock*' | head -3000
+     git --no-pager diff origin/develop...HEAD -- . ':!*.lock' ':!*package-lock*' | head -1500
      ```
-     If the diff is very large (many files changed), focus on the most important files from `--stat` and get their diffs individually instead of the full diff.
+     The cap counts lines, not characters, so it is a backstop against a runaway diff — not a substitute for the `--stat` check above.
 
 3. **Analyze changes** and identify:
    - What problem/issue is being addressed (from commit messages, branch name, code changes)
@@ -43,13 +49,11 @@ Compare the current Git branch with `origin/develop` and generate a complete PR 
 5. **Assemble the full description** by concatenating:
    - your generated dynamic sections (from step 4)
    - the three checklist sections copied character-for-character from the Output Template
-   This guarantees the checklists are never corrupted by generation artifacts.
+   Copying keeps the checklists out of the generated text, so nothing below has to repair them.
 
-6. **Self-check the assembled text** before showing it to the user:
-   - Run a concrete corruption test — search for any substring of 4+ characters that repeats 3 or more times in a row (e.g. `####fected A####fected A####fected A`). If found, discard and regenerate step 4.
-   - Verify every expected `# Section` header is present exactly once.
-   - Verify each checklist item `[ ]` count matches the template (2 + 5 + 4 = 11 items).
-   If any check fails, regenerate from step 4 (up to 2 retries).
+6. **Self-check before showing it to the user.** Each check has its own fix:
+   - *Generated sections only* (Problem, Solution, Changes, Affected Areas) — look for a substring of 4+ characters repeating 3 or more times in a row (e.g. `####fected A####fected A####fected A`). This is the artifact this check exists for. If found, regenerate step 4 (up to 2 retries).
+   - *Assembly* — every expected `# Section` header present exactly once, and each checklist item `[ ]` count matching the template (2 + 5 + 4 = 11 items). A failure here means the concatenation went wrong, not the generation: redo step 5, copying the checklists from the Output Template again.
 
 7. **Output the final description** as a fenced Markdown source code block (` ```markdown ... ``` `) so the user can copy-paste it into the PR on GitHub.
    Do NOT save to a file. Do NOT publish to GitHub. The user handles that manually.
@@ -80,7 +84,7 @@ _If changes affects various targets (origin/cca-agent/teams etc) provide proof f
 # Review persons Checklist
 
 1. [ ] QA engineer who verifies tests and cases is assigned to the PR
-3. [ ] Person who is responsible/knowledgeable for the area of the codebase is assigned to the PR
+2. [ ] Person who is responsible/knowledgeable for the area of the codebase is assigned to the PR
 
 # Testing Checklist
 
