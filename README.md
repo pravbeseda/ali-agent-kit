@@ -89,7 +89,10 @@ description: One line on what the skill does. Use when the user asks for ... —
 - name is lowercase kebab-case, matches the file/directory name, and carries no `ali-` prefix — the prefix is added on install;
 - frontmatter exists and has a non-empty `description` (that is what makes an agent trigger the skill);
 - the same skill is not defined twice (`foo.md` **and** `foo/`);
-- no symlinks and no `.ali-agent-kit.json` inside the source.
+- no symlinks and no `.ali-agent-kit.json` inside the source;
+- no managed-file notice in the source — install adds it.
+
+On install, the `SKILL.md` written to an agent gets that notice inserted under the frontmatter: the copy belongs to the package, and editing it in place loses the change on the next update. Sources in `skills/` stay free of it, so it is never duplicated.
 
 Deleting a skill file is enough to have it removed from every consumer on their next update.
 

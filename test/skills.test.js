@@ -3,8 +3,15 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadSkills, prefixed, parseFrontmatter, rewriteFrontmatter, SkillError } from '../src/skills.js';
-import { skillsSourceDir, MARKER } from '../src/config.js';
+import {
+  loadSkills,
+  prefixed,
+  parseFrontmatter,
+  rewriteFrontmatter,
+  withInstallNotice,
+  SkillError
+} from '../src/skills.js';
+import { skillsSourceDir, MARKER, INSTALL_NOTICE, NOTICE_SENTINEL } from '../src/config.js';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'ali-kit-'));
 const skillFile = (name, extra = '') =>
@@ -142,11 +149,42 @@ test('ignores dotfiles and dirs without SKILL.md', () => {
   assert.deepEqual(loadSkills(dir), []);
 });
 
-test('source files are read verbatim except for the name line', () => {
+test('source files are read verbatim except for the name line and the notice', () => {
   const dir = tmp();
   const body = '---\nname: keep\ndescription: d\n---\n\nline1\n\n```sh\necho hi\n```\n';
   writeFileSync(join(dir, 'keep.md'), body);
   const [skill] = loadSkills(dir);
-  assert.equal(skill.files[0].content, body.replace('name: keep', 'name: ali-keep'));
+  const installed = skill.files[0].content;
+  assert.equal(
+    installed.replace(`\n${INSTALL_NOTICE}\n`, '\n'),
+    body.replace('name: keep', 'name: ali-keep')
+  );
   assert.equal(readFileSync(join(dir, 'keep.md'), 'utf8'), body);
+});
+
+test('the managed-file notice lands under the frontmatter, exactly once', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'noted.md'), skillFile('noted'));
+  const [skill] = loadSkills(dir);
+  const lines = skill.files[0].content.split('\n');
+
+  assert.equal(lines.indexOf('---'), 0);
+  assert.equal(lines[lines.indexOf('---', 1) + 2], NOTICE_SENTINEL);
+  assert.equal(skill.files[0].content.split(NOTICE_SENTINEL).length - 1, 1);
+  assert.match(skill.files[0].content, /ali-agent-kit install` replaces it/);
+});
+
+test('withInstallNotice is idempotent and never doubles the notice', () => {
+  const once = withInstallNotice(skillFile('twice'));
+  assert.equal(withInstallNotice(once), once);
+});
+
+test('a source skill carrying the notice itself is rejected', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'preloaded.md'), withInstallNotice(skillFile('preloaded')));
+  assert.throws(() => loadSkills(dir), (error) => {
+    assert.ok(error instanceof SkillError);
+    assert.match(error.message, /managed-file notice/);
+    return true;
+  });
 });
