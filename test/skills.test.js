@@ -173,14 +173,16 @@ test('the managed-file notice lands under the frontmatter, exactly once', () => 
   assert.match(skill.files[0].content, /ali-agent-kit install` replaces it/);
 });
 
-test('a CRLF source gets the notice spaced like an LF one', () => {
+test('a CRLF source comes out entirely CRLF, notice included', () => {
   const dir = tmp();
   writeFileSync(join(dir, 'crlf.md'), '---\r\nname: crlf\r\ndescription: d\r\n---\r\n\r\n# Body\r\n');
   const [skill] = loadSkills(dir);
+  const installed = skill.files[0].content;
 
+  assert.ok(!/(?<!\r)\n/.test(installed), 'no lone LF may survive in a CRLF skill');
   assert.ok(
-    skill.files[0].content.endsWith(`${INSTALL_NOTICE}\n# Body\r\n`),
-    'the blank lines after the frontmatter must be dropped for CRLF too'
+    installed.endsWith(`${INSTALL_NOTICE.replace(/\n/g, '\r\n')}\r\n# Body\r\n`),
+    'the notice follows the frontmatter directly, with the source line ending'
   );
 });
 

@@ -71,19 +71,24 @@ Use `"side": "LEFT"` for deleted lines. Write the JSON to a file and pass `--inp
 
 **On 422** — one line the API will not accept takes the whole batch down with it. The error body names the resource and the field (`line must be part of the diff`), not which entry in `comments` is at fault, so it usually cannot be used to pick the offender out of the batch.
 
-**Check what landed before resending anything.** A 422 is expected to leave nothing behind, but that is an observation, not a documented guarantee, and acting on it blindly is how every finding gets published twice — the exact outcome the single-review rule exists to prevent:
+**Take a snapshot of the existing reviews before publishing.** A 422 is expected to leave nothing behind, but that is an observation, not a documented guarantee, and acting on it blindly is how every finding gets published twice — the exact outcome the single-review rule exists to prevent. A snapshot answers the only question that matters, "did *this* call land", which no filter on the reviews themselves can: a review by a human, or by an earlier run of this skill, sits on the same commit and looks identical.
 
 ```sh
-gh api repos/{owner}/{repo}/pulls/{number}/reviews --jq '.[] | select(.commit_id == "{sha}") | .id'
+# before the POST
+gh api --paginate repos/{owner}/{repo}/pulls/{number}/reviews --jq '.[].id' | sort > {before}
+# after a 422
+gh api --paginate repos/{owner}/{repo}/pulls/{number}/reviews --jq '.[].id' | sort | comm -13 {before} -
 ```
+
+`--paginate` matters: the endpoint returns 30 per page, and a review created beyond the first page would otherwise look like nothing landed and be published a second time.
 
 Then recover:
 
-1. **A review did land** — treat it as published. Do not repost the batch; add only the findings missing from it, one at a time, as in item 3.
-2. **Nothing landed and the message identifies the finding** — drop that one and repost the batch, **once**. If that repost also fails, stop reposting and go to item 3; retrying line by line burns a round trip per bad line and can loop as long as bad lines remain.
+1. **The diff is non-empty — a review did land** — treat it as published. Do not repost the batch; add only the findings missing from it, one at a time, as in item 3.
+2. **The diff is empty and the message identifies the finding** — drop that one and repost the batch, **once**. If that repost also fails, stop reposting and go to item 3; retrying line by line burns a round trip per bad line and can loop as long as bad lines remain.
 
    Two things to get right before reposting. If dropping the finding leaves `comments` empty, **post nothing at all** — that request would create exactly the summary-only review the top of this step forbids, and a submitted review cannot be deleted; tell the user instead that the single finding had no line the API would accept. And if findings remain, rebuild `body` to match how many actually go out: it was written before the drop, so it otherwise announces a question that is no longer there.
-3. **Nothing landed and the offender is unknown, or item 2 has been spent** — post each finding on its own with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST` (`commit_id`, `path`, `line`, `side`, `body`). Each of these calls stands alone: one that returns 201 has published its comment for good, and one that returns 422 has published nothing. Work down the list once, skip the finding whose line the API rejected, and never resend one that already returned 201.
+3. **The diff is empty and the offender is unknown, or item 2 has been spent** — post each finding on its own with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST` (`commit_id`, `path`, `line`, `side`, `body`). Each of these calls stands alone: one that returns 201 has published its comment for good, and one that returns 422 has published nothing. Work down the list once, skip the finding whose line the API rejected, and never resend one that already returned 201.
 
 Do not reply to your own comments, do not resolve them, do not edit the code — publishing findings is the whole job.
 

@@ -22,7 +22,9 @@ This is the one command here that writes anything, and what it writes is bounded
 
 **The base is what this branch merges into, which is not always the repository default.** A repository can default to `main` and still integrate everything through `develop` — diff such a branch against `main` and every `develop` commit it never touched shows up as a finding.
 
-1. **If the branch has a pull request**, `baseRefName` is the answer, full stop: it is the branch the code will be merged into. It comes back as a plain branch name (`develop`), so `{base_ref}` is `origin/develop`.
+These four items resolve `{base}`, the plain branch name, and nothing more. What to diff against is decided once, below, after that branch has been fetched — never here.
+
+1. **If the branch has a pull request**, `baseRefName` is the answer, full stop: it is the branch the code will be merged into, and it comes back as the plain name `develop`.
 
    `gh pr view` exits non-zero for reasons that are not interchangeable, so read the message before deciding what it meant:
 
@@ -33,9 +35,9 @@ This is the one command here that writes anything, and what it writes is bounded
    ```sh
    git ls-remote --symref origin HEAD   # ref: refs/heads/master	HEAD
    ```
-   The `ref:` line names the default branch — `refs/heads/master` means `{base_ref}` is `origin/master`. Asking the remote reports the branch the repository defaults to *now*; a local `refs/remotes/origin/HEAD` can be missing in a fresh clone, and a plain fetch never retargets it after a rename.
+   The `ref:` line names the default branch — `refs/heads/master` means `{base}` is `master`. Asking the remote reports the branch the repository defaults to *now*; a local `refs/remotes/origin/HEAD` can be missing in a fresh clone, and a plain fetch never retargets it after a rename.
 3. **Before settling for the default, check for an integration branch.** If `git ls-remote --heads origin develop` (or `release/*`, `staging`, whatever the repo uses) comes back non-empty, the repository has two plausible bases: ask the user which one to review against rather than assuming the default.
-4. **If nothing resolves** — `ls-remote` fails even though the fetch went through, say on a rate limit — fall back to the local `git symbolic-ref --quiet --short refs/remotes/origin/HEAD`, which already prints a remote-qualified `origin/master`, and say which branch it names. If that prints nothing either, ask. Beyond the fetch above, change nothing that outlives the pass: never run `git remote set-head`, never write to the config, never touch local branches or the working tree.
+4. **If nothing resolves** — `ls-remote` fails even though the fetch went through, say on a rate limit — fall back to the local `git symbolic-ref --quiet --short refs/remotes/origin/HEAD`, which prints `origin/master`; strip the `origin/` to get `{base}`, and say which branch it names. If that prints nothing either, ask. Beyond the fetch above, change nothing that outlives the pass: never run `git remote set-head`, never write to the config, never touch local branches or the working tree.
 
 Whatever the source, state in one line which base was chosen and why before showing findings — a review against the wrong base is worse than no review.
 
@@ -49,7 +51,7 @@ Do this unconditionally rather than checking whether `origin/{base}` exists firs
 
 Fetching by name is also the least invasive form: it leaves `FETCH_HEAD` pointing at the branch without adding a remote-tracking ref the user never had, and a narrow clone is usually narrow on purpose. If this fetch fails, stop, as with any other failed fetch.
 
-With `{base_ref}` resolved — `FETCH_HEAD`, or a remote-qualified ref if one is used instead, so never add a second `origin/`:
+`{base_ref}` is `FETCH_HEAD`, and this is the only place it is defined — never `origin/{base}`, which is precisely the ref that can be stale:
 
 ```sh
 git rev-parse --abbrev-ref HEAD           # current branch

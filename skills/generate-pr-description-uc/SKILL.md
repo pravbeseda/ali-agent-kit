@@ -54,7 +54,7 @@ Compare the current Git branch with `origin/develop` and generate a complete PR 
 
    If more than one path matches, the copies belong to different agent installations and may be different versions. Prefer the one under the config directory of the agent that is running, and say in the chat which file was used.
 
-   **If the file cannot be read anywhere, stop and say so.** Never reconstruct the template, and above all never write the checklists from memory — reproducing them from a file is the entire reason they live in one, and a remembered copy that happens to have 11 `[ ]` items sails through the step 6 check while quietly differing from what the team maintains.
+   **If the file cannot be read anywhere, stop and say so.** Never reconstruct the template, and above all never write the checklists from memory — reproducing them from a file is the entire reason they live in one, and a remembered copy with a plausible number of `[ ]` items sails through the step 6 check while quietly differing from what the team maintains.
 
    The file holds the four dynamic sections as italic placeholders (Problem, Solution, Changes, Affected Areas) followed by the three checklists.
 
@@ -63,11 +63,11 @@ Compare the current Git branch with `origin/develop` and generate a complete PR 
    - Under `# Affected Areas and visual reference`, replace only *"Describe the affected areas of the codebase…"*. Keep *"Provide gif/video of main affected scenarios"* and *"If changes affects various targets … provide proof for each target"* exactly as they are: nobody can produce a recording or a per-target screenshot from a diff, and deleting the lines removes the reminder the team put there. When the changed paths show that several targets are involved, name them next to the targets line instead of dropping it.
    - The same rule holds anywhere else in the template: an italic line asking for evidence stays, an italic line asking for a description gets replaced.
 
-   Everything from `# Review persons Checklist` down is data, not prose to rewrite: reproduce it exactly as read — same wording, same numbering, same 11 `[ ]` items. Never modify or drop a checklist.
+   Everything from `# Review persons Checklist` down is data, not prose to rewrite: reproduce it exactly as read — same wording, same numbering, same `[ ]` items. Never modify or drop a checklist.
 
 6. **Self-check before showing it to the user.** Each check has its own fix:
    - *The sections you wrote* (Problem, Solution, Changes, Affected Areas) — look for a substring of 4+ characters repeating 3 or more times in a row (e.g. `####fected A####fected A####fected A`). This is a real corruption that has been observed in this output, and reading the template from a file does nothing to prevent it, because it happens in the text you generate. If found, redo step 5 for the affected section (up to 2 retries).
-   - *The parts copied from the template* — every `# Section` header present exactly once, and 11 `[ ]` items in total across the three checklists. A failure here means the copy went wrong, not the generation: read `references/pr-template.md` again and reproduce the checklists from it.
+   - *The parts copied from the template* — every `# Section` header present exactly once, and as many `[ ]` items as the template you read in step 4 contains. Count them there rather than against a number written here: the template is maintained by the UC team, and a checklist item added on their side must not turn a faithful copy into a failing one. A mismatch means the copy went wrong, never that the template is wrong — read `references/pr-template.md` again and reproduce the checklists from it, and never edit the output to reach an expected count.
 
 7. **Output the filled template** as a fenced Markdown source code block (` ```markdown ... ``` `) so the user can copy-paste it into the PR on GitHub. After the block, remind the user in one line what the description still needs from them: the gif or video, and the per-target proof when more than one target is affected.
    Do NOT save to a file. Do NOT publish to GitHub. The user handles that manually.

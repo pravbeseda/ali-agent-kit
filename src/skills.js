@@ -151,17 +151,26 @@ function buildSkill(sourceName, files, sourcePath) {
 }
 
 /**
+ * The line ending the source uses. Every line this module writes follows it, so
+ * a CRLF skill does not come out of the installer with mixed endings.
+ */
+function eolOf(raw) {
+  return raw.includes('\r\n') ? '\r\n' : '\n';
+}
+
+/**
  * Put the managed-file notice directly under the frontmatter, so it is the
  * first thing in the body. Takes `rewriteFrontmatter` output, which always has
  * frontmatter, and only ever runs on a source `buildSkill` has already rejected
  * if it carried a notice of its own — so neither case needs handling here.
  */
 function withInstallNotice(raw) {
+  const eol = eolOf(raw);
   const match = raw.match(FRONTMATTER_RE);
   // `\r?\n`, not `\n`: FRONTMATTER_RE accepts CRLF sources, whose body starts
   // with `\r\n` and would keep every blank line the LF case drops.
-  const body = raw.slice(match[0].length);
-  return `${match[0]}\n${INSTALL_NOTICE}\n${body.replace(/^(\r?\n)+/, '')}`;
+  const body = raw.slice(match[0].length).replace(/^(\r?\n)+/, '');
+  return `${match[0]}${eol}${INSTALL_NOTICE.replace(/\n/g, eol)}${eol}${body}`;
 }
 
 export function parseFrontmatter(raw) {
@@ -190,12 +199,13 @@ function unquote(value) {
 
 /** Force `name` (prefixed) into the frontmatter, keeping every other field intact. */
 export function rewriteFrontmatter(raw, { name, description }) {
+  const eol = eolOf(raw);
   const match = raw.match(FRONTMATTER_RE);
   if (!match) {
     const head = ['---', `name: ${name}`];
     if (description) head.push(`description: ${description}`);
     head.push('---', '');
-    return `${head.join('\n')}\n${raw}`;
+    return `${head.join(eol)}${eol}${raw}`;
   }
 
   const lines = match[1].split(/\r?\n/);
@@ -209,5 +219,5 @@ export function rewriteFrontmatter(raw, { name, description }) {
   });
   if (!replaced) next.unshift(`name: ${name}`);
 
-  return `---\n${next.join('\n')}\n---\n${raw.slice(match[0].length)}`;
+  return `---${eol}${next.join(eol)}${eol}---${eol}${raw.slice(match[0].length)}`;
 }

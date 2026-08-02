@@ -94,6 +94,12 @@ description: One line on what the skill does. Use when the user asks for ... —
 
 On install, the `SKILL.md` written to an agent gets that notice inserted under the frontmatter: the copy belongs to the package, and editing it in place loses the change on the next update. Sources in `skills/` stay free of it, so it is never duplicated.
 
+### What belongs in the frontmatter
+
+`name` and `description`, and nothing else by default. `name` is rewritten with the `ali-` prefix on install; `description` is what an agent matches to decide whether to trigger the skill. Any other key is passed through to the installed copy untouched — the loader neither reads nor validates it — so an agent-specific key can be added when an agent documents one, and `allowed-tools` is the usual example.
+
+`user-invocable: true` used to sit in one skill and was removed. It is not what makes a skill available as `/ali-<name>`: in Claude Code the slash command comes from the skill being installed under that name, verified by invoking a skill whose frontmatter has only `name` and `description`. Four of the five skills never carried the field, so it cannot have been gating invocation for them either. Unverified for Copilot CLI and Codex CLI, where it was equally unverified while it was still there — if a slash command ever fails to appear in one of those, this is the first thing to test.
+
 Deleting a skill file is enough to have it removed from every consumer on their next update.
 
 Agent-specific extras live in the skill: Codex reads `agents/openai.yaml` for its display name and starter prompt, other agents ignore it.

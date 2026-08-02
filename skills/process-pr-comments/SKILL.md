@@ -55,6 +55,8 @@ Two details that decide whether "every unresolved comment" is true:
 
 - **Page through.** While `pageInfo.hasNextPage`, repeat the query with `reviewThreads(first: 100, after: "{endCursor}")`. A truncated list looks exactly like a complete one.
 - **Take the tail of each thread, and always keep its head.** `comments(last: 20)` because the newest replies hold the current state — a thread can be settled in its last reply and still sit at `isResolved: false` because nobody clicked resolve. Judge the thread by its end, not its opening. `root` is fetched separately so the original objection is never among the comments the tail drops; it also carries the `databaseId` to reply to in step 4.
+
+  **`root` is usually a duplicate, not an extra comment.** The tail counts back from the end of the whole thread, so for any thread of 20 or fewer — which is nearly all of them — it already contains the opening comment, and `root.nodes[0].databaseId` equals the `databaseId` of the tail's first entry. Read the thread once: `root` is there to guarantee the head is present and to address the reply, not to be weighed as a separate objection. Treating it as one makes a single argument look like it was raised twice.
 - **Notice when a thread is truncated.** `totalCount` is the full length of the thread, and it counts the root comment as well. What you hold is the root plus the comments the tail returned, so the thread is complete while `totalCount` is at most one more than the number of comments in the tail — with `last: 20`, anything up to 21 (the root, plus comments 2 through 21). Only above that does a middle exist that neither part covers. Do not judge such a thread from what you have — read it in full first, by asking for that one thread by its node id:
 
   ```sh
@@ -142,10 +144,11 @@ When no unresolved thread is left, end with a verdict on whether the PR should g
 
 **The rule:** while a round is still finding things that change behaviour, another round pays for itself. Once a round produces only wording and polish, stop — the next one will cost attention and return noise.
 
-Sort every thread of this pass into exactly one of three buckets, by **what the assessment concluded**, never by what the comment claimed. `N` counts threads, not assessments: when step 3 settled several threads in one go, each of them still gets its own bucket — usually the same one, but a grouped assessment that accepted one thread and rejected another splits them. That keeps `B + P + R == N` exact and the number equal to what the PR shows as resolved:
+Sort every thread of this pass into exactly one of four buckets, by **what the assessment concluded**, never by what the comment claimed. `N` counts threads, not assessments: when step 3 settled several threads in one go, each of them still gets its own bucket — usually the same one, but a grouped assessment that accepted one thread and rejected another splits them. That keeps `B + P + S + R == N` exact and the number equal to what the PR shows as resolved:
 
 - **B — behaviour-changing.** Accepted, and it was about a wrong result or a crash, a call that cannot succeed as written, a silently wrong default, a lost error, a missing case in the logic, or a check that was removed and still had a job to do.
 - **P — polish.** Accepted, but it was about wording, naming, comment phrasing, ordering, formatting, a test that reads weaker than it is, or restating something already true elsewhere.
+- **S — settled earlier.** The thread already recorded its outcome before this pass, so step 4 posted nothing and only clicked resolve. It belongs to whichever round did the work, not this one: counting it as `B` would recommend another round for work already finished, and counting it as `R` would misreport a reviewer whose point was taken.
 - **R — rejected.** The comment was not acted on. A rejected comment lands here whatever it claimed: one that predicted a crash but turned out not to apply is `R`, not `B`, because there is no defect for the next round to find.
 
 Only `B` moves the verdict.
@@ -154,7 +157,7 @@ Print it as the last block of the pass, with the verdict on its own line and not
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-This pass: {N} threads — {B} behavioural, {P} polish, {R} rejected
+This pass: {N} threads — {B} behavioural, {P} polish, {S} settled earlier, {R} rejected
 Heaviest find: {one line, or "none"}
 
 ## 🔁 RECOMMENDATION: ANOTHER ROUND
