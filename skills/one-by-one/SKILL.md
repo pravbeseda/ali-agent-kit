@@ -1,21 +1,23 @@
 ---
 name: one-by-one
-description: Work through the open questions in a plan one at a time — context, options with a rated comparison, a recommendation, then record the decision in the plan file. Use when the user asks to "go through the questions one by one", "resolve the plan questions", or runs /ali-one-by-one.
+description: Work through the open questions in a plan or list one at a time — context, options with a rated comparison, a recommendation — record each decision, then implement what was decided. Use when the user asks to "go through the questions one by one", "resolve the plan questions", or runs /ali-one-by-one.
 ---
 
-# Resolve plan questions one by one
+# Resolve the open questions one by one, then build it
 
-## 1. Find the plan
+The point of this skill is not to produce a plan. It is to get every open question answered and then implement the result.
 
-- If the conversation already has a plan with questions (Q1, Q2, Q3…), use it.
-- Otherwise ask the user which plan file to work through.
-- Read the file and collect every question (`### Q1:`, `## Q1`, `**Q1**`, and similar).
+## 1. Find the questions
+
+- If the conversation already holds a plan or a list with questions (Q1, Q2, Q3…), use it as it stands — it does not have to exist as a file.
+- Otherwise ask the user which plan file to work through, read it, and collect every question (`### Q1:`, `## Q1`, `**Q1**`, and similar).
+- Note whether the questions came from a file: that decides where decisions get recorded in step 4.
 
 ## 2. Pick the next open question
 
 - Look for decision markers next to each question: `**Decision:**`, `✅`, `[x]`.
 - Take the first question **without** one.
-- If every question is resolved, say so and offer the final plan (see [Final plan](#final-plan)).
+- If every question is resolved, go to [step 5](#5-implement).
 
 ## 3. Present the question
 
@@ -53,20 +55,21 @@ My pick: **Option {X}**
 
 Once the user picks an option (or proposes their own):
 
-- Update the plan file: add `**Decision:** {chosen option and a short rationale}` under the question.
-- If the question carried a `[ ]` checkbox, flip it to `[x]`.
+- Record the decision. If the questions came from a file, write `**Decision:** {chosen option and a short rationale}` under the question there, and flip a `[ ]` checkbox to `[x]`. If they live only in the conversation, keep the running list of decisions in your confirmation lines instead — do not create a file for it.
 - Confirm briefly: "Q{N} resolved. {M} left."
 - **Go straight to the next open question** (step 2 → 3) — do not wait to be invoked again.
-- Keep the loop running (present → answer → update the file → next) until every question is resolved, then offer the final plan.
+- Keep the loop running (present → answer → record → next) until every question is resolved.
 
-## Final plan
+## 5. Implement
 
-Only when the user accepts the offer. It is a rewrite of the plan with the questions gone:
+Once no open question is left, do not stop to write a polished plan document — build what was decided.
 
-- Every `Q{N}` section is replaced by what was decided, written as the plan's own prose — what will be done, not "we picked option B".
-- The rationale behind each decision survives in one sentence; the options that lost do not.
-- Anything the plan already stated outside the questions is carried over unchanged.
-- Write it to a new file next to the original (`{plan}-final.md`) and never overwrite the original — the question-by-question record is the audit trail of how the plan got here.
+- Restate the decisions as one compact list, so the user sees what is about to be built.
+- Implement them, in an order the dependencies between the decisions allow.
+- Follow the project's conventions and its CLAUDE.md / AGENTS.md, and run whatever check the project uses before calling the work done.
+- If a decision turns out to be unbuildable as chosen, stop at that point, say what broke, and put the question back to the user in the step 3 format rather than silently picking something else.
+
+Write a summary document only if the user asks for one; it is not part of this loop.
 
 ## Rules
 
@@ -78,5 +81,6 @@ Only when the user accepts the offer. It is a rewrite of the plan with the quest
 
 ## Language
 
-- Discussion with the user — the language they write in.
+- Discussion with the user — the language they write in, or the chat language configured by the user, if one is defined.
 - What you write into the plan file — the language the plan itself is written in.
+- Code, comments and commits from step 5 — the conventions of the project being changed.

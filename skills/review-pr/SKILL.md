@@ -53,6 +53,7 @@ gh api repos/{owner}/{repo}/pulls/{number}/reviews -X POST --input - <<'JSON'
 {
   "commit_id": "{sha}",
   "event": "COMMENT",
+  "body": "{one line naming what was reviewed and how many questions follow}",
   "comments": [
     { "path": "{path}", "line": {line}, "side": "RIGHT", "body": "{the finding, in English}" }
   ]
@@ -60,17 +61,25 @@ gh api repos/{owner}/{repo}/pulls/{number}/reviews -X POST --input - <<'JSON'
 JSON
 ```
 
+The top-level `body` is required by the API whenever `event` is `COMMENT` or `REQUEST_CHANGES` — without it the call fails with 422 before any line is even looked at. Keep it to a single sentence; the findings live in `comments`, not in the summary.
+
 Use `"side": "LEFT"` for deleted lines. Write the JSON to a file and pass `--input {file}` instead when a finding's body contains characters that would be awkward inside a heredoc.
 
-**On 422** — a line the API will not accept takes the whole batch down with it. Read which entry it names, drop that one finding, and retry **once**. Never retry the same payload unchanged, and never re-post the entries that a successful call already published.
+**On 422** — one line the API will not accept takes the whole batch down with it, and a 422 creates nothing at all: no review, no comments, nothing to clean up or avoid re-sending.
+
+The error body names the resource and the field (`line must be part of the diff`), not which entry in `comments` is at fault, so it usually cannot be used to pick the offender out of the batch. Recover like this:
+
+1. If the message does identify the finding, drop that one and repost the batch.
+2. Otherwise fall back to posting each finding on its own with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST` (`commit_id`, `path`, `line`, `side`, `body`). The bad ones fail one by one, every other finding still lands. This gives up the single-notification property, which is the right trade — a degraded review beats a lost one.
+3. Never retry an unchanged payload, and never repost a finding that already went through in step 2.
 
 Do not reply to your own comments, do not resolve them, do not edit the code — publishing findings is the whole job.
 
-When done, print one summary line: how many comments were posted, in which files, and which findings were dropped on 422.
+When done, print one summary line: how many comments were posted, in which files, which findings were dropped on 422, and whether they went out as one review or as separate comments.
 
 ## Language
 
-- Discussion with the user — the language they write in.
+- Discussion with the user — the language they write in, or the chat language configured by the user, if one is defined.
 - Comments posted to the PR — always English.
 
 ## Extra context

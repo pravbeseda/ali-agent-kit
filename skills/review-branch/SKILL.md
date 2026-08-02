@@ -13,17 +13,19 @@ Resolve the base branch first — never assume `main`, and never diff against a 
 
 ```sh
 git fetch origin --quiet
-git symbolic-ref --quiet --short refs/remotes/origin/HEAD   # e.g. origin/master
+git ls-remote --symref origin HEAD   # ref: refs/heads/master	HEAD
 ```
 
-If that prints nothing (a fresh or shallow clone often has no `origin/HEAD`), run `git remote set-head origin --auto` and try again; if it still fails, ask the user which branch to compare against instead of guessing.
+Read the default branch from the `ref:` line — `refs/heads/master` means the base is `master`, so `{base_ref}` is `origin/master`. This asks the remote directly, so it stays read-only and reports the branch the repository defaults to *now*; a local `refs/remotes/origin/HEAD` can be missing in a fresh clone, and a plain fetch never retargets it after the default branch is renamed.
 
-Then, with `origin/{base}` from above:
+If the command fails (no network, no such remote), fall back to the local ref — `git symbolic-ref --quiet --short refs/remotes/origin/HEAD`, which already prints a remote-qualified `origin/master`. Say that the answer comes from a possibly stale local ref. If that prints nothing either, ask the user which branch to compare against instead of guessing, and never run `git remote set-head` or any other command that writes to their repository.
+
+With `{base_ref}` resolved — a remote-qualified ref, so never add a second `origin/`:
 
 ```sh
-git rev-parse --abbrev-ref HEAD               # current branch
-git diff origin/{base}...HEAD --name-status   # changed files
-git diff origin/{base}...HEAD                 # full diff
+git rev-parse --abbrev-ref HEAD           # current branch
+git diff {base_ref}...HEAD --name-status  # changed files
+git diff {base_ref}...HEAD                # full diff
 ```
 
 The three-dot form compares against the merge base, so commits that landed on the base branch after this one forked stay out of the review.
@@ -52,4 +54,4 @@ Wait for the user's decision before changing anything. After applying or skippin
 
 ## Language
 
-Conduct the review in the language the user writes in.
+Conduct the review in the language the user writes in, or the chat language configured by the user, if one is defined.

@@ -32,8 +32,9 @@ query {
         nodes {
           id
           isResolved
-          root: comments(first: 1) { nodes { databaseId } }
+          root: comments(first: 1) { nodes { databaseId body path line author { login } } }
           comments(last: 20) {
+            totalCount
             nodes {
               id
               body
@@ -53,7 +54,8 @@ query {
 Two details that decide whether "every unresolved comment" is true:
 
 - **Page through.** While `pageInfo.hasNextPage`, repeat the query with `reviewThreads(first: 100, after: "{endCursor}")`. A truncated list looks exactly like a complete one.
-- **Take the tail of each thread.** `comments(last: 20)` because the newest replies hold the current state — a thread can be settled in its last reply and still sit at `isResolved: false` because nobody clicked resolve. Judge the thread by its end, not its opening. `root` carries the `databaseId` of the first comment, which is the one to reply to in step 4.
+- **Take the tail of each thread, and always keep its head.** `comments(last: 20)` because the newest replies hold the current state — a thread can be settled in its last reply and still sit at `isResolved: false` because nobody clicked resolve. Judge the thread by its end, not its opening. `root` is fetched separately so the original objection is never among the comments the tail drops; it also carries the `databaseId` to reply to in step 4.
+- **Notice when a thread is truncated.** `totalCount` is the full length of the thread, so `totalCount > 20` means everything between the root and the last 20 replies is missing from the response. Do not judge such a thread from what you have — read it in full first with `gh api repos/{owner}/{repo}/pulls/comments/{root_databaseId}` plus the thread's replies, or say in step 3 that the middle of the discussion was not read. A verdict like "this was already agreed" is exactly the one a missing middle makes wrong.
 
 Keep only threads where `isResolved == false` and store each thread `id`. Ignore resolved threads entirely.
 
@@ -114,9 +116,48 @@ Once the user decides:
 
 > **Note:** `PullRequestReviewComment` has no `pullRequestReviewThread` field. Thread IDs must come from the PR's `reviewThreads` (step 1).
 
+## Step 5. Close the pass: is another review round worth it?
+
+When no unresolved thread is left, end with a verdict on whether the PR should go through another review round. Judge it by what **this** pass turned up, not by how many comments there were.
+
+**The rule:** while a round is still finding things that change behaviour, another round pays for itself. Once a round produces only wording and polish, stop — the next one will cost attention and return noise.
+
+Counts as behaviour-changing: a wrong result or a crash, a call that cannot succeed as written, a silently wrong default, a lost error, a missing case in the logic, a check that was removed and still had a job to do.
+
+Counts as polish: "the wording is imprecise", "this test is weaker than it looks", naming, comment phrasing, ordering, formatting, restating something already true elsewhere.
+
+Print it as the last block of the pass, with the verdict on its own line and nothing after it:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+This pass: {N} threads — {B} behavioural, {P} polish, {R} rejected
+Heaviest find: {one line, or "none"}
+
+## 🔁 RECOMMENDATION: ANOTHER ROUND
+{one or two sentences: which behavioural findings justify it,
+and which area they cluster in}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+When the pass produced only polish, the block is the same with the verdict line replaced by:
+
+```
+## ✅ RECOMMENDATION: STOP HERE
+{one or two sentences: this round found only wording-level items,
+so the code is not what is holding the PR back}
+```
+
+Rules for the verdict:
+
+- Exactly one of the two lines, never both, never a hedged "maybe one more".
+- Base it on the findings of this pass only. A long queue of comments that all turned out to be polish still means stop.
+- A single behavioural finding is enough to recommend another round. Behavioural defects cluster; a round rarely finds exactly one.
+- Rejected comments count towards neither side — they say something about the reviewer, not about the code.
+- It is a recommendation. If the user asks for another round after a stop verdict, run it without arguing.
+
 ## Language
 
-- Discussion with the user — the language they write in.
+- Discussion with the user — the language they write in, or the chat language configured by the user, if one is defined.
 - Replies posted to GitHub — always English.
 
 ## Extra context
