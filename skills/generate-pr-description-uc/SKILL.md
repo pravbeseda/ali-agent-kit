@@ -1,11 +1,11 @@
 ---
-name: generate-pr-description
-description: Generate a PR description in Markdown by comparing the current branch with origin/develop, following the project's PR template. Use when the user asks to "write the PR description", "generate a description for this PR", or runs /ali-generate-pr-description.
+name: generate-pr-description-uc
+description: Generate a PR description for the Unite Client (UC) project in Markdown by comparing the current branch with origin/develop and filling the UC pull request template — Problem, Solution, Changes, Affected Areas plus the mandatory review, testing and self checklists. Use only in Unite Client repositories, when the user asks to "write the PR description", "generate a description for this PR", or runs /ali-generate-pr-description-uc.
 ---
 
 # Goal
 
-Compare the current Git branch with `origin/develop` and generate a complete PR description in Markdown format following the project's standard template. Output the result as a raw Markdown source block so the user can copy-paste it into the PR manually.
+Compare the current Git branch with `origin/develop` and generate a complete PR description in Markdown format following the standard pull request template of the **Unite Client** project. Output the result as a raw Markdown source block so the user can copy-paste it into the PR manually.
 
 # Steps
 
