@@ -23,6 +23,12 @@ This is the one command here that writes anything, and what it writes is bounded
 **The base is what this branch merges into, which is not always the repository default.** A repository can default to `main` and still integrate everything through `develop` — diff such a branch against `main` and every `develop` commit it never touched shows up as a finding.
 
 1. **If the branch has a pull request**, `baseRefName` is the answer, full stop: it is the branch the code will be merged into. It comes back as a plain branch name (`develop`), so `{base_ref}` is `origin/develop`.
+
+   `gh pr view` exits non-zero for reasons that are not interchangeable, so read the message before deciding what it meant:
+
+   - **No pull request for this branch** — the ordinary case. Continue with item 2.
+   - **`gh` is missing, or `origin` is not GitHub at all** — there can be no pull request to find. Say so in one line and continue with item 2.
+   - **Anything else** — `HTTP 401: Bad credentials`, a network error, an API error. Stop, exactly as a failed fetch does. A pull request may well exist with a base that is not the default, and reviewing against the default here produces a diff full of commits the branch never touched while looking like an ordinary run. Say which error came back, so the user can fix it or name the base themselves.
 2. **If it has none**, fall back to the repository default, read-only:
    ```sh
    git ls-remote --symref origin HEAD   # ref: refs/heads/master	HEAD
@@ -33,16 +39,17 @@ This is the one command here that writes anything, and what it writes is bounded
 
 Whatever the source, state in one line which base was chosen and why before showing findings — a review against the wrong base is worse than no review.
 
-**Check that `{base_ref}` exists locally before diffing against it.** A `--single-branch` or otherwise narrow clone has a fetch refspec covering one branch, so `git fetch origin` never creates `origin/develop` no matter how correctly the base was resolved — and the better step 1 did its job, the more likely this is, since `baseRefName` names the real base rather than the one branch the clone happens to track.
+**Fetch the base branch by name, always, and diff from `FETCH_HEAD`:**
 
 ```sh
-git rev-parse --verify --quiet {base_ref}   # non-zero exit: the ref is not in this clone
-git fetch origin {base} --quiet             # only when it is missing; then use FETCH_HEAD as {base_ref}
+git fetch origin {base} --quiet   # {base} is the plain branch name; then {base_ref} is FETCH_HEAD
 ```
 
-Fetching the branch by name leaves `FETCH_HEAD` pointing at it without adding a remote-tracking ref the user never had — a narrow clone is usually narrow on purpose. If that fetch fails too, stop, as with any other failed fetch.
+Do this unconditionally rather than checking whether `origin/{base}` exists first. A `--single-branch` or otherwise narrow clone has a fetch refspec covering one branch, so the generic `git fetch origin` above never creates `origin/develop` — and worse, a stale `origin/develop` left over from an earlier refspec or a one-off manual fetch stays in the clone forever without ever being updated. An existence check passes on exactly that ref and diffs against a month-old base, which is the same silent wrong-base failure this whole step exists to prevent, and silent is worse than broken.
 
-With `{base_ref}` resolved and present — a remote-qualified ref or `FETCH_HEAD`, so never add a second `origin/`:
+Fetching by name is also the least invasive form: it leaves `FETCH_HEAD` pointing at the branch without adding a remote-tracking ref the user never had, and a narrow clone is usually narrow on purpose. If this fetch fails, stop, as with any other failed fetch.
+
+With `{base_ref}` resolved — `FETCH_HEAD`, or a remote-qualified ref if one is used instead, so never add a second `origin/`:
 
 ```sh
 git rev-parse --abbrev-ref HEAD           # current branch

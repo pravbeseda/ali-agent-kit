@@ -69,12 +69,21 @@ The top-level `body` is required by the API whenever `event` is `COMMENT` or `RE
 
 Use `"side": "LEFT"` for deleted lines. Write the JSON to a file and pass `--input {file}` instead when a finding's body contains characters that would be awkward inside a heredoc.
 
-**On 422** — one line the API will not accept takes the whole batch down with it, and a 422 creates nothing at all: no review, no comments, nothing to clean up or avoid re-sending.
+**On 422** — one line the API will not accept takes the whole batch down with it. The error body names the resource and the field (`line must be part of the diff`), not which entry in `comments` is at fault, so it usually cannot be used to pick the offender out of the batch.
 
-The error body names the resource and the field (`line must be part of the diff`), not which entry in `comments` is at fault, so it usually cannot be used to pick the offender out of the batch. Recover like this:
+**Check what landed before resending anything.** A 422 is expected to leave nothing behind, but that is an observation, not a documented guarantee, and acting on it blindly is how every finding gets published twice — the exact outcome the single-review rule exists to prevent:
 
-1. If the message does identify the finding, drop that one and repost the batch. Never repost the payload unchanged — the same batch fails the same way.
-2. Otherwise fall back to posting each finding on its own with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST` (`commit_id`, `path`, `line`, `side`, `body`). Each of these calls stands alone: one that returns 201 has published its comment for good, and one that returns 422 has published nothing. Work down the list once, skip the finding whose line the API rejected, and never resend one that already returned 201.
+```sh
+gh api repos/{owner}/{repo}/pulls/{number}/reviews --jq '.[] | select(.commit_id == "{sha}") | .id'
+```
+
+Then recover:
+
+1. **A review did land** — treat it as published. Do not repost the batch; add only the findings missing from it, one at a time, as in item 3.
+2. **Nothing landed and the message identifies the finding** — drop that one and repost the batch, **once**. If that repost also fails, stop reposting and go to item 3; retrying line by line burns a round trip per bad line and can loop as long as bad lines remain.
+
+   Two things to get right before reposting. If dropping the finding leaves `comments` empty, **post nothing at all** — that request would create exactly the summary-only review the top of this step forbids, and a submitted review cannot be deleted; tell the user instead that the single finding had no line the API would accept. And if findings remain, rebuild `body` to match how many actually go out: it was written before the drop, so it otherwise announces a question that is no longer there.
+3. **Nothing landed and the offender is unknown, or item 2 has been spent** — post each finding on its own with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST` (`commit_id`, `path`, `line`, `side`, `body`). Each of these calls stands alone: one that returns 201 has published its comment for good, and one that returns 422 has published nothing. Work down the list once, skip the finding whose line the API rejected, and never resend one that already returned 201.
 
 Do not reply to your own comments, do not resolve them, do not edit the code — publishing findings is the whole job.
 

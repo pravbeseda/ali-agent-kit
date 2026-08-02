@@ -45,10 +45,14 @@ Compare the current Git branch with `origin/develop` and generate a complete PR 
 4. **Read the template — this is a precondition, not a best effort.** Read `references/pr-template.md` from **this skill's own directory**, not from the current working directory: the relative path resolves against the project the user happens to be in, where no such file exists. If the agent states the skill's base directory, read it from there. Otherwise try the installed locations directly, whichever exists:
 
    ```bash
-   ls ~/.claude/skills/ali-generate-pr-description-uc/references/pr-template.md \
-      ~/.codex/skills/ali-generate-pr-description-uc/references/pr-template.md \
-      ~/.copilot/skills/ali-generate-pr-description-uc/references/pr-template.md 2>/dev/null
+   for base in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "${COPILOT_CONFIG_DIR:-$HOME/.copilot}"; do
+     ls "$base/skills/ali-generate-pr-description-uc/references/pr-template.md" 2>/dev/null
+   done
    ```
+
+   Those three variables are what the installer itself resolves the config directory from, so a plain `~/.claude/...` guess misses the file whenever one of them is set — which is exactly when the user has configured things deliberately.
+
+   If more than one path matches, the copies belong to different agent installations and may be different versions. Prefer the one under the config directory of the agent that is running, and say in the chat which file was used.
 
    **If the file cannot be read anywhere, stop and say so.** Never reconstruct the template, and above all never write the checklists from memory — reproducing them from a file is the entire reason they live in one, and a remembered copy that happens to have 11 `[ ]` items sails through the step 6 check while quietly differing from what the team maintains.
 

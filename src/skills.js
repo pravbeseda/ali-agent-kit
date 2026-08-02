@@ -158,8 +158,10 @@ function buildSkill(sourceName, files, sourcePath) {
  */
 function withInstallNotice(raw) {
   const match = raw.match(FRONTMATTER_RE);
+  // `\r?\n`, not `\n`: FRONTMATTER_RE accepts CRLF sources, whose body starts
+  // with `\r\n` and would keep every blank line the LF case drops.
   const body = raw.slice(match[0].length);
-  return `${match[0]}\n${INSTALL_NOTICE}\n${body.replace(/^\n+/, '')}`;
+  return `${match[0]}\n${INSTALL_NOTICE}\n${body.replace(/^(\r?\n)+/, '')}`;
 }
 
 export function parseFrontmatter(raw) {
