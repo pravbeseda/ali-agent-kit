@@ -46,20 +46,24 @@ A finding can only be attached to a line that actually appears in the diff — a
 
 ## Step 3. Publish
 
-No questions, no confirmations: publish all findings straight away, as **one** review — a human reviewer leaves a single review, not eight loose comments. One call, so the author gets one notification and a half-published review is impossible:
+**With no findings, publish nothing.** Not an empty review, not a summary-only one, not an approval — make no call at all, and tell the user in the chat what was reviewed and why it came back clean. A review carrying a summary sentence and an empty `comments` array is now a perfectly valid request, so nothing stops it but this rule, and once submitted it cannot be deleted, only dismissed. Deciding the PR is fine is the user's call to make, not a by-product of finding nothing.
+
+With findings: no questions, no confirmations — publish them straight away, as **one** review, because a human reviewer leaves a single review, not eight loose comments. One call, so the author gets one notification and a half-published review is impossible:
 
 ```sh
 gh api repos/{owner}/{repo}/pulls/{number}/reviews -X POST --input - <<'JSON'
 {
   "commit_id": "{sha}",
   "event": "COMMENT",
-  "body": "{one line naming what was reviewed and how many questions follow}",
+  "body": "🤖 {one line naming what was reviewed and how many questions follow}",
   "comments": [
-    { "path": "{path}", "line": {line}, "side": "RIGHT", "body": "{the finding, in English}" }
+    { "path": "{path}", "line": {line}, "side": "RIGHT", "body": "🤖 {the finding, in English}" }
   ]
 }
 JSON
 ```
+
+**Every body published by this skill opens with 🤖.** The summary and each finding alike, including the ones sent one at a time in the 422 fallback below. A reader who meets a single inline comment on a line should be able to tell at a glance that a machine wrote it, without having to find the review it belongs to. Nothing else is added — no name, no tool, no signature.
 
 The top-level `body` is required by the API whenever `event` is `COMMENT` or `REQUEST_CHANGES` — without it the call fails with 422 before any line is even looked at. Keep it to a single sentence; the findings live in `comments`, not in the summary.
 

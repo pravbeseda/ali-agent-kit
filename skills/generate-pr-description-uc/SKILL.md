@@ -42,7 +42,17 @@ Compare the current Git branch with `origin/develop` and generate a complete PR 
    - What specific changes were made
    - What areas of the codebase are affected
 
-4. **Read the template.** Read `references/pr-template.md` from this skill's directory. It holds the four dynamic sections as italic placeholders (Problem, Solution, Changes, Affected Areas) followed by the three checklists.
+4. **Read the template — this is a precondition, not a best effort.** Read `references/pr-template.md` from **this skill's own directory**, not from the current working directory: the relative path resolves against the project the user happens to be in, where no such file exists. If the agent states the skill's base directory, read it from there. Otherwise try the installed locations directly, whichever exists:
+
+   ```bash
+   ls ~/.claude/skills/ali-generate-pr-description-uc/references/pr-template.md \
+      ~/.codex/skills/ali-generate-pr-description-uc/references/pr-template.md \
+      ~/.copilot/skills/ali-generate-pr-description-uc/references/pr-template.md 2>/dev/null
+   ```
+
+   **If the file cannot be read anywhere, stop and say so.** Never reconstruct the template, and above all never write the checklists from memory — reproducing them from a file is the entire reason they live in one, and a remembered copy that happens to have 11 `[ ]` items sails through the step 6 check while quietly differing from what the team maintains.
+
+   The file holds the four dynamic sections as italic placeholders (Problem, Solution, Changes, Affected Areas) followed by the three checklists.
 
 5. **Fill the template in place.** Replace the italic placeholder lines under each dynamic heading with what step 3 found — but only the ones that ask for a description. Some italic lines are requests to the author, not placeholders for you:
 

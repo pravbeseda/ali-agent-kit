@@ -8,7 +8,6 @@ import {
   prefixed,
   parseFrontmatter,
   rewriteFrontmatter,
-  withInstallNotice,
   SkillError
 } from '../src/skills.js';
 import { skillsSourceDir, MARKER, INSTALL_NOTICE, NOTICE_SENTINEL } from '../src/config.js';
@@ -174,14 +173,9 @@ test('the managed-file notice lands under the frontmatter, exactly once', () => 
   assert.match(skill.files[0].content, /ali-agent-kit install` replaces it/);
 });
 
-test('withInstallNotice is idempotent and never doubles the notice', () => {
-  const once = withInstallNotice(skillFile('twice'));
-  assert.equal(withInstallNotice(once), once);
-});
-
 test('a source skill carrying the notice itself is rejected', () => {
   const dir = tmp();
-  writeFileSync(join(dir, 'preloaded.md'), withInstallNotice(skillFile('preloaded')));
+  writeFileSync(join(dir, 'preloaded.md'), `${skillFile('preloaded')}\n${NOTICE_SENTINEL}\n`);
   assert.throws(() => loadSkills(dir), (error) => {
     assert.ok(error instanceof SkillError);
     assert.match(error.message, /managed-file notice/);

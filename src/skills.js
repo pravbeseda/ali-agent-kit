@@ -152,14 +152,12 @@ function buildSkill(sourceName, files, sourcePath) {
 
 /**
  * Put the managed-file notice directly under the frontmatter, so it is the
- * first thing in the body. Without frontmatter it goes to the very top.
+ * first thing in the body. Takes `rewriteFrontmatter` output, which always has
+ * frontmatter, and only ever runs on a source `buildSkill` has already rejected
+ * if it carried a notice of its own — so neither case needs handling here.
  */
-export function withInstallNotice(raw) {
-  if (raw.includes(NOTICE_SENTINEL)) return raw;
-
+function withInstallNotice(raw) {
   const match = raw.match(FRONTMATTER_RE);
-  if (!match) return `${INSTALL_NOTICE}\n${raw}`;
-
   const body = raw.slice(match[0].length);
   return `${match[0]}\n${INSTALL_NOTICE}\n${body.replace(/^\n+/, '')}`;
 }
