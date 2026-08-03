@@ -48,7 +48,17 @@ A finding can only be attached to a line that actually appears in the diff — a
 
 **With no findings, publish nothing.** Not an empty review, not a summary-only one, not an approval — make no call at all, and tell the user in the chat what was reviewed and why it came back clean. A review carrying a summary sentence and an empty `comments` array is now a perfectly valid request, so nothing stops it but this rule, and once submitted it cannot be deleted, only dismissed. Deciding the PR is fine is the user's call to make, not a by-product of finding nothing.
 
-With findings: no questions, no confirmations — publish them straight away, as **one** review, because a human reviewer leaves a single review, not eight loose comments. One call, so the author gets one notification and a half-published review is impossible:
+With findings: no questions, no confirmations — publish them straight away, as **one** review, because a human reviewer leaves a single review, not eight loose comments. One call, so the author gets one notification and a half-published review is impossible.
+
+**First snapshot the existing reviews — this is the baseline the 422 recovery below diffs against, and it only works taken before the POST, never after.** A 422 is expected to leave nothing behind, but that is an observation, not a documented guarantee, and acting on it blindly is how every finding gets published twice — the exact outcome the single-review rule exists to prevent.
+
+```sh
+gh api --paginate repos/{owner}/{repo}/pulls/{number}/reviews --jq '.[].id' | sort > {before}
+```
+
+`--paginate` matters: the endpoint returns 30 per page, and a review created beyond the first page would otherwise look like nothing landed and be published a second time.
+
+Then post the review:
 
 ```sh
 gh api repos/{owner}/{repo}/pulls/{number}/reviews -X POST --input - <<'JSON'
@@ -71,16 +81,11 @@ Use `"side": "LEFT"` for deleted lines. Write the JSON to a file and pass `--inp
 
 **On 422** — one line the API will not accept takes the whole batch down with it. The error body names the resource and the field (`line must be part of the diff`), not which entry in `comments` is at fault, so it usually cannot be used to pick the offender out of the batch.
 
-**Take a snapshot of the existing reviews before publishing.** A 422 is expected to leave nothing behind, but that is an observation, not a documented guarantee, and acting on it blindly is how every finding gets published twice — the exact outcome the single-review rule exists to prevent.
+Diff the current reviews against the baseline captured before the POST to see whether anything landed despite the error:
 
 ```sh
-# before the POST
-gh api --paginate repos/{owner}/{repo}/pulls/{number}/reviews --jq '.[].id' | sort > {before}
-# after a 422
 gh api --paginate repos/{owner}/{repo}/pulls/{number}/reviews --jq '.[].id' | sort | comm -13 {before} -
 ```
-
-`--paginate` matters: the endpoint returns 30 per page, and a review created beyond the first page would otherwise look like nothing landed and be published a second time.
 
 **A new id is a candidate, not an answer.** Anything submitted while the POST was in flight — a human reviewer, a bot, another run of this skill — also shows up in that difference, and mistaking it for this call means silently dropping every finding. Confirm a candidate before believing it:
 
@@ -95,7 +100,7 @@ A candidate is this call only if the author is the authenticated login, `commit_
 Then recover:
 
 1. **A candidate is confirmed — this review did land** — treat it as published. Do not repost the batch. Compare its comments with the findings and post only those absent from it, one at a time, as in item 3; that same read is what makes "missing" a decidable question rather than a guess.
-2. **No candidate qualifies and the message identifies the finding** — drop that one and repost the batch, **once**. If that repost also fails, stop reposting and go to item 3; retrying line by line burns a round trip per bad line and can loop as long as bad lines remain.
+2. **No candidate qualifies and the message identifies the finding** — drop that one and repost the batch, **once**. If that repost also returns 422, run the candidate check from item 1 again — against the same snapshot taken before any POST, which is still valid — because the repost is a second POST to the reviews endpoint and can create a review despite the 422, exactly like the first one. Then stop reposting and go to item 3 only for the findings that no confirmed candidate already carries; retrying line by line burns a round trip per bad line and can loop as long as bad lines remain.
 
    Two things to get right before reposting. If dropping the finding leaves `comments` empty, **post nothing at all** — that request would create exactly the summary-only review the top of this step forbids, and a submitted review cannot be deleted; tell the user instead that the single finding had no line the API would accept. And if findings remain, rebuild `body` to match how many actually go out: it was written before the drop, so it otherwise announces a question that is no longer there.
 3. **No candidate qualifies and the offender is unknown, or item 2 has been spent** — post each finding on its own with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST` (`commit_id`, `path`, `line`, `side`, `body`). Each of these calls stands alone: one that returns 201 has published its comment for good, and one that returns 422 has published nothing. Work down the list once, skip the finding whose line the API rejected, and never resend one that already returned 201.

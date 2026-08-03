@@ -52,7 +52,7 @@ Compare the current Git branch with `origin/develop` and generate a complete PR 
 
    Those three variables are what the installer itself resolves the config directory from, so a plain `~/.claude/...` guess misses the file whenever one of them is set — which is exactly when the user has configured things deliberately.
 
-   If more than one path matches, the copies belong to different agent installations and may be different versions. Prefer the one under the config directory of the agent that is running, and say in the chat which file was used.
+   If more than one path matches, the copies belong to different agent installations and may have drifted. Do not try to key off which agent is running: the loop is only reached because the agent does not know its own base directory — otherwise the primary path above already resolved it — so that signal is exactly what is missing, and taking the first `ls` hit could read a stale copy. Compare the matches instead (`diff` them). If they are byte-identical it does not matter which is read: read one and say which. If they differ, do not silently pick one — a stale copy must not win unseen: report the matching paths and their difference to the user, and read the copy they choose.
 
    **If the file cannot be read anywhere, stop and say so.** Never reconstruct the template, and above all never write the checklists from memory — reproducing them from a file is the entire reason they live in one, and a remembered copy with a plausible number of `[ ]` items sails through the step 6 check while quietly differing from what the team maintains.
 

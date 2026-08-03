@@ -12,13 +12,17 @@ Review every change on the current branch compared to the repository's base bran
 Resolve the base branch first — never assume `main`, and never diff against a local branch that may be weeks behind:
 
 ```sh
-export GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -oBatchMode=yes'
-gh pr view --json baseRefName --jq '.baseRefName'   # the branch this work will actually merge into
+branch=$(git rev-parse --abbrev-ref HEAD)
+gh pr list --head "$branch" --state open --json baseRefName --jq '.[0].baseRefName'   # the branch this work will actually merge into
 ```
 
 There is deliberately no general `git fetch origin` here. Nothing downstream would read what it refreshes: the base is resolved through `gh pr view` and `git ls-remote`, which go to the remote themselves, and the diff runs from the `FETCH_HEAD` of the one fetch that does matter — `git fetch origin {base}`, below. A blanket fetch would pull every branch so that nobody reads the result, and in a narrow clone it still could not create the ref the diff needs.
 
-The two environment variables cover every `git` call in this skill. Without them git asks for a username or a key passphrase and waits, so an unattended run hangs on a prompt nobody will answer and never reports anything at all — an instruction to "treat a prompt as a failure" cannot help, because there is no message to act on. With them set, git returns non-zero immediately (`could not read Username`) and the failure handling can do its job.
+Every `git` call in this skill that reaches the remote — the `ls-remote` and `fetch` calls below — must run with two environment variables set: `GIT_TERMINAL_PROMPT=0` and `GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -oBatchMode=yes"`. Without them git asks for a username or a key passphrase and waits, so an unattended run hangs on a prompt nobody will answer and never reports anything at all — an instruction to "treat a prompt as a failure" cannot help, because there is no message to act on. With them set, git returns non-zero immediately (`could not read Username`) and the failure handling can do its job.
+
+`GIT_SSH_COMMAND` appends `-oBatchMode=yes` to an existing value rather than replacing it, so a custom SSH wrapper or identity already in the environment survives — only the batch flag is added on top. A `~/.ssh/config` identity or proxy is untouched either way, since plain `ssh` reads it. (A wrapper set only through git's `core.sshCommand` config is the one case this does not preserve.)
+
+They do not carry across commands on their own: every tool call starts a fresh shell, so an `export` in one block is gone by the next. That is why each remote-touching block below sets them itself rather than once at the top. The local git calls — `symbolic-ref`, `rev-parse`, `git diff` against `FETCH_HEAD` — never reach the network and need neither.
 
 **The base is what this branch merges into, which is not always the repository default.** A repository can default to `main` and still integrate everything through `develop` — diff such a branch against `main` and every `develop` commit it never touched shows up as a finding.
 
@@ -26,17 +30,19 @@ These four items resolve `{base}`, the plain branch name, and nothing more. What
 
 1. **If the branch has a pull request**, `baseRefName` is the answer, full stop: it is the branch the code will be merged into, and it comes back as the plain name `develop`.
 
-   `gh pr view` exits non-zero for reasons that are not interchangeable, so read the message before deciding what it meant:
+   `gh pr list` separates the cases by exit code, not by the wording of an error message — "no PR" is a successful empty result here, never a failure, so a reworded error string can never be taken for it (the trap `gh pr view` sets, where the absence of a PR and a `401` both exit 1):
 
-   - **No pull request for this branch** — the ordinary case. Continue with item 2.
-   - **`gh` is missing, or `origin` is not GitHub at all** — there can be no pull request to find. Say so in one line and continue with item 2.
-   - **Anything else** — `HTTP 401: Bad credentials`, a network error, an API error. Stop, exactly as a failed fetch does. A pull request may well exist with a base that is not the default, and reviewing against the default here produces a diff full of commits the branch never touched while looking like an ordinary run. Say which error came back, so the user can fix it or name the base themselves.
+   - **Exit 0, a branch name printed** — a pull request exists; that name is the answer, full stop.
+   - **Exit 0, empty output** — no pull request for this branch, the ordinary case. Continue with item 2.
+   - **`gh` is missing (command not found), or `origin` is not a GitHub remote** — the command cannot run at all, so there can be no pull request to find. Say so in one line and continue with item 2; item 2 reads the remote through `git` and does not need `gh`.
+   - **Any other non-zero exit** — `HTTP 401: Bad credentials`, a network error, an API error. Stop, exactly as a failed fetch does. A pull request may well exist with a base that is not the default, and reviewing against the default here produces a diff full of commits the branch never touched while looking like an ordinary run. Say which error came back, so the user can fix it or name the base themselves.
 2. **If it has none**, fall back to the repository default, read-only:
    ```sh
+   export GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -oBatchMode=yes"
    git ls-remote --symref origin HEAD   # ref: refs/heads/master	HEAD
    ```
    The `ref:` line names the default branch — `refs/heads/master` means `{base}` is `master`. Asking the remote reports the branch the repository defaults to *now*; a local `refs/remotes/origin/HEAD` can be missing in a fresh clone, and a plain fetch never retargets it after a rename.
-3. **Before settling for the default, check for an integration branch.** If `git ls-remote --heads origin develop` (or `release/*`, `staging`, whatever the repo uses) comes back non-empty **and names a branch other than the `{base}` item 2 just resolved**, the repository has two plausible bases: ask the user which one to review against rather than assuming the default. When the candidate is the branch already chosen — a repository whose default *is* `develop` — there is nothing to choose between, so ask nothing and carry on.
+3. **Before settling for the default, check for an integration branch.** If `GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -oBatchMode=yes" git ls-remote --heads origin develop` (or `release/*`, `staging`, whatever the repo uses) comes back non-empty **and names a branch other than the `{base}` item 2 just resolved**, the repository has two plausible bases: ask the user which one to review against rather than assuming the default. When the candidate is the branch already chosen — a repository whose default *is* `develop` — there is nothing to choose between, so ask nothing and carry on.
 4. **If nothing resolves** — `ls-remote` fails, say on a rate limit — fall back to the local `git symbolic-ref --quiet --short refs/remotes/origin/HEAD`, which prints `origin/master`; strip the `origin/` to get `{base}`, and say which branch it names. If that prints nothing either, ask. Beyond the fetch above, change nothing that outlives the pass: never run `git remote set-head`, never write to the config, never touch local branches or the working tree.
 
 Whatever the source, state in one line which base was chosen and why before showing findings — a review against the wrong base is worse than no review.
@@ -44,7 +50,8 @@ Whatever the source, state in one line which base was chosen and why before show
 **Fetch the base branch by name, always, and diff from `FETCH_HEAD`:**
 
 ```sh
-git fetch origin {base} --quiet   # non-interactive, as above; {base_ref} is then FETCH_HEAD
+export GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -oBatchMode=yes"
+git fetch origin {base} --quiet   # non-interactive via the vars above; {base_ref} is then FETCH_HEAD
 ```
 
 Do this unconditionally rather than checking whether `origin/{base}` exists first. A `--single-branch` or otherwise narrow clone has a fetch refspec covering one branch, so no plain `git fetch origin` would ever create `origin/develop` — and worse, a stale `origin/develop` left over from an earlier refspec or a one-off manual fetch stays in the clone forever without ever being updated. An existence check passes on exactly that ref and diffs against a month-old base, which is the same silent wrong-base failure this whole step exists to prevent, and silent is worse than broken.
