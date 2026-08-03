@@ -13,7 +13,7 @@ Resolve the base branch first — never assume `main`, and never diff against a 
 
 ```sh
 branch=$(git rev-parse --abbrev-ref HEAD)
-gh pr list --head "$branch" --state open --json baseRefName --jq '.[0].baseRefName'   # the branch this work will actually merge into
+gh pr list --head "$branch" --state open --json baseRefName --jq '.[0].baseRefName // empty'   # the branch this work will actually merge into
 ```
 
 There is deliberately no general `git fetch origin` here. Nothing downstream would read what it refreshes: the base is resolved through `gh pr list` and `git ls-remote`, which go to the remote themselves, and the diff runs from the `FETCH_HEAD` of the one fetch that does matter — `git fetch origin {base}`, below. A blanket fetch would pull every branch so that nobody reads the result, and in a narrow clone it still could not create the ref the diff needs.
@@ -33,7 +33,7 @@ These four items resolve `{base}`, the plain branch name, and nothing more. What
    `gh pr list` separates the cases by exit code, not by the wording of an error message — "no PR" is a successful empty result here, never a failure, so a reworded error string can never be taken for it (the trap `gh pr view` sets, where the absence of a PR and a `401` both exit 1):
 
    - **Exit 0, a branch name printed** — a pull request exists; that name is the answer, full stop.
-   - **Exit 0, empty output** — no pull request for this branch, the ordinary case. Continue with item 2.
+   - **Exit 0, empty output** — no pull request whose head branch is named `$branch`. Usually that just means no PR, the ordinary case: continue with item 2. But `--head` matches on the branch name alone, so a branch pushed to the remote under a different name, or a PR opened from a fork (head `owner:branch`), also resolves to empty here even though a PR exists — and falling through to the default base is the silent wrong-base outcome this step exists to prevent. If a PR was expected, say the branch name did not match rather than assuming none exists, and let the user name the base or the PR.
    - **`gh` is missing (command not found), or `origin` is not a GitHub remote** — the command cannot run at all, so there can be no pull request to find. Say so in one line and continue with item 2; item 2 reads the remote through `git` and does not need `gh`.
    - **Any other non-zero exit** — `HTTP 401: Bad credentials`, a network error, an API error. Stop, exactly as a failed fetch does. A pull request may well exist with a base that is not the default, and reviewing against the default here produces a diff full of commits the branch never touched while looking like an ordinary run. Say which error came back, so the user can fix it or name the base themselves.
 2. **If it has none**, fall back to the repository default, read-only:
