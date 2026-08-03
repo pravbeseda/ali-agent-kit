@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, lstatSync, existsSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
-import { MARKER, PREFIX, skillsSourceDir } from './config.js';
+import { INSTALL_NOTICE, MARKER, NOTICE_SENTINEL, PREFIX, skillsSourceDir } from './config.js';
 
 /**
  * A skill as it lives in this repo.
@@ -134,14 +134,47 @@ function buildSkill(sourceName, files, sourcePath) {
     );
   }
 
+  if (raw.includes(NOTICE_SENTINEL)) {
+    throw new SkillError(
+      `${sourcePath}: SKILL.md already carries the managed-file notice — it is added on install, keep it out of the source`
+    );
+  }
+
   const rewritten = files.slice();
   rewritten[index] = {
     path: 'SKILL.md',
-    content: rewriteFrontmatter(raw, { name, description }),
+    content: withInstallNotice(rewriteFrontmatter(raw, { name, description })),
     mode: files[index].mode
   };
 
   return { sourceName, name, description, files: rewritten };
+}
+
+/**
+ * The line ending of the source's first line. Every line this module writes
+ * follows it, so a CRLF skill does not come out of the installer with mixed
+ * endings. Deliberately not "does a CRLF appear anywhere": an LF file with one
+ * CRLF inside a fenced code block would then get a CRLF frontmatter and notice
+ * wrapped around an LF body — the very thing this is meant to avoid.
+ */
+function eolOf(raw) {
+  const firstBreak = raw.indexOf('\n');
+  return firstBreak > 0 && raw[firstBreak - 1] === '\r' ? '\r\n' : '\n';
+}
+
+/**
+ * Put the managed-file notice directly under the frontmatter, so it is the
+ * first thing in the body. Takes `rewriteFrontmatter` output, which always has
+ * frontmatter, and only ever runs on a source `buildSkill` has already rejected
+ * if it carried a notice of its own — so neither case needs handling here.
+ */
+function withInstallNotice(raw) {
+  const eol = eolOf(raw);
+  const match = raw.match(FRONTMATTER_RE);
+  // `\r?\n`, not `\n`: FRONTMATTER_RE accepts CRLF sources, whose body starts
+  // with `\r\n` and would keep every blank line the LF case drops.
+  const body = raw.slice(match[0].length).replace(/^(\r?\n)+/, '');
+  return `${match[0]}${eol}${INSTALL_NOTICE.replace(/\n/g, eol)}${eol}${body}`;
 }
 
 export function parseFrontmatter(raw) {
@@ -170,12 +203,13 @@ function unquote(value) {
 
 /** Force `name` (prefixed) into the frontmatter, keeping every other field intact. */
 export function rewriteFrontmatter(raw, { name, description }) {
+  const eol = eolOf(raw);
   const match = raw.match(FRONTMATTER_RE);
   if (!match) {
     const head = ['---', `name: ${name}`];
     if (description) head.push(`description: ${description}`);
     head.push('---', '');
-    return `${head.join('\n')}\n${raw}`;
+    return `${head.join(eol)}${eol}${raw}`;
   }
 
   const lines = match[1].split(/\r?\n/);
@@ -189,5 +223,5 @@ export function rewriteFrontmatter(raw, { name, description }) {
   });
   if (!replaced) next.unshift(`name: ${name}`);
 
-  return `---\n${next.join('\n')}\n---\n${raw.slice(match[0].length)}`;
+  return `---${eol}${next.join(eol)}${eol}---${eol}${raw.slice(match[0].length)}`;
 }

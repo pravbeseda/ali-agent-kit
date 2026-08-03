@@ -3,8 +3,14 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadSkills, prefixed, parseFrontmatter, rewriteFrontmatter, SkillError } from '../src/skills.js';
-import { skillsSourceDir, MARKER } from '../src/config.js';
+import {
+  loadSkills,
+  prefixed,
+  parseFrontmatter,
+  rewriteFrontmatter,
+  SkillError
+} from '../src/skills.js';
+import { skillsSourceDir, MARKER, INSTALL_NOTICE, NOTICE_SENTINEL } from '../src/config.js';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'ali-kit-'));
 const skillFile = (name, extra = '') =>
@@ -142,11 +148,67 @@ test('ignores dotfiles and dirs without SKILL.md', () => {
   assert.deepEqual(loadSkills(dir), []);
 });
 
-test('source files are read verbatim except for the name line', () => {
+test('source files are read verbatim except for the name line and the notice', () => {
   const dir = tmp();
   const body = '---\nname: keep\ndescription: d\n---\n\nline1\n\n```sh\necho hi\n```\n';
   writeFileSync(join(dir, 'keep.md'), body);
   const [skill] = loadSkills(dir);
-  assert.equal(skill.files[0].content, body.replace('name: keep', 'name: ali-keep'));
+  const installed = skill.files[0].content;
+  assert.equal(
+    installed.replace(`\n${INSTALL_NOTICE}\n`, '\n'),
+    body.replace('name: keep', 'name: ali-keep')
+  );
   assert.equal(readFileSync(join(dir, 'keep.md'), 'utf8'), body);
+});
+
+test('the managed-file notice lands under the frontmatter, exactly once', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'noted.md'), skillFile('noted'));
+  const [skill] = loadSkills(dir);
+  const lines = skill.files[0].content.split('\n');
+
+  assert.equal(lines.indexOf('---'), 0);
+  assert.equal(lines[lines.indexOf('---', 1) + 2], NOTICE_SENTINEL);
+  assert.equal(skill.files[0].content.split(NOTICE_SENTINEL).length - 1, 1);
+  assert.match(skill.files[0].content, /ali-agent-kit install` replaces it/);
+});
+
+test('a CRLF source comes out entirely CRLF, notice included', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'crlf.md'), '---\r\nname: crlf\r\ndescription: d\r\n---\r\n\r\n# Body\r\n');
+  const [skill] = loadSkills(dir);
+  const installed = skill.files[0].content;
+
+  assert.ok(!/(?<!\r)\n/.test(installed), 'no lone LF may survive in a CRLF skill');
+  assert.ok(
+    installed.endsWith(`${INSTALL_NOTICE.replace(/\n/g, '\r\n')}\r\n# Body\r\n`),
+    'the notice follows the frontmatter directly, with the source line ending'
+  );
+});
+
+test('one CRLF line in an LF source does not turn the output CRLF', () => {
+  const dir = tmp();
+  writeFileSync(
+    join(dir, 'mixed.md'),
+    '---\nname: mixed\ndescription: d\n---\n\n# Body\n\n```\npasted\r\nline\r\n```\n'
+  );
+  const [skill] = loadSkills(dir);
+  const installed = skill.files[0].content;
+
+  assert.ok(
+    installed.startsWith('---\nname: ali-mixed\n'),
+    'the frontmatter must keep the line ending of the first line, not of a pasted snippet'
+  );
+  assert.ok(installed.includes(`\n${INSTALL_NOTICE}\n`), 'the notice follows the same ending');
+  assert.ok(installed.includes('pasted\r\nline\r\n'), 'the body is passed through untouched');
+});
+
+test('a source skill carrying the notice itself is rejected', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'preloaded.md'), `${skillFile('preloaded')}\n${NOTICE_SENTINEL}\n`);
+  assert.throws(() => loadSkills(dir), (error) => {
+    assert.ok(error instanceof SkillError);
+    assert.match(error.message, /managed-file notice/);
+    return true;
+  });
 });

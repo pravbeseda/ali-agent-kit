@@ -11,7 +11,7 @@ Every skill is published with an `ali-` prefix: `skills/review-branch.md` in thi
 
 | Skill | What it does |
 | --- | --- |
-| `ali-review-branch` | Reviews the current branch against `main`, then walks you through the findings one at a time. |
+| `ali-review-branch` | Reviews the current branch against the repository's base branch, then walks you through the findings one at a time. |
 | `ali-review-pr` | Reviews a pull request and posts each finding as an inline comment through `gh api` — questions and doubts only, no fixes. |
 | `ali-process-pr-comments` | Takes the unresolved review comments on a pull request one by one: verifies the claim, decides with you, applies the change, resolves the thread. |
 | `ali-one-by-one` | Resolves the open questions in a plan one at a time — context, rated options, a recommendation, then records the decision in the plan file. |
@@ -89,7 +89,16 @@ description: One line on what the skill does. Use when the user asks for ... —
 - name is lowercase kebab-case, matches the file/directory name, and carries no `ali-` prefix — the prefix is added on install;
 - frontmatter exists and has a non-empty `description` (that is what makes an agent trigger the skill);
 - the same skill is not defined twice (`foo.md` **and** `foo/`);
-- no symlinks and no `.ali-agent-kit.json` inside the source.
+- no symlinks and no `.ali-agent-kit.json` inside the source;
+- no managed-file notice in the source — install adds it.
+
+On install, the `SKILL.md` written to an agent gets that notice inserted under the frontmatter: the copy belongs to the package, and editing it in place loses the change on the next update. Sources in `skills/` stay free of it, so it is never duplicated.
+
+### What belongs in the frontmatter
+
+`name` and `description`, and nothing else by default. `name` is rewritten with the `ali-` prefix on install; `description` is what an agent matches to decide whether to trigger the skill. Any other key is passed through to the installed copy untouched — the loader neither reads nor validates it — so an agent-specific key can be added when an agent documents one, and `allowed-tools` is the usual example.
+
+`user-invocable: true` used to sit in one skill and was removed. It is not what makes a skill available as `/ali-<name>`: in Claude Code the slash command comes from the skill being installed under that name, verified by invoking a skill whose frontmatter has only `name` and `description`. Four of the five skills never carried the field, so it cannot have been gating invocation for them either. Unverified for Copilot CLI and Codex CLI, where it was equally unverified while it was still there — if a slash command ever fails to appear in one of those, this is the first thing to test.
 
 Deleting a skill file is enough to have it removed from every consumer on their next update.
 

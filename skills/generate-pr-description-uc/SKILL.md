@@ -1,11 +1,11 @@
 ---
 name: generate-pr-description-uc
-description: Generate a PR description for the Unite Client (UC) project in Markdown by comparing the current branch with origin/develop and filling the UC pull request template — Problem, Solution, Changes, Affected Areas plus the mandatory review, testing and self checklists. Use only in repositories of the Unite Client project, the ones that integrate through an origin/develop branch; in any other repository this skill stops at its first step instead of producing a description. Triggers when the user asks to "write the PR description", "generate a description for this PR", or runs /ali-generate-pr-description-uc.
+description: Generate a PR description for the Unite Client (UC) project by diffing the current branch against origin/develop and filling the UC pull request template — Problem, Solution, Changes, Affected Areas plus the mandatory checklists. Only for Unite Client repositories, which are the ones with an origin/develop branch. Use when the user asks to "write the PR description", "generate a description for this PR", or runs /ali-generate-pr-description-uc.
 ---
 
 # Goal
 
-Compare the current Git branch with `origin/develop` and generate a complete PR description in Markdown format following the standard pull request template of the **Unite Client** project. Output the result as a raw Markdown source block so the user can copy-paste it into the PR manually.
+Compare the current Git branch with `origin/develop` and generate a complete PR description in Markdown format following the standard pull request template of the **Unite Client** project, which lives in `references/pr-template.md` next to this file. Output the result as a raw Markdown source block so the user can copy-paste it into the PR manually.
 
 # Steps
 
@@ -42,78 +42,48 @@ Compare the current Git branch with `origin/develop` and generate a complete PR 
    - What specific changes were made
    - What areas of the codebase are affected
 
-4. **Generate PR description** using the Output Template below.
-   Write ONLY the dynamic sections (Problem, Solution, Changes, Affected Areas) yourself.
-   Do NOT regenerate the checklists — they will be assembled from the template verbatim in the next step.
+4. **Read the template — this is a precondition, not a best effort.** Read `references/pr-template.md` from **this skill's own directory**, not from the current working directory: the relative path resolves against the project the user happens to be in, where no such file exists. If the agent states the skill's base directory, read it from there. Otherwise try the installed locations directly, whichever exists:
 
-5. **Assemble the full description** by concatenating:
-   - your generated dynamic sections (from step 4)
-   - the three checklist sections copied character-for-character from the Output Template
-   Copying keeps the checklists out of the generated text, so nothing below has to repair them.
+   ```bash
+   for base in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "${COPILOT_CONFIG_DIR:-$HOME/.copilot}"; do
+     ls "$base/skills/ali-generate-pr-description-uc/references/pr-template.md" 2>/dev/null
+   done
+   ```
+
+   Those three variables are what the installer itself resolves the config directory from, so a plain `~/.claude/...` guess misses the file whenever one of them is set — which is exactly when the user has configured things deliberately.
+
+   If more than one path matches, the copies belong to different agent installations and may have drifted. Do not try to key off which agent is running: the loop is only reached because the agent does not know its own base directory — otherwise the primary path above already resolved it — so that signal is exactly what is missing, and taking the first `ls` hit could read a stale copy. Compare the matches instead (`diff` them). If they are byte-identical it does not matter which is read: read one and say which. If they differ, do not silently pick one — a stale copy must not win unseen: report the matching paths and their difference to the user, and read the copy they choose.
+
+   **If the file cannot be read anywhere, stop and say so.** Never reconstruct the template, and above all never write the checklists from memory — reproducing them from a file is the entire reason they live in one, and a remembered copy with a plausible number of `[ ]` items sails through the step 6 check while quietly differing from what the team maintains.
+
+   The file holds the four dynamic sections as italic placeholders (Problem, Solution, Changes, Affected Areas) followed by the three checklists.
+
+5. **Fill the template in place.** Replace the italic placeholder lines under each dynamic heading with what step 3 found — but only the ones that ask for a description. Some italic lines are requests to the author, not placeholders for you:
+
+   - Under `# Affected Areas and visual reference`, replace only *"Describe the affected areas of the codebase…"*. Keep *"Provide gif/video of main affected scenarios"* and *"If changes affects various targets … provide proof for each target"* exactly as they are: nobody can produce a recording or a per-target screenshot from a diff, and deleting the lines removes the reminder the team put there. When the changed paths show that several targets are involved, name them next to the targets line instead of dropping it.
+   - The same rule holds anywhere else in the template: an italic line asking for evidence stays, an italic line asking for a description gets replaced.
+
+   Everything from `# Review persons Checklist` down is data, not prose to rewrite: reproduce it exactly as read — same wording, same numbering, same `[ ]` items. Never modify or drop a checklist.
 
 6. **Self-check before showing it to the user.** Each check has its own fix:
-   - *Generated sections only* (Problem, Solution, Changes, Affected Areas) — look for a substring of 4+ characters repeating 3 or more times in a row (e.g. `####fected A####fected A####fected A`). This is the artifact this check exists for. If found, regenerate step 4 (up to 2 retries).
-   - *Assembly* — every expected `# Section` header present exactly once, and each checklist item `[ ]` count matching the template (2 + 5 + 4 = 11 items). A failure here means the concatenation went wrong, not the generation: redo step 5, copying the checklists from the Output Template again.
+   - *The sections you wrote* (Problem, Solution, Changes, Affected Areas) — look for a substring of 4+ characters repeating 3 or more times in a row (e.g. `####fected A####fected A####fected A`). This is a real corruption that has been observed in this output, and reading the template from a file does nothing to prevent it, because it happens in the text you generate. If found, redo step 5 for the affected section (up to 2 retries).
+   - *The parts copied from the template* — every `# Section` header present exactly once, and as many `[ ]` items as the template you read in step 4 contains. Count them there rather than against a number written here: the template is maintained by the UC team, and a checklist item added on their side must not turn a faithful copy into a failing one. A mismatch means the copy went wrong, never that the template is wrong — read `references/pr-template.md` again and reproduce the checklists from it, and never edit the output to reach an expected count.
 
-7. **Output the final description** as a fenced Markdown source code block (` ```markdown ... ``` `) so the user can copy-paste it into the PR on GitHub.
+7. **Output the filled template** as a fenced Markdown source code block (` ```markdown ... ``` `) so the user can copy-paste it into the PR on GitHub. After the block, remind the user in one line what the description still needs from them: the gif or video, and the per-target proof when more than one target is affected.
    Do NOT save to a file. Do NOT publish to GitHub. The user handles that manually.
-
-# Output Template
-
-The sections Problem, Solution, Changes, Affected Areas must be filled based on the diff analysis. The checklists below must be included verbatim — never modify or remove them.
-
-```markdown
-# Problem
-
-_Describe the problem or issue that this PR is solving._
-
-# Solution
-
-_Describe the idea of solution that was implemented in this PR and how it solves the problem._
-
-# Changes
-
-_Describe the changes that were made in this PR according to the solution._
-
-# Affected Areas and visual reference
-
-_Describe the affected areas of the codebase that was impacted by this PR._
-_Provide gif/video of main affected scenarios_
-_If changes affects various targets (origin/cca-agent/teams etc) provide proof for each target_
-
-# Review persons Checklist
-
-1. [ ] QA engineer who verifies tests and cases is assigned to the PR
-2. [ ] Person who is responsible/knowledgeable for the area of the codebase is assigned to the PR
-
-# Testing Checklist
-
-1. [ ] Test-cases are created and reviewed, linked to Story/Bug Jira item
-2. [ ] New cases are covered with Cypress / e2e C# tests
-3. [ ] Screenshots with passed locally with repeats added/updated tests (Cypress) **are added to description of PR**
-4. [ ] Links with runs with repeats at build agent for added/updated e2e C# tests **are added to description of PR**
-5. [ ] Manual test-case executions are linked to Story/Bug Jira item
-
-# Self Checklist
-
-Please make sure you pass the following checklist before asking colleagues for review:
-
-1. [ ] Do smoketest yourself: run code changes locally and check cases
-    - **verify** locally builds desktop/web terminal outputs
-2. [ ] Verify PR for checks — validation build are green
-3. [ ] Verify changed area covered with some of unit tests / Cypress
-    - you should have **strong reason** for absence of it or it was refactoring
-4. [ ] Verify changed area covered with necessary logs
-```
 
 # Guidelines
 
-- Write the description in English
-- The total output MUST NOT exceed 3000 characters — shorten your generated content (Problem, Solution, Changes, Affected Areas) as needed, but NEVER truncate or remove the template sections (checklists)
+- The total output MUST NOT exceed 3000 characters — shorten what you wrote into the dynamic sections (Problem, Solution, Changes, Affected Areas) as needed, but NEVER truncate or remove the checklists
 - Be specific and concise in each section
 - Use bullet points for multiple items in Changes section
 - List all affected plugins/modules/components in Affected Areas
 - Reference any related Jira tickets if identifiable from branch name or commits
 - If the branch name contains a ticket ID (e.g., UC-XXXXX), include it in the Problem section
 - For Affected Areas, mention which targets are impacted (desktop, web, teams, etc.) based on changed file paths
+
+# Language
+
+- Discussion with the user — the language they write in, or the chat language configured by the user, if one is defined.
+- The PR description itself — **always English**, whatever language the conversation is in. Every word inside the output block, including the sections you wrote yourself, is English.
 
