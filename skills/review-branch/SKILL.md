@@ -16,7 +16,7 @@ branch=$(git rev-parse --abbrev-ref HEAD)
 gh pr list --head "$branch" --state open --json baseRefName --jq '.[0].baseRefName'   # the branch this work will actually merge into
 ```
 
-There is deliberately no general `git fetch origin` here. Nothing downstream would read what it refreshes: the base is resolved through `gh pr view` and `git ls-remote`, which go to the remote themselves, and the diff runs from the `FETCH_HEAD` of the one fetch that does matter — `git fetch origin {base}`, below. A blanket fetch would pull every branch so that nobody reads the result, and in a narrow clone it still could not create the ref the diff needs.
+There is deliberately no general `git fetch origin` here. Nothing downstream would read what it refreshes: the base is resolved through `gh pr list` and `git ls-remote`, which go to the remote themselves, and the diff runs from the `FETCH_HEAD` of the one fetch that does matter — `git fetch origin {base}`, below. A blanket fetch would pull every branch so that nobody reads the result, and in a narrow clone it still could not create the ref the diff needs.
 
 Every `git` call in this skill that reaches the remote — the `ls-remote` and `fetch` calls below — must run with two environment variables set: `GIT_TERMINAL_PROMPT=0` and `GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -oBatchMode=yes"`. Without them git asks for a username or a key passphrase and waits, so an unattended run hangs on a prompt nobody will answer and never reports anything at all — an instruction to "treat a prompt as a failure" cannot help, because there is no message to act on. With them set, git returns non-zero immediately (`could not read Username`) and the failure handling can do its job.
 
