@@ -186,6 +186,23 @@ test('a CRLF source comes out entirely CRLF, notice included', () => {
   );
 });
 
+test('one CRLF line in an LF source does not turn the output CRLF', () => {
+  const dir = tmp();
+  writeFileSync(
+    join(dir, 'mixed.md'),
+    '---\nname: mixed\ndescription: d\n---\n\n# Body\n\n```\npasted\r\nline\r\n```\n'
+  );
+  const [skill] = loadSkills(dir);
+  const installed = skill.files[0].content;
+
+  assert.ok(
+    installed.startsWith('---\nname: ali-mixed\n'),
+    'the frontmatter must keep the line ending of the first line, not of a pasted snippet'
+  );
+  assert.ok(installed.includes(`\n${INSTALL_NOTICE}\n`), 'the notice follows the same ending');
+  assert.ok(installed.includes('pasted\r\nline\r\n'), 'the body is passed through untouched');
+});
+
 test('a source skill carrying the notice itself is rejected', () => {
   const dir = tmp();
   writeFileSync(join(dir, 'preloaded.md'), `${skillFile('preloaded')}\n${NOTICE_SENTINEL}\n`);

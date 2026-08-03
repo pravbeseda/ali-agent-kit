@@ -37,6 +37,7 @@ query {
             totalCount
             nodes {
               id
+              databaseId
               body
               path
               line
@@ -125,8 +126,8 @@ Wait for the user's decision. Do not move on until they answer.
 Once the user decides:
 
 1. **If the decision is to change the code** — make the change.
-2. **Show the reply before posting it.** Print the exact text that will go into the thread and wait for the user to approve or correct it. It is published under their name in a place they cannot edit away, so it is the one thing here that is not yours to send unilaterally. This is the only pause in step 4.
-3. **Reply only when the decision is not already recorded in the thread.** If the last replies already state the outcome and all that is missing is the resolve click, post nothing — say in the chat which reply settled it. Repeating a decision the thread already holds is exactly the noise the check in step 3 exists to avoid.
+2. **Decide whether a reply is needed at all.** If the last replies already state the outcome and only the resolve click is missing — the case step 3 checks for before presenting anything — post nothing: say in the chat which reply settled it and go straight to item 4. Repeating a decision the thread already holds is exactly the noise that check exists to avoid.
+3. **When a reply is going out, show it before posting.** Print the exact text that will go into the thread and wait for the user to approve or correct it. It is published under their name in a place they cannot edit away, so it is the one thing here that is not yours to send unilaterally. This is the only pause in step 4, and it happens only when something is actually being sent.
    ```sh
    gh api repos/{owner}/{repo}/pulls/{number}/comments/{root_databaseId}/replies -f body="the approved text, in English"
    ```
@@ -144,20 +145,21 @@ When no unresolved thread is left, end with a verdict on whether the PR should g
 
 **The rule:** while a round is still finding things that change behaviour, another round pays for itself. Once a round produces only wording and polish, stop — the next one will cost attention and return noise.
 
-Sort every thread of this pass into exactly one of four buckets, by **what the assessment concluded**, never by what the comment claimed. `N` counts threads, not assessments: when step 3 settled several threads in one go, each of them still gets its own bucket — usually the same one, but a grouped assessment that accepted one thread and rejected another splits them. That keeps `B + P + S + R == N` exact and the number equal to what the PR shows as resolved:
+Sort every thread of this pass into exactly one of five buckets, by **what the assessment concluded**, never by what the comment claimed. `N` counts threads, not assessments: when step 3 settled several threads in one go, each of them still gets its own bucket — usually the same one, but a grouped assessment that accepted one thread and rejected another splits them. That keeps `B + P + S + D + R == N` exact and the number equal to what the PR shows as resolved:
 
 - **B — behaviour-changing.** Accepted, and it was about a wrong result or a crash, a call that cannot succeed as written, a silently wrong default, a lost error, a missing case in the logic, or a check that was removed and still had a job to do.
 - **P — polish.** Accepted, but it was about wording, naming, comment phrasing, ordering, formatting, a test that reads weaker than it is, or restating something already true elsewhere.
 - **S — settled earlier.** The thread already recorded its outcome before this pass, so step 4 posted nothing and only clicked resolve. It belongs to whichever round did the work, not this one: counting it as `B` would recommend another round for work already finished, and counting it as `R` would misreport a reviewer whose point was taken.
+- **D — deferred.** The comment was found valid and the work was not done in this pass: out of scope, tracked separately, waiting on something else. Accepted in judgement, unfinished in the code, which is why it is neither `B` nor `P` nor `R` — filing it under `R` would misreport a reviewer who was right.
 - **R — rejected.** The comment was not acted on. A rejected comment lands here whatever it claimed: one that predicted a crash but turned out not to apply is `R`, not `B`, because there is no defect for the next round to find.
 
-Only `B` moves the verdict.
+Only `B` and `D` move the verdict, and `D` only when what was deferred is behaviour-changing: the defect is real, acknowledged and still in the code, so the next round will meet its consequences. A deferred polish item changes nothing.
 
 Print it as the last block of the pass, with the verdict on its own line and nothing after it:
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-This pass: {N} threads — {B} behavioural, {P} polish, {S} settled earlier, {R} rejected
+This pass: {N} threads — {B} behavioural, {P} polish, {S} settled earlier, {D} deferred, {R} rejected
 Heaviest find: {one line, or "none"}
 
 ## 🔁 RECOMMENDATION: ANOTHER ROUND

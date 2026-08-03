@@ -12,13 +12,13 @@ Review every change on the current branch compared to the repository's base bran
 Resolve the base branch first — never assume `main`, and never diff against a local branch that may be weeks behind:
 
 ```sh
-git fetch origin --quiet
+export GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -oBatchMode=yes'
 gh pr view --json baseRefName --jq '.baseRefName'   # the branch this work will actually merge into
 ```
 
-**The fetch is required, and a failed fetch ends the pass.** If it exits non-zero — no network, no such remote, credentials wanted — stop and say so; do not review against whatever the clone happens to hold. A diff against a week-old base invents findings and hides real ones, which is worse than no review. Treat a credential prompt as a failure rather than waiting on it.
+There is deliberately no general `git fetch origin` here. Nothing downstream would read what it refreshes: the base is resolved through `gh pr view` and `git ls-remote`, which go to the remote themselves, and the diff runs from the `FETCH_HEAD` of the one fetch that does matter — `git fetch origin {base}`, below. A blanket fetch would pull every branch so that nobody reads the result, and in a narrow clone it still could not create the ref the diff needs.
 
-This is the one command here that writes anything, and what it writes is bounded: new objects, `FETCH_HEAD` and the `refs/remotes/origin/*` refs. Nothing that outlives the pass changes — not the config, not local branches, not `origin/HEAD`, not the working tree. That is the line the read-only rule in item 4 draws.
+The two environment variables cover every `git` call in this skill. Without them git asks for a username or a key passphrase and waits, so an unattended run hangs on a prompt nobody will answer and never reports anything at all — an instruction to "treat a prompt as a failure" cannot help, because there is no message to act on. With them set, git returns non-zero immediately (`could not read Username`) and the failure handling can do its job.
 
 **The base is what this branch merges into, which is not always the repository default.** A repository can default to `main` and still integrate everything through `develop` — diff such a branch against `main` and every `develop` commit it never touched shows up as a finding.
 
@@ -36,20 +36,22 @@ These four items resolve `{base}`, the plain branch name, and nothing more. What
    git ls-remote --symref origin HEAD   # ref: refs/heads/master	HEAD
    ```
    The `ref:` line names the default branch — `refs/heads/master` means `{base}` is `master`. Asking the remote reports the branch the repository defaults to *now*; a local `refs/remotes/origin/HEAD` can be missing in a fresh clone, and a plain fetch never retargets it after a rename.
-3. **Before settling for the default, check for an integration branch.** If `git ls-remote --heads origin develop` (or `release/*`, `staging`, whatever the repo uses) comes back non-empty, the repository has two plausible bases: ask the user which one to review against rather than assuming the default.
-4. **If nothing resolves** — `ls-remote` fails even though the fetch went through, say on a rate limit — fall back to the local `git symbolic-ref --quiet --short refs/remotes/origin/HEAD`, which prints `origin/master`; strip the `origin/` to get `{base}`, and say which branch it names. If that prints nothing either, ask. Beyond the fetch above, change nothing that outlives the pass: never run `git remote set-head`, never write to the config, never touch local branches or the working tree.
+3. **Before settling for the default, check for an integration branch.** If `git ls-remote --heads origin develop` (or `release/*`, `staging`, whatever the repo uses) comes back non-empty **and names a branch other than the `{base}` item 2 just resolved**, the repository has two plausible bases: ask the user which one to review against rather than assuming the default. When the candidate is the branch already chosen — a repository whose default *is* `develop` — there is nothing to choose between, so ask nothing and carry on.
+4. **If nothing resolves** — `ls-remote` fails, say on a rate limit — fall back to the local `git symbolic-ref --quiet --short refs/remotes/origin/HEAD`, which prints `origin/master`; strip the `origin/` to get `{base}`, and say which branch it names. If that prints nothing either, ask. Beyond the fetch above, change nothing that outlives the pass: never run `git remote set-head`, never write to the config, never touch local branches or the working tree.
 
 Whatever the source, state in one line which base was chosen and why before showing findings — a review against the wrong base is worse than no review.
 
 **Fetch the base branch by name, always, and diff from `FETCH_HEAD`:**
 
 ```sh
-git fetch origin {base} --quiet   # {base} is the plain branch name; then {base_ref} is FETCH_HEAD
+git fetch origin {base} --quiet   # non-interactive, as above; {base_ref} is then FETCH_HEAD
 ```
 
-Do this unconditionally rather than checking whether `origin/{base}` exists first. A `--single-branch` or otherwise narrow clone has a fetch refspec covering one branch, so the generic `git fetch origin` above never creates `origin/develop` — and worse, a stale `origin/develop` left over from an earlier refspec or a one-off manual fetch stays in the clone forever without ever being updated. An existence check passes on exactly that ref and diffs against a month-old base, which is the same silent wrong-base failure this whole step exists to prevent, and silent is worse than broken.
+Do this unconditionally rather than checking whether `origin/{base}` exists first. A `--single-branch` or otherwise narrow clone has a fetch refspec covering one branch, so no plain `git fetch origin` would ever create `origin/develop` — and worse, a stale `origin/develop` left over from an earlier refspec or a one-off manual fetch stays in the clone forever without ever being updated. An existence check passes on exactly that ref and diffs against a month-old base, which is the same silent wrong-base failure this whole step exists to prevent, and silent is worse than broken.
 
-Fetching by name is also the least invasive form: it leaves `FETCH_HEAD` pointing at the branch without adding a remote-tracking ref the user never had, and a narrow clone is usually narrow on purpose. If this fetch fails, stop, as with any other failed fetch.
+Fetching by name is also the least invasive form: it leaves `FETCH_HEAD` pointing at the branch without adding a remote-tracking ref the user never had, and a narrow clone is usually narrow on purpose. Nothing that outlives the pass changes — not the config, not local branches, not `origin/HEAD`, not the working tree. That is the line the read-only rule in item 4 draws.
+
+**This fetch is required, and a failed fetch ends the pass.** If it exits non-zero — no network, no such remote, credentials wanted — stop and say so; do not review against whatever the clone happens to hold. A diff against a week-old base invents findings and hides real ones, which is worse than no review.
 
 `{base_ref}` is `FETCH_HEAD`, and this is the only place it is defined — never `origin/{base}`, which is precisely the ref that can be stale:
 

@@ -21,8 +21,11 @@ export const MARKER_SCHEMA_VERSION = 1;
 export const skillsSourceDir = join(packageRoot, 'skills');
 
 /**
- * Sentinel opening the managed-file notice. Also the way we recognise a notice
- * that is already there, so installing twice cannot stack two of them.
+ * Sentinel opening the managed-file notice. It is what lets `buildSkill` spot a
+ * notice in a *source* skill and reject it — the way an installed copy pasted
+ * back into `skills/` as a starting point would otherwise ship with two.
+ * Installing twice cannot stack notices in any case: every install rewrites
+ * SKILL.md from the source, and nothing ever reads the installed file.
  */
 export const NOTICE_SENTINEL = '<!-- ali-agent-kit: managed file -->';
 

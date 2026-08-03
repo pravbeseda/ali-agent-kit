@@ -151,11 +151,15 @@ function buildSkill(sourceName, files, sourcePath) {
 }
 
 /**
- * The line ending the source uses. Every line this module writes follows it, so
- * a CRLF skill does not come out of the installer with mixed endings.
+ * The line ending of the source's first line. Every line this module writes
+ * follows it, so a CRLF skill does not come out of the installer with mixed
+ * endings. Deliberately not "does a CRLF appear anywhere": an LF file with one
+ * CRLF inside a fenced code block would then get a CRLF frontmatter and notice
+ * wrapped around an LF body — the very thing this is meant to avoid.
  */
 function eolOf(raw) {
-  return raw.includes('\r\n') ? '\r\n' : '\n';
+  const firstBreak = raw.indexOf('\n');
+  return firstBreak > 0 && raw[firstBreak - 1] === '\r' ? '\r\n' : '\n';
 }
 
 /**

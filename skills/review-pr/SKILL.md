@@ -71,7 +71,7 @@ Use `"side": "LEFT"` for deleted lines. Write the JSON to a file and pass `--inp
 
 **On 422** — one line the API will not accept takes the whole batch down with it. The error body names the resource and the field (`line must be part of the diff`), not which entry in `comments` is at fault, so it usually cannot be used to pick the offender out of the batch.
 
-**Take a snapshot of the existing reviews before publishing.** A 422 is expected to leave nothing behind, but that is an observation, not a documented guarantee, and acting on it blindly is how every finding gets published twice — the exact outcome the single-review rule exists to prevent. A snapshot answers the only question that matters, "did *this* call land", which no filter on the reviews themselves can: a review by a human, or by an earlier run of this skill, sits on the same commit and looks identical.
+**Take a snapshot of the existing reviews before publishing.** A 422 is expected to leave nothing behind, but that is an observation, not a documented guarantee, and acting on it blindly is how every finding gets published twice — the exact outcome the single-review rule exists to prevent.
 
 ```sh
 # before the POST
@@ -82,13 +82,23 @@ gh api --paginate repos/{owner}/{repo}/pulls/{number}/reviews --jq '.[].id' | so
 
 `--paginate` matters: the endpoint returns 30 per page, and a review created beyond the first page would otherwise look like nothing landed and be published a second time.
 
+**A new id is a candidate, not an answer.** Anything submitted while the POST was in flight — a human reviewer, a bot, another run of this skill — also shows up in that difference, and mistaking it for this call means silently dropping every finding. Confirm a candidate before believing it:
+
+```sh
+gh api user --jq '.login'                                        # who this token is
+gh api repos/{owner}/{repo}/pulls/{number}/reviews/{id} --jq '{user: .user.login, commit_id}'
+gh api repos/{owner}/{repo}/pulls/{number}/reviews/{id}/comments --jq '.[] | {path, line, body}'
+```
+
+A candidate is this call only if the author is the authenticated login, `commit_id` is `{sha}`, **and** its comments are the findings from the batch. Author and commit alone are circumstantial — an earlier run of this skill under the same token matches both — so the comments decide. If no candidate qualifies, nothing of ours landed.
+
 Then recover:
 
-1. **The diff is non-empty — a review did land** — treat it as published. Do not repost the batch; add only the findings missing from it, one at a time, as in item 3.
-2. **The diff is empty and the message identifies the finding** — drop that one and repost the batch, **once**. If that repost also fails, stop reposting and go to item 3; retrying line by line burns a round trip per bad line and can loop as long as bad lines remain.
+1. **A candidate is confirmed — this review did land** — treat it as published. Do not repost the batch. Compare its comments with the findings and post only those absent from it, one at a time, as in item 3; that same read is what makes "missing" a decidable question rather than a guess.
+2. **No candidate qualifies and the message identifies the finding** — drop that one and repost the batch, **once**. If that repost also fails, stop reposting and go to item 3; retrying line by line burns a round trip per bad line and can loop as long as bad lines remain.
 
    Two things to get right before reposting. If dropping the finding leaves `comments` empty, **post nothing at all** — that request would create exactly the summary-only review the top of this step forbids, and a submitted review cannot be deleted; tell the user instead that the single finding had no line the API would accept. And if findings remain, rebuild `body` to match how many actually go out: it was written before the drop, so it otherwise announces a question that is no longer there.
-3. **The diff is empty and the offender is unknown, or item 2 has been spent** — post each finding on its own with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST` (`commit_id`, `path`, `line`, `side`, `body`). Each of these calls stands alone: one that returns 201 has published its comment for good, and one that returns 422 has published nothing. Work down the list once, skip the finding whose line the API rejected, and never resend one that already returned 201.
+3. **No candidate qualifies and the offender is unknown, or item 2 has been spent** — post each finding on its own with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST` (`commit_id`, `path`, `line`, `side`, `body`). Each of these calls stands alone: one that returns 201 has published its comment for good, and one that returns 422 has published nothing. Work down the list once, skip the finding whose line the API rejected, and never resend one that already returned 201.
 
 Do not reply to your own comments, do not resolve them, do not edit the code — publishing findings is the whole job.
 
