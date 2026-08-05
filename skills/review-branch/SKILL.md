@@ -1,11 +1,11 @@
 ---
 name: review-branch
-description: Review the current branch against the repository's base branch and walk the user through the findings one at a time. Use when the user asks to "review the branch", "review my changes", "check this branch before the PR", or runs /ali-review-branch.
+description: Review the current branch — committed, staged, unstaged and untracked changes — against the repository's base branch and walk the user through the findings one at a time. Use when the user asks to "review the branch", "review my changes", "check this branch before the PR", or runs /ali-review-branch.
 ---
 
 # Review Branch
 
-Review every change on the current branch compared to the repository's base branch, then work through the findings interactively.
+Review the working tree as it stands right now against the repository's base branch — committed, staged, unstaged and untracked work alike — then go through the findings interactively.
 
 ## Step 1. Collect the context
 
@@ -63,17 +63,27 @@ Fetching by name is also the least invasive form: it leaves `FETCH_HEAD` pointin
 `{base_ref}` is `FETCH_HEAD`, and this is the only place it is defined — never `origin/{base}`, which is precisely the ref that can be stale:
 
 ```sh
-git rev-parse --abbrev-ref HEAD           # current branch
-git diff {base_ref}...HEAD --name-status  # changed files
-git diff {base_ref}...HEAD                # full diff
+git rev-parse --abbrev-ref HEAD                                  # current branch
+git diff "$(git merge-base FETCH_HEAD HEAD)" --name-status       # every changed file
+git diff "$(git merge-base FETCH_HEAD HEAD)"                     # full diff
+git status --short                                               # what is committed and what is not
+git ls-files --others --exclude-standard                         # untracked files, ignored ones left out
 ```
 
-The three-dot form compares against the merge base, so commits that landed on the base branch after this one forked stay out of the review.
+The merge base is substituted inline in each command rather than kept in a shell variable, for the same reason the environment variables above are set in every block: a fresh shell per tool call would lose it. `FETCH_HEAD` survives, being a file in `.git`.
+
+Diffing from the merge base is what keeps commits that landed on the base branch after this one forked out of the review — the same thing `{base_ref}...HEAD` does, and `git diff A...B` is defined as `git diff $(git merge-base A B) B`.
+
+**Diff the merge base against the working tree, not against `HEAD`.** Naming a single commit and no second one makes git compare it with the files on disk, so committed, staged and unstaged changes all land in one diff, each hunk appearing exactly once. `{base_ref}...HEAD` stops at the last commit, which silently drops everything not yet committed — and "nothing to report" on work in progress is the failure this skill is least able to notice. Do not add a second diff for the index or the working tree: `git diff --cached` and a bare `git diff` are already contained in this one, and running them too would report the same hunk two or three times.
+
+Untracked files are the one gap, since no diff shows a file git does not know about. `git ls-files --others --exclude-standard` lists them with `.gitignore` applied, so build output and local scratch files stay out. Review the ones that are part of the work — a new source file, a new test, a new config — by reading them in full, and say in one line which untracked files you skipped as unrelated, so a forgotten `git add` surfaces instead of passing unnoticed.
+
+`git status --short` is only for telling committed work apart from work that is not committed yet. Use it to label findings, never as a second source of changes.
 
 ## Step 2. Review
 
-1. Read each changed file **in full**, not only the diff — the surrounding code decides whether a change is correct.
-2. Summarize the scope: what was added, modified, removed.
+1. Read each changed file **in full**, not only the diff — the surrounding code decides whether a change is correct. This includes the untracked files kept in Step 1; for those the whole file is the change.
+2. Summarize the scope: what was added, modified, removed. Mention how much of it is not committed yet — staged, unstaged, untracked — but review it all as one body of work, and do not split the findings by that.
 3. Categorize every finding by severity:
    - **Critical** — bugs, security issues, data loss risks
    - **Warning** — missed edge cases, missing tests, convention violations (check the repo's CLAUDE.md / AGENTS.md)

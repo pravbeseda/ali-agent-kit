@@ -11,7 +11,7 @@ Every skill is published with an `ali-` prefix: `skills/review-branch.md` in thi
 
 | Skill | What it does |
 | --- | --- |
-| `ali-review-branch` | Reviews the current branch against the repository's base branch, then walks you through the findings one at a time. |
+| `ali-review-branch` | Reviews the current branch against the repository's base branch — committed, staged, unstaged and untracked changes alike — then walks you through the findings one at a time. |
 | `ali-review-pr` | Reviews a pull request and posts each finding as an inline comment through `gh api` — questions and doubts only, no fixes. |
 | `ali-process-pr-comments` | Takes the unresolved review comments on a pull request one by one: verifies the claim, decides with you, applies the change, resolves the thread. |
 | `ali-one-by-one` | Resolves the open questions in a plan one at a time — context, rated options, a recommendation, then records the decision in the plan file. |
