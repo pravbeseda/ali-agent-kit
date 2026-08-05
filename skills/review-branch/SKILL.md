@@ -51,7 +51,7 @@ Whatever the source, state in one line which base was chosen and why before show
 
 ```sh
 export GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -oBatchMode=yes"
-git fetch origin {base} --quiet   # non-interactive via the vars above; {base_ref} is then FETCH_HEAD
+git fetch origin {base} --quiet   # non-interactive via the vars above; the fetched base is then FETCH_HEAD
 ```
 
 Do this unconditionally rather than checking whether `origin/{base}` exists first. A `--single-branch` or otherwise narrow clone has a fetch refspec covering one branch, so no plain `git fetch origin` would ever create `origin/develop` — and worse, a stale `origin/develop` left over from an earlier refspec or a one-off manual fetch stays in the clone forever without ever being updated. An existence check passes on exactly that ref and diffs against a month-old base, which is the same silent wrong-base failure this whole step exists to prevent, and silent is worse than broken.
@@ -60,23 +60,27 @@ Fetching by name is also the least invasive form: it leaves `FETCH_HEAD` pointin
 
 **This fetch is required, and a failed fetch ends the pass.** If it exits non-zero — no network, no such remote, credentials wanted — stop and say so; do not review against whatever the clone happens to hold. A diff against a week-old base invents findings and hides real ones, which is worse than no review.
 
-`{base_ref}` is `FETCH_HEAD`, and this is the only place it is defined — never `origin/{base}`, which is precisely the ref that can be stale:
+The base to diff against is `FETCH_HEAD` — never `origin/{base}`, which is precisely the ref that can be stale:
 
 ```sh
 git rev-parse --abbrev-ref HEAD                                  # current branch
 git diff "$(git merge-base FETCH_HEAD HEAD)" --name-status       # every changed file
 git diff "$(git merge-base FETCH_HEAD HEAD)"                     # full diff
 git status --short                                               # what is committed and what is not
-git ls-files --others --exclude-standard                         # untracked files, ignored ones left out
+git ls-files --others --exclude-standard -- :/                   # untracked files, ignored ones left out
 ```
 
 The merge base is substituted inline in each command rather than kept in a shell variable, for the same reason the environment variables above are set in every block: a fresh shell per tool call would lose it. `FETCH_HEAD` survives, being a file in `.git`.
 
-Diffing from the merge base is what keeps commits that landed on the base branch after this one forked out of the review — the same thing `{base_ref}...HEAD` does, and `git diff A...B` is defined as `git diff $(git merge-base A B) B`.
+**An empty merge base ends the pass too.** `git merge-base FETCH_HEAD HEAD` prints nothing when the histories do not meet — a shallow clone, or a branch that really is unrelated — and the substitution then collapses to `git diff "" `, whose complaint about an ambiguous argument says nothing about the base. Run it on its own first; if the output is empty, stop and name the likely cause instead of diffing.
 
-**Diff the merge base against the working tree, not against `HEAD`.** Naming a single commit and no second one makes git compare it with the files on disk, so committed, staged and unstaged changes all land in one diff, each hunk appearing exactly once. `{base_ref}...HEAD` stops at the last commit, which silently drops everything not yet committed — and "nothing to report" on work in progress is the failure this skill is least able to notice. Do not add a second diff for the index or the working tree: `git diff --cached` and a bare `git diff` are already contained in this one, and running them too would report the same hunk two or three times.
+Diffing from the merge base is what keeps commits that landed on the base branch after this one forked out of the review — the same thing `FETCH_HEAD...HEAD` does, and `git diff A...B` is defined as `git diff $(git merge-base A B) B`.
 
-Untracked files are the one gap, since no diff shows a file git does not know about. `git ls-files --others --exclude-standard` lists them with `.gitignore` applied, so build output and local scratch files stay out. Review the ones that are part of the work — a new source file, a new test, a new config — by reading them in full, and say in one line which untracked files you skipped as unrelated, so a forgotten `git add` surfaces instead of passing unnoticed.
+**Diff the merge base against the working tree, not against `HEAD`.** Naming a single commit and no second one makes git compare it with the files on disk, so committed, staged and unstaged changes all land in one diff, each hunk appearing exactly once. `FETCH_HEAD...HEAD` stops at the last commit, which silently drops everything not yet committed — and "nothing to report" on work in progress is the failure this skill is least able to notice. Do not add a second diff for the index or the working tree: `git diff --cached` and a bare `git diff` are already contained in this one, and running them too would report the same hunk two or three times.
+
+A tracked file can of course be dirty for something other than the branch — a debug `console.log`, a local config tweak. Say so when a hunk reads that way, but review it anyway: unlike an untracked file, which costs a full read, it is already in front of you, and dropping it is the direction that loses findings.
+
+Untracked files are the one gap, since no diff shows a file git does not know about. `git ls-files --others --exclude-standard -- :/` lists them with `.gitignore` applied, so build output and local scratch files stay out. The `:/` pathspec is what makes it cover the whole repository: alone among the commands in that block, `git ls-files` defaults to the current directory, so from a subdirectory the one command whose job is to catch a forgotten `git add` would come back empty. Review the ones that are part of the work — a new source file, a new test, a new config — by reading them in full, and say in one line which untracked files you skipped as unrelated, so a forgotten `git add` surfaces instead of passing unnoticed.
 
 `git status --short` is only for telling committed work apart from work that is not committed yet. Use it to label findings, never as a second source of changes.
 
