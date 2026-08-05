@@ -129,11 +129,10 @@ Once the user decides:
 2. **Decide whether a reply is needed at all.** If the last replies already state the outcome and only the resolve click is missing — the case step 3 checks for before presenting anything — post nothing: say in the chat which reply settled it and go straight to item 4. Repeating a decision the thread already holds is exactly the noise that check exists to avoid.
 3. **When a reply is going out, show it before posting.** Print the exact text that will go into the thread and wait for the user to approve or correct it. It is published under their name in a place they cannot edit away, so it is the one thing here that is not yours to send unilaterally. This is the only pause in step 4, and it happens only when something is actually being sent.
 
-   **Post the approved text from a file, never inline in the command.** Write it with the file-creation tool — not with a heredoc, not with `echo` — and let `gh` read it back:
+   **Post the approved text from a file, never inline in the command.** Write it with the file-creation tool — not with a heredoc, not with `echo` — into a temp dir, never into the working tree, and let `gh` read it back:
 
    ```sh
    gh api repos/{owner}/{repo}/pulls/{number}/comments/{root_databaseId}/replies -F body=@{file} --jq '.id'
-   rm {file}
    ```
 
    `-F key=@path` reads the value from a file and passes it through as a string, so backticks, quotes, `$`, em dashes and code blocks in the reply never reach the shell. That is the point: a reply body carried in `-f body="…"` or in a heredoc turns into a long or multi-line command, which the integrated terminal echoes back with soft wrapping and `>` continuation prompts until the run looks hung. This command stays one short line however long the reply is.

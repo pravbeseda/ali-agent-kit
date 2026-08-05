@@ -58,7 +58,7 @@ gh api --paginate repos/{owner}/{repo}/pulls/{number}/reviews --jq '.[].id' | so
 
 `--paginate` matters: the endpoint returns 30 per page, and a review created beyond the first page would otherwise look like nothing landed and be published a second time.
 
-Then post the review. **Write the request body to a file with the file-creation tool and pass it with `--input` — never build it inline in the shell.** A heredoc or a long quoted argument makes the command multi-line, and the integrated terminal echoes such a command back with soft wrapping and `>` continuation prompts until the run looks hung, at which point nobody can tell whether the review was published. With a file the command is one short line whatever the findings say, and backticks, quotes, `$` and code blocks in a body never reach the shell at all.
+Then post the review. **Write the request body to a file with the file-creation tool and pass it with `--input` — never build it inline in the shell.** Put the file in a temp dir, never in the working tree: this is the branch under review, and a stray file there shows up in `git status` and can be committed with the work. A heredoc or a long quoted argument makes the command multi-line, and the integrated terminal echoes such a command back with soft wrapping and `>` continuation prompts until the run looks hung, at which point nobody can tell whether the review was published. With a file the command is one short line whatever the findings say, and backticks, quotes, `$` and code blocks in a body never reach the shell at all.
 
 ```json
 {
@@ -73,7 +73,6 @@ Then post the review. **Write the request body to a file with the file-creation 
 
 ```sh
 gh api repos/{owner}/{repo}/pulls/{number}/reviews -X POST --input {file}
-rm {file}
 ```
 
 **Every body published by this skill opens with 🤖.** The summary and each finding alike, including the ones sent one at a time in the 422 fallback below. A reader who meets a single inline comment on a line should be able to tell at a glance that a machine wrote it, without having to find the review it belongs to. Nothing else is added — no name, no tool, no signature.
