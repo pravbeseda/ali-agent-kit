@@ -58,10 +58,9 @@ gh api --paginate repos/{owner}/{repo}/pulls/{number}/reviews --jq '.[].id' | so
 
 `--paginate` matters: the endpoint returns 30 per page, and a review created beyond the first page would otherwise look like nothing landed and be published a second time.
 
-Then post the review:
+Then post the review. **Write the request body to a file with the file-creation tool and pass it with `--input` — never build it inline in the shell.** Put the file in a temp dir, never in the working tree: this is the branch under review, and a stray file there shows up in `git status` and can be committed with the work. A heredoc or a long quoted argument makes the command multi-line, and the integrated terminal echoes such a command back with soft wrapping and `>` continuation prompts until the run looks hung, at which point nobody can tell whether the review was published. With a file the command is one short line whatever the findings say, and backticks, quotes, `$` and code blocks in a body never reach the shell at all.
 
-```sh
-gh api repos/{owner}/{repo}/pulls/{number}/reviews -X POST --input - <<'JSON'
+```json
 {
   "commit_id": "{sha}",
   "event": "COMMENT",
@@ -70,14 +69,17 @@ gh api repos/{owner}/{repo}/pulls/{number}/reviews -X POST --input - <<'JSON'
     { "path": "{path}", "line": {line}, "side": "RIGHT", "body": "🤖 {the finding, in English}" }
   ]
 }
-JSON
+```
+
+```sh
+gh api repos/{owner}/{repo}/pulls/{number}/reviews -X POST --input {file}
 ```
 
 **Every body published by this skill opens with 🤖.** The summary and each finding alike, including the ones sent one at a time in the 422 fallback below. A reader who meets a single inline comment on a line should be able to tell at a glance that a machine wrote it, without having to find the review it belongs to. Nothing else is added — no name, no tool, no signature.
 
 The top-level `body` is required by the API whenever `event` is `COMMENT` or `REQUEST_CHANGES` — without it the call fails with 422 before any line is even looked at. Keep it to a single sentence; the findings live in `comments`, not in the summary.
 
-Use `"side": "LEFT"` for deleted lines. Write the JSON to a file and pass `--input {file}` instead when a finding's body contains characters that would be awkward inside a heredoc.
+Use `"side": "LEFT"` for deleted lines.
 
 **On 422** — one line the API will not accept takes the whole batch down with it. The error body names the resource and the field (`line must be part of the diff`), not which entry in `comments` is at fault, so it usually cannot be used to pick the offender out of the batch.
 
@@ -103,7 +105,7 @@ Then recover:
 2. **No candidate qualifies and the message identifies the finding** — drop that one and repost the batch, **once**. If that repost also returns 422, run the candidate check from item 1 again — against the same snapshot taken before any POST, which is still valid — because the repost is a second POST to the reviews endpoint and can create a review despite the 422, exactly like the first one. Then stop reposting and go to item 3 only for the findings that no confirmed candidate already carries; retrying line by line burns a round trip per bad line and can loop as long as bad lines remain.
 
    Two things to get right before reposting. If dropping the finding leaves `comments` empty, **post nothing at all** — that request would create exactly the summary-only review the top of this step forbids, and a submitted review cannot be deleted; tell the user instead that the single finding had no line the API would accept. And if findings remain, rebuild `body` to match how many actually go out: it was written before the drop, so it otherwise announces a question that is no longer there.
-3. **No candidate qualifies and the offender is unknown, or item 2 has been spent** — post each finding on its own with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST` (`commit_id`, `path`, `line`, `side`, `body`). Each of these calls stands alone: one that returns 201 has published its comment for good, and one that returns 422 has published nothing. Work down the list once, skip the finding whose line the API rejected, and never resend one that already returned 201.
+3. **No candidate qualifies and the offender is unknown, or item 2 has been spent** — post each finding on its own with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST --input {file}` (`commit_id`, `path`, `line`, `side`, `body`), each request body written to a file the same way as the batch above. Each of these calls stands alone: one that returns 201 has published its comment for good, and one that returns 422 has published nothing. Work down the list once, skip the finding whose line the API rejected, and never resend one that already returned 201.
 
 Do not reply to your own comments, do not resolve them, do not edit the code — publishing findings is the whole job.
 
