@@ -60,19 +60,20 @@ Fetching by name is also the least invasive form: it leaves `FETCH_HEAD` pointin
 
 **This fetch is required, and a failed fetch ends the pass.** If it exits non-zero — no network, no such remote, credentials wanted — stop and say so; do not review against whatever the clone happens to hold. A diff against a week-old base invents findings and hides real ones, which is worse than no review.
 
-The base to diff against is `FETCH_HEAD` — never `origin/{base}`, which is precisely the ref that can be stale:
+The base to diff against is `FETCH_HEAD` — never `origin/{base}`, which is precisely the ref that can be stale. Resolve it once, into `{merge_base}`, and use that SHA from there on:
 
 ```sh
+git merge-base FETCH_HEAD HEAD                                   # {merge_base}; empty output ends the pass, see below
 git rev-parse --abbrev-ref HEAD                                  # current branch
-git diff "$(git merge-base FETCH_HEAD HEAD)" --name-status       # every changed file
-git diff "$(git merge-base FETCH_HEAD HEAD)"                     # full diff
+git diff {merge_base} --name-status                              # every changed file
+git diff {merge_base}                                            # full diff
 git status --short                                               # what is committed and what is not
-git ls-files --others --exclude-standard -- :/                   # untracked files, ignored ones left out
+git ls-files --others --exclude-standard --full-name -- :/       # untracked files, ignored ones left out
 ```
 
-The merge base is substituted inline in each command rather than kept in a shell variable, for the same reason the environment variables above are set in every block: a fresh shell per tool call would lose it. `FETCH_HEAD` survives, being a file in `.git`.
+Substitute the SHA the first line printed into the two diffs, literally. Do not keep it in a shell variable — a fresh shell per tool call would lose it, which is why the environment variables above are set in every block — and do not re-read `FETCH_HEAD` in the later commands either. It is a single file per repository that any other fetch rewrites: an editor's autofetch, a `git pull` in another terminal, a parallel agent. It also holds one line per fetched ref and resolves to the first of them, so a plain `git fetch` landing between two tool calls silently moves the base to some unrelated branch. Reading it once, right after the fetch that wrote it, closes that window; carrying the answer forward is the agent's job, not the shell's.
 
-**An empty merge base ends the pass too.** `git merge-base FETCH_HEAD HEAD` prints nothing when the histories do not meet — a shallow clone, or a branch that really is unrelated — and the substitution then collapses to `git diff "" `, whose complaint about an ambiguous argument says nothing about the base. Run it on its own first; if the output is empty, stop and name the likely cause instead of diffing.
+**An empty merge base ends the pass too**, which is why the block opens with the bare `git merge-base` and not with a diff. It prints nothing when the histories do not meet — a shallow clone, or a branch that really is unrelated — so there is no SHA to substitute into the lines below. On empty output, stop and name the likely cause instead of running the rest.
 
 Diffing from the merge base is what keeps commits that landed on the base branch after this one forked out of the review — the same thing `FETCH_HEAD...HEAD` does, and `git diff A...B` is defined as `git diff $(git merge-base A B) B`.
 
@@ -80,9 +81,9 @@ Diffing from the merge base is what keeps commits that landed on the base branch
 
 A tracked file can of course be dirty for something other than the branch — a debug `console.log`, a local config tweak. Say so when a hunk reads that way, but review it anyway: unlike an untracked file, which costs a full read, it is already in front of you, and dropping it is the direction that loses findings.
 
-Untracked files are the one gap, since no diff shows a file git does not know about. `git ls-files --others --exclude-standard -- :/` lists them with `.gitignore` applied, so build output and local scratch files stay out. The `:/` pathspec is what makes it cover the whole repository: alone among the commands in that block, `git ls-files` defaults to the current directory, so from a subdirectory the one command whose job is to catch a forgotten `git add` would come back empty. Review the ones that are part of the work — a new source file, a new test, a new config — by reading them in full, and say in one line which untracked files you skipped as unrelated, so a forgotten `git add` surfaces instead of passing unnoticed.
+Untracked files are the one gap, since no diff shows a file git does not know about. `git ls-files --others --exclude-standard --full-name -- :/` lists them with `.gitignore` applied, so build output and local scratch files stay out. The two extra flags matter from a subdirectory: alone among the commands in that block, `git ls-files` defaults to the current directory, so without `:/` the one command whose job is to catch a forgotten `git add` would come back empty — and `--full-name` then prints what it finds relative to the repository root, the same base `git diff` uses, instead of `../`-prefixed paths that do not match the rest of the block. Review the ones that are part of the work — a new source file, a new test, a new config — by reading them in full, and say in one line which untracked files you skipped as unrelated, so a forgotten `git add` surfaces instead of passing unnoticed.
 
-`git status --short` is only for telling committed work apart from work that is not committed yet. Use it to label findings, never as a second source of changes.
+`git status --short` is only for telling committed work apart from work that is not committed yet. Use it to label findings, never as a second source of changes — and never as a source of paths either: it prints them relative to the current directory.
 
 ## Step 2. Review
 
