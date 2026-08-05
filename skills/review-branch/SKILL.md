@@ -9,79 +9,62 @@ Review the working tree as it stands right now against the repository's base bra
 
 ## Step 1. Collect the context
 
-Resolve the base branch first — never assume `main`, and never diff against a local branch that may be weeks behind:
+Resolve the base branch first — never assume `main`, and never diff against a local branch that may be weeks behind. The items below resolve `{base}`, the plain branch name, and nothing more; what to diff against is decided after that branch has been fetched.
 
-```sh
-branch=$(git rev-parse --abbrev-ref HEAD)
-gh pr list --head "$branch" --state open --json baseRefName --jq '.[0].baseRefName // empty'   # the branch this work will actually merge into
-```
-
-There is deliberately no general `git fetch origin` here. Nothing downstream would read what it refreshes: the base is resolved through `gh pr list` and `git ls-remote`, which go to the remote themselves, and the diff runs from the `FETCH_HEAD` of the one fetch that does matter — `git fetch origin {base}`, below. A blanket fetch would pull every branch so that nobody reads the result, and in a narrow clone it still could not create the ref the diff needs.
-
-Every `git` call in this skill that reaches the remote — the `ls-remote` and `fetch` calls below — must run with two environment variables set: `GIT_TERMINAL_PROMPT=0` and `GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -oBatchMode=yes"`. Without them git asks for a username or a key passphrase and waits, so an unattended run hangs on a prompt nobody will answer and never reports anything at all — an instruction to "treat a prompt as a failure" cannot help, because there is no message to act on. With them set, git returns non-zero immediately (`could not read Username`) and the failure handling can do its job.
-
-`GIT_SSH_COMMAND` appends `-oBatchMode=yes` to an existing value rather than replacing it, so a custom SSH wrapper or identity already in the environment survives — only the batch flag is added on top. A `~/.ssh/config` identity or proxy is untouched either way, since plain `ssh` reads it. (A wrapper set only through git's `core.sshCommand` config is the one case this does not preserve.)
-
-They do not carry across commands on their own: every tool call starts a fresh shell, so an `export` in one block is gone by the next. That is why each remote-touching block below sets them itself rather than once at the top. The local git calls — `symbolic-ref`, `rev-parse`, `git diff` against `FETCH_HEAD` — never reach the network and need neither.
+**Set two variables on every block that reaches the remote:** `GIT_TERMINAL_PROMPT=0` and `GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -oBatchMode=yes"`. Without them git blocks on a credentials prompt nobody will answer and the run reports nothing at all; with them it exits non-zero with a message the failure handling can act on. Appending to `GIT_SSH_COMMAND` rather than replacing it keeps a wrapper already in the environment. A fresh shell per tool call loses an `export`, so each remote-touching block below sets them again; local calls need neither.
 
 **The base is what this branch merges into, which is not always the repository default.** A repository can default to `main` and still integrate everything through `develop` — diff such a branch against `main` and every `develop` commit it never touched shows up as a finding.
 
-These four items resolve `{base}`, the plain branch name, and nothing more. What to diff against is decided once, below, after that branch has been fetched — never here.
+1. **If the branch has a pull request**, `baseRefName` is the answer, full stop:
 
-1. **If the branch has a pull request**, `baseRefName` is the answer, full stop: it is the branch the code will be merged into, and it comes back as the plain name `develop`.
+   ```sh
+   branch=$(git rev-parse --abbrev-ref HEAD)
+   gh pr list --head "$branch" --state open --json baseRefName --jq '.[0].baseRefName // empty'
+   ```
 
-   `gh pr list` separates the cases by exit code, not by the wording of an error message — "no PR" is a successful empty result here, never a failure, so a reworded error string can never be taken for it (the trap `gh pr view` sets, where the absence of a PR and a `401` both exit 1):
-
-   - **Exit 0, a branch name printed** — a pull request exists; that name is the answer, full stop.
-   - **Exit 0, empty output** — no pull request whose head branch is named `$branch`. Usually that just means no PR, the ordinary case: continue with item 2. But `--head` matches on the branch name alone, so a branch pushed to the remote under a different name, or a PR opened from a fork (head `owner:branch`), also resolves to empty here even though a PR exists — and falling through to the default base is the silent wrong-base outcome this step exists to prevent. If a PR was expected, say the branch name did not match rather than assuming none exists, and let the user name the base or the PR.
-   - **`gh` is missing (command not found), or `origin` is not a GitHub remote** — the command cannot run at all, so there can be no pull request to find. Say so in one line and continue with item 2; item 2 reads the remote through `git` and does not need `gh`.
-   - **Any other non-zero exit** — `HTTP 401: Bad credentials`, a network error, an API error. Stop, exactly as a failed fetch does. A pull request may well exist with a base that is not the default, and reviewing against the default here produces a diff full of commits the branch never touched while looking like an ordinary run. Say which error came back, so the user can fix it or name the base themselves.
+   The cases are separated by exit code, never by the wording of an error — the trap `gh pr view` sets, where "no PR" and a `401` both exit 1. A non-zero exit stops the pass, naming the error: a PR may well exist with a non-default base, and reviewing against the default there looks like an ordinary run. The one exception is `gh` missing or `origin` not being a GitHub remote — say so and carry on, since item 2 needs only `git`. Exit 0 with empty output is the ordinary "no PR", but `--head` matches on the branch name alone, so a branch pushed under a different name or a PR opened from a fork also lands here; if a PR was expected, say the name did not match instead of falling through to the default.
 2. **If it has none**, fall back to the repository default, read-only:
    ```sh
    export GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -oBatchMode=yes"
    git ls-remote --symref origin HEAD   # ref: refs/heads/master	HEAD
    ```
-   The `ref:` line names the default branch — `refs/heads/master` means `{base}` is `master`. Asking the remote reports the branch the repository defaults to *now*; a local `refs/remotes/origin/HEAD` can be missing in a fresh clone, and a plain fetch never retargets it after a rename.
-3. **Before settling for the default, check for an integration branch.** If `GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -oBatchMode=yes" git ls-remote --heads origin develop` (or `release/*`, `staging`, whatever the repo uses) comes back non-empty **and names a branch other than the `{base}` item 2 just resolved**, the repository has two plausible bases: ask the user which one to review against rather than assuming the default. When the candidate is the branch already chosen — a repository whose default *is* `develop` — there is nothing to choose between, so ask nothing and carry on.
-4. **If nothing resolves** — `ls-remote` fails, say on a rate limit — fall back to the local `git symbolic-ref --quiet --short refs/remotes/origin/HEAD`, which prints `origin/master`; strip the `origin/` to get `{base}`, and say which branch it names. If that prints nothing either, ask. Beyond the fetch above, change nothing that outlives the pass: never run `git remote set-head`, never write to the config, never touch local branches or the working tree.
+   The `ref:` line names the default branch. Ask the remote rather than reading the local `refs/remotes/origin/HEAD`, which can be missing in a fresh clone and is never retargeted by a plain fetch after a rename.
+3. **Check for an integration branch before settling for the default.** If `GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -oBatchMode=yes" git ls-remote --heads origin develop` (or `release/*`, `staging`, whatever the repo uses) comes back non-empty **and names a branch other than the one item 2 resolved**, ask the user which of the two to review against.
+4. **If nothing resolves** — `ls-remote` fails, say on a rate limit — fall back to the local `git symbolic-ref --quiet --short refs/remotes/origin/HEAD`, which prints `origin/master`; strip the prefix. If that prints nothing either, ask.
 
-Whatever the source, state in one line which base was chosen and why before showing findings — a review against the wrong base is worse than no review.
+State in one line which base was chosen and why — a review against the wrong base is worse than no review. Beyond the fetch below, change nothing that outlives the pass: no `git remote set-head`, no config writes, no local branches, no working-tree changes. There is deliberately no general `git fetch origin` either: nothing downstream reads what it would refresh, and in a narrow clone it still could not create the ref the diff needs.
 
 **Fetch the base branch by name, always, and diff from `FETCH_HEAD`:**
 
 ```sh
 export GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -oBatchMode=yes"
-git fetch origin {base} --quiet   # non-interactive via the vars above; the fetched base is then FETCH_HEAD
+git fetch origin {base} --quiet
 ```
 
-Do this unconditionally rather than checking whether `origin/{base}` exists first. A `--single-branch` or otherwise narrow clone has a fetch refspec covering one branch, so no plain `git fetch origin` would ever create `origin/develop` — and worse, a stale `origin/develop` left over from an earlier refspec or a one-off manual fetch stays in the clone forever without ever being updated. An existence check passes on exactly that ref and diffs against a month-old base, which is the same silent wrong-base failure this whole step exists to prevent, and silent is worse than broken.
+Never check whether `origin/{base}` exists first and skip the fetch on that. A narrow clone either lacks the ref or holds a leftover that no fetch ever updates, so the check passes on exactly the stale ref and diffs against a month-old base — the silent wrong-base failure this whole step exists to prevent. Fetching by name is also the least invasive form: `FETCH_HEAD` moves and nothing else does, so a narrow clone stays narrow.
 
-Fetching by name is also the least invasive form: it leaves `FETCH_HEAD` pointing at the branch without adding a remote-tracking ref the user never had, and a narrow clone is usually narrow on purpose. Nothing that outlives the pass changes — not the config, not local branches, not `origin/HEAD`, not the working tree. That is the line the read-only rule in item 4 draws.
-
-**This fetch is required, and a failed fetch ends the pass.** If it exits non-zero — no network, no such remote, credentials wanted — stop and say so; do not review against whatever the clone happens to hold. A diff against a week-old base invents findings and hides real ones, which is worse than no review.
-
-The base to diff against is `FETCH_HEAD` — never `origin/{base}`, which is precisely the ref that can be stale. Resolve it once, into `{merge_base}`, and use that SHA from there on:
+**This fetch is required, and a failed fetch ends the pass.** If it exits non-zero — no network, no such remote, credentials wanted — stop and say so; a diff against a week-old base invents findings and hides real ones.
 
 ```sh
-git merge-base FETCH_HEAD HEAD                                   # {merge_base}; empty output ends the pass, see below
+git merge-base FETCH_HEAD HEAD                                   # empty output ends the pass
 git rev-parse --abbrev-ref HEAD                                  # current branch
-git diff {merge_base} --name-status                              # every changed file
-git diff {merge_base}                                            # full diff
+git diff "$(git merge-base FETCH_HEAD HEAD)" --name-status       # every changed file
+git diff "$(git merge-base FETCH_HEAD HEAD)"                     # full diff
 git status --short                                               # what is committed and what is not
 git ls-files --others --exclude-standard --full-name -- :/       # untracked files, ignored ones left out
 ```
 
-Substitute the SHA the first line printed into the two diffs, literally. Do not keep it in a shell variable — a fresh shell per tool call would lose it, which is why the environment variables above are set in every block — and do not re-read `FETCH_HEAD` in the later commands either. It is a single file per repository that any other fetch rewrites: an editor's autofetch, a `git pull` in another terminal, a parallel agent. It also holds one line per fetched ref and resolves to the first of them, so a plain `git fetch` landing between two tool calls silently moves the base to some unrelated branch. Reading it once, right after the fetch that wrote it, closes that window; carrying the answer forward is the agent's job, not the shell's.
+Diff from `FETCH_HEAD`, never from `origin/{base}` — that is precisely the ref that can be stale. The merge base is substituted inline rather than kept in a shell variable, for the same reason the environment variables are set in every block: a fresh shell per tool call would lose it.
 
-**An empty merge base ends the pass too**, which is why the block opens with the bare `git merge-base` and not with a diff. It prints nothing when the histories do not meet — a shallow clone, or a branch that really is unrelated — so there is no SHA to substitute into the lines below. On empty output, stop and name the likely cause instead of running the rest.
+**Run the bare `git merge-base` first, and stop the pass on empty output.** It prints nothing when the histories do not meet — a shallow clone, or a branch that really is unrelated — and the substitution in the lines below then collapses to `git diff ""`, whose complaint about an ambiguous argument says nothing about the base. Name the likely cause instead of running the rest.
 
 Diffing from the merge base is what keeps commits that landed on the base branch after this one forked out of the review — the same thing `FETCH_HEAD...HEAD` does, and `git diff A...B` is defined as `git diff $(git merge-base A B) B`.
 
-**Diff the merge base against the working tree, not against `HEAD`.** Naming a single commit and no second one makes git compare it with the files on disk, so committed, staged and unstaged changes all land in one diff, each hunk appearing exactly once. `FETCH_HEAD...HEAD` stops at the last commit, which silently drops everything not yet committed — and "nothing to report" on work in progress is the failure this skill is least able to notice. Do not add a second diff for the index or the working tree: `git diff --cached` and a bare `git diff` are already contained in this one, and running them too would report the same hunk two or three times.
+**Diff the merge base against the working tree, not against `HEAD`.** Naming a single commit and no second one makes git compare it with the files on disk, so committed, staged and unstaged changes all land in one diff, each hunk appearing exactly once. `FETCH_HEAD...HEAD` stops at the last commit, which silently drops everything not yet committed — and "nothing to report" on work in progress is the failure this skill is least able to notice. Do not add `git diff --cached` or a bare `git diff` on top: this one already contains both, and running them too reports the same hunk twice.
 
-A tracked file can of course be dirty for something other than the branch — a debug `console.log`, a local config tweak. Say so when a hunk reads that way, but review it anyway: unlike an untracked file, which costs a full read, it is already in front of you, and dropping it is the direction that loses findings.
+A tracked file can of course be dirty for something other than the branch — a debug `console.log`, a local config tweak. Say so when a hunk reads that way, but review it anyway: dropping it is the direction that loses findings.
 
-Untracked files are the one gap, since no diff shows a file git does not know about. `git ls-files --others --exclude-standard --full-name -- :/` lists them with `.gitignore` applied, so build output and local scratch files stay out. The two extra flags matter from a subdirectory: alone among the commands in that block, `git ls-files` defaults to the current directory, so without `:/` the one command whose job is to catch a forgotten `git add` would come back empty — and `--full-name` then prints what it finds relative to the repository root, the same base `git diff` uses, instead of `../`-prefixed paths that do not match the rest of the block. Review the ones that are part of the work — a new source file, a new test, a new config — by reading them in full, and say in one line which untracked files you skipped as unrelated, so a forgotten `git add` surfaces instead of passing unnoticed.
+Untracked files are the one gap, since no diff shows a file git does not know about. `git ls-files` needs both extra flags from a subdirectory: without `:/` it lists only what is under the current directory while every other command covers the repository, and `--full-name` prints repo-relative paths matching `git diff` instead of `../`-prefixed ones. Review the ones that are part of the work — a new source file, a new test, a new config — by reading them in full, and say in one line which untracked files you skipped as unrelated, so a forgotten `git add` surfaces instead of passing unnoticed.
 
 `git status --short` is only for telling committed work apart from work that is not committed yet. Use it to label findings, never as a second source of changes — and never as a source of paths either: it prints them relative to the current directory.
 
