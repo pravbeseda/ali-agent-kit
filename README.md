@@ -9,13 +9,13 @@ Every skill is published with an `ali-` prefix: `skills/review-branch.md` in thi
 
 ## Skills
 
-| Skill | What it does |
-| --- | --- |
-| `ali-review-branch` | Reviews the current branch against the repository's base branch — committed, staged, unstaged and untracked changes alike — then walks you through the findings one at a time. |
-| `ali-review-pr` | Reviews a pull request and posts each finding as an inline comment through `gh api` — questions and doubts only, no fixes. |
-| `ali-process-pr-comments` | Takes the unresolved review comments on a pull request one by one: verifies the claim, decides with you, applies the change, resolves the thread. |
-| `ali-one-by-one` | Resolves the open questions in a plan one at a time — context, rated options, a recommendation, then records the decision in the plan file. |
-| `ali-generate-pr-description-uc` | Diffs the current branch against `origin/develop` and writes a ready-to-paste PR description in the Unite Client (UC) template — sections plus the mandatory checklists. |
+| Skill                            | What it does                                                                                                                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ali-review-branch`              | Reviews the current branch against the repository's base branch — committed, staged, unstaged and untracked changes alike — then walks you through the findings one at a time.                    |
+| `ali-review-pr`                  | Reviews a pull request against one bar — does the change leave the codebase healthier — posts what fails it as inline `blocking` / `suggestion` comments, and ends with a ready-to-merge verdict. |
+| `ali-process-pr-comments`        | Takes the unresolved review comments on a pull request one by one: verifies the claim, decides with you, applies the change, resolves the thread.                                                 |
+| `ali-one-by-one`                 | Resolves the open questions in a plan one at a time — context, rated options, a recommendation, then records the decision in the plan file.                                                       |
+| `ali-generate-pr-description-uc` | Diffs the current branch against `origin/develop` and writes a ready-to-paste PR description in the Unite Client (UC) template — sections plus the mandatory checklists.                          |
 
 ## Install / update
 
@@ -39,13 +39,13 @@ npm update -g ali-agent-kit && ali-agent-kit install   # later updates
 
 ## Commands
 
-| Command | What it does |
-| --- | --- |
-| `ali-agent-kit install` (`update`, `sync`) | install/update all skills into detected agents |
-| `ali-agent-kit validate` | check the skills in this package, write nothing |
-| `ali-agent-kit list` | source skills + what is installed where |
-| `ali-agent-kit agents` | which agents were detected, and where |
-| `ali-agent-kit uninstall` | remove everything this package installed |
+| Command                                    | What it does                                    |
+| ------------------------------------------ | ----------------------------------------------- |
+| `ali-agent-kit install` (`update`, `sync`) | install/update all skills into detected agents  |
+| `ali-agent-kit validate`                   | check the skills in this package, write nothing |
+| `ali-agent-kit list`                       | source skills + what is installed where         |
+| `ali-agent-kit agents`                     | which agents were detected, and where           |
+| `ali-agent-kit uninstall`                  | remove everything this package installed        |
 
 Options: `--agent <id[,id]>` (repeatable, accepts aliases and `all`), `--dry-run`, `--no-prune`, `-h`, `-v`.
 
@@ -57,11 +57,11 @@ Exit codes: `0` ok, `1` error, `2` finished but left unmanaged paths alone.
 
 ## Supported agents
 
-| id (aliases) | Agent | Skills go to | Override |
-| --- | --- | --- | --- |
-| `claude-code` (`claude`) | Claude Code | `~/.claude/skills/` | `CLAUDE_CONFIG_DIR` |
-| `copilot` | GitHub Copilot CLI | `~/.copilot/skills/` | `COPILOT_CONFIG_DIR` |
-| `codex` | Codex CLI | `~/.codex/skills/` | `CODEX_HOME` |
+| id (aliases)             | Agent              | Skills go to         | Override             |
+| ------------------------ | ------------------ | -------------------- | -------------------- |
+| `claude-code` (`claude`) | Claude Code        | `~/.claude/skills/`  | `CLAUDE_CONFIG_DIR`  |
+| `copilot`                | GitHub Copilot CLI | `~/.copilot/skills/` | `COPILOT_CONFIG_DIR` |
+| `codex`                  | Codex CLI          | `~/.codex/skills/`   | `CODEX_HOME`         |
 
 An agent counts as installed when its config dir exists. Missing agents are skipped, never created. Codex also reads the shared `~/.agents/skills/` directory; we deliberately do not write there, because that directory is usually owned by another skill manager and Codex would then see every `ali-*` skill twice.
 
@@ -81,6 +81,7 @@ description: One line on what the skill does. Use when the user asks for ... —
 ---
 
 # My Skill
+
 ...
 ```
 
@@ -110,11 +111,14 @@ Agents are plugins in `src/adapters/` — one file, three fields. See [docs/agen
 
 ```js
 export default {
-  id: 'cursor',
-  label: 'Cursor',
+  id: "cursor",
+  label: "Cursor",
   locations: ({ env, home }) => [
-    { configDir: join(home, '.cursor'), skillsDir: join(home, '.cursor', 'skills') }
-  ]
+    {
+      configDir: join(home, ".cursor"),
+      skillsDir: join(home, ".cursor", "skills"),
+    },
+  ],
 };
 ```
 
@@ -124,7 +128,7 @@ Register it in the `adapters` array in `src/adapters/index.js`; the loader valid
 
 GitHub Actions → **Publish to npm** → Run workflow → pick `patch` / `minor` / `major`.
 
-The workflow runs `npm run check`, reads the currently published version from the registry, applies the bump **in the working copy only**, publishes with provenance, and records the release as a tag plus a GitHub release. Requires an `NPM_TOKEN` repo secret (an *automation* token — a publish token would ask for an OTP that CI cannot provide). Only runs on `main`.
+The workflow runs `npm run check`, reads the currently published version from the registry, applies the bump **in the working copy only**, publishes with provenance, and records the release as a tag plus a GitHub release. Requires an `NPM_TOKEN` repo secret (an _automation_ token — a publish token would ask for an OTP that CI cannot provide). Only runs on `main`.
 
 Nothing is ever committed to `main`, so the branch stays protected and every change reaches it through a pull request. The consequence: **`version` in `package.json` is a placeholder** (`0.0.0`) and is not the released version. The real one lives in the registry, in the tags, and in the badge above; published tarballs always carry the correct version.
 
@@ -132,4 +136,4 @@ Nothing is ever committed to `main`, so the branch stays protected and every cha
 
 `ali-agent-kit list` shows the source skills and where each one is installed; `ali-agent-kit agents` shows which agents were detected.
 
-Both answer from this side of the fence: the files are on disk, in a directory we own. Whether the agent actually picked a skill up is a separate question — a skill can sit in the right place with a valid marker and still be invisible (a directory that agent's version does not read, frontmatter it does not accept, a shared `~/.agents/skills/` shadowing it). Nothing here verifies that; ask the agent itself — *"list your skills"* — or invoke one of the `ali-*` skills and see whether it triggers.
+Both answer from this side of the fence: the files are on disk, in a directory we own. Whether the agent actually picked a skill up is a separate question — a skill can sit in the right place with a valid marker and still be invisible (a directory that agent's version does not read, frontmatter it does not accept, a shared `~/.agents/skills/` shadowing it). Nothing here verifies that; ask the agent itself — _"list your skills"_ — or invoke one of the `ali-*` skills and see whether it triggers.

@@ -1,16 +1,16 @@
 ---
 name: review-pr
-description: Review a pull request and post the findings as inline comments on the code through gh api, the way a human reviewer does — questions and doubts only, no fixes and no ready-made solutions. Use when the user asks to "review the PR", "post a review on the PR", "leave comments on the PR", "comment on the PR as a reviewer", or runs /ali-review-pr.
+description: Review a pull request against one bar — does the change leave the codebase healthier than it found it — and post what fails it as inline comments through gh api, labelled blocking or suggestion, questions and doubts only, no fixes. Ends with a ready-to-merge verdict. Use when the user asks to "review the PR", "post a review on the PR", "leave comments on the PR", "comment on the PR as a reviewer", "is this PR ready to merge", or runs /ali-review-pr.
 ---
 
 # Review PR
 
-Review the changes in a pull request and publish each finding as an inline comment on the exact line, through `gh api` — the way a human reviewer works: point at the problem or the doubt, do not fix the code and do not hand over a finished solution.
+Answer one question about a pull request: **does this change leave the codebase healthier than it found it?** If it does, recommend the merge — a change does not have to be perfect to be ready. If it does not, publish the findings as inline comments on the exact line, through `gh api`, the way a human reviewer works: point at the problem or the doubt, do not fix the code and do not hand over a finished solution.
 
 > **Not `ali-process-pr-comments`:** that skill triages existing threads and resolves them. This one posts NEW comments on the PR diff.
 > **Not a summary review:** the findings are published together as one review, but each one is still its own inline comment anchored to a line. Do not collapse them into a single prose comment, and do not apply fixes.
 
-## Step 1. PR context
+## Step 1. PR context and what has already been decided
 
 Fetch in parallel:
 
@@ -24,15 +24,52 @@ gh pr diff {number}
 
 `headRefOid` — the SHA of the PR's latest commit — is required; without it GitHub rejects inline comments.
 
-## Step 2. Analyze the diff
+Then read the review history, **resolved threads included**:
 
-Look only for:
+```sh
+gh api graphql -f query='
+query {
+  repository(owner: "{owner}", name: "{repo}") {
+    pullRequest(number: {number}) {
+      reviewThreads(first: 100) {
+        nodes {
+          isResolved
+          path
+          line
+          raised: comments(first: 1) { nodes { body originalCommit { oid } } }
+          outcome: comments(last: 1) { nodes { body } }
+        }
+      }
+    }
+  }
+}'
+```
 
-- outright bugs and incorrect logic
-- risky assumptions and edge cases that raise a real doubt
-- suspicious deviations from the patterns already in the codebase
+Two things come out of it.
 
-Do not look for: nits a linter or type checker would catch, pure style, subjective preferences with no real risk.
+**The decision ledger.** Every thread is a finding that has already been weighed, and a resolved one that ends in "no, we are not doing this" is a decision, not an oversight. Do not raise it again. The single exception is a finding whose worth has visibly risen since — the code around it changed, or the case it predicted became reachable — and then the comment opens by saying what changed. Re-litigating a settled point is what turns a review into a treadmill, and the author cannot tell a fresh finding from a repeat one as cheaply as you can.
+
+**Which round this is.** A thread whose opening comment starts with 🤖 is one of this skill's earlier findings. If any exists, this is a follow-up round and step 3 fixes its scope; the newest such thread carries `{reviewed_sha}` in its `originalCommit.oid` — the commit those findings were written against. If none exists, this is the first round and the whole diff is in scope. Both answers come from these threads and from nothing else: a finding posted on its own by the fallback in step 4 leaves a 🤖 thread but no review, so any second source would disagree with this one on exactly that path.
+
+## Step 2. The bar a finding has to clear
+
+A review is worth running only if it can make the change smaller, simpler or safer. Exactly two kinds of finding do that, and nothing else gets published.
+
+**`blocking` — the change leaves the codebase worse than it found it.** One of:
+
+- a wrong result, a crash or a lost error on an input you can name
+- fragility: the code works only while some unstated condition holds, and nothing here holds it
+- structure degraded: a responsibility placed where it does not belong, a seam broken, one decision now edited in two places
+- complexity this change's own goal does not justify — a branch, a parameter, a layer, an option or a guard that nothing in the PR's purpose asks for
+
+**`suggestion` — applying it removes code or removes a concept.** A guard for a case that cannot occur, an abstraction with one caller, a parameter no caller varies, a branch that cannot be taken, logic the diff already has elsewhere. A suggestion never holds up a merge; it is the author's call.
+
+Two gates decide what survives:
+
+- **Evidence.** Name the file, the line, and either the input or path where the code goes wrong today, or the code that would disappear. A finding that can only be phrased as "what if, one day" has no evidence and is not published — say it in the chat if it matters.
+- **Growth.** If acting on the finding would make the code bigger, it must be `blocking`, or it is dropped. Hardening against a case nobody can reach is the single change that most reliably leaves a PR longer and more brittle than it was, and asking for it does more damage than the case ever would.
+
+Not looked for at all: anything a linter or type checker catches, formatting, naming taste, and preferences with no consequence behind them.
 
 **Forbidden:**
 
@@ -42,34 +79,46 @@ Do not look for: nits a linter or type checker would catch, pure style, subjecti
 
 A comment must read like a human reviewer who is unsure and asks, not like a linter report or a task description for a fix.
 
-A finding can only be attached to a line that actually appears in the diff — an added or context line on the RIGHT side, or a deleted line on the LEFT — otherwise the GitHub API returns 422.
+## Step 3. A follow-up round reviews the fixes, nothing else
 
-## Step 3. Publish
-
-**With no findings, publish nothing.** Not an empty review, not a summary-only one, not an approval — make no call at all, and tell the user in the chat what was reviewed and why it came back clean. A review carrying a summary sentence and an empty `comments` array is now a perfectly valid request, so nothing stops it but this rule, and once submitted it cannot be deleted, only dismissed. Deciding the PR is fine is the user's call to make, not a by-product of finding nothing.
-
-With findings: no questions, no confirmations — publish them straight away, as **one** review, because a human reviewer leaves a single review, not eight loose comments. One call, so the author gets one notification and a half-published review is impossible.
-
-**First snapshot the existing reviews — this is the baseline the 422 recovery below diffs against, and it only works taken before the POST, never after.** A 422 is expected to leave nothing behind, but that is an observation, not a documented guarantee, and acting on it blindly is how every finding gets published twice — the exact outcome the single-review rule exists to prevent.
+When step 1 found earlier 🤖 threads, this round has one narrow job: read only what has changed since the commit they were written against.
 
 ```sh
-gh api --paginate repos/{owner}/{repo}/pulls/{number}/reviews --jq '.[].id' | sort > {before}
+gh api repos/{owner}/{repo}/compare/{reviewed_sha}...{sha} --jq '.files[] | {filename, patch}'
 ```
 
-`--paginate` matters: the endpoint returns 30 per page, and a review created beyond the first page would otherwise look like nothing landed and be published a second time.
+If `reviewed_sha` equals `{sha}`, nothing has been pushed since the last review: there is nothing to verify, so publish nothing and say so.
 
-Then post the review. **Write the request body to a file with the file-creation tool and pass it with `--input` — never build it inline in the shell.** Put the file in a temp dir, never in the working tree: this is the branch under review, and a stray file there shows up in `git status` and can be committed with the work. A heredoc or a long quoted argument makes the command multi-line, and the integrated terminal echoes such a command back with soft wrapping and `>` continuation prompts until the run looks hung, at which point nobody can tell whether the review was published. With a file the command is one short line whatever the findings say, and backticks, quotes, `$` and code blocks in a body never reach the shell at all.
+Otherwise the round covers three things and stops:
+
+1. **Each earlier finding: addressed or not addressed.** Attempted is not addressed. This is a report to the user in the chat, not new comments — those findings are already on the PR, and repeating them just doubles the thread.
+2. **Defects the fixes introduced**, judged by the same bar as step 2. These are the only new inline comments a follow-up round may post.
+3. **Everything else is out of scope.** Whatever you notice in code this pass did not touch goes to the user in the chat and stays off the PR. It was in scope for round 1 and was not worth a comment then; it does not get to extend the review now.
+
+**The same disagreement twice is not a defect.** If a finding lands on code that was written to satisfy the previous round's finding, and it is the same objection in new clothes, publish nothing there. Put it to the user as a design disagreement to settle in one decision. Each round objecting to the answer the last round forced is the loop this scope exists to break, and it never resolves by running one more round.
+
+## Step 4. Publish
+
+**When nothing blocking came up, recheck before believing it.** Walk the files this round covered once more asking only the blocking question, and write one line per file naming the degradation or `none`. A bare "nothing found" without that line is a guess, and the recheck is cheap next to a merge recommendation that turns out wrong. Whatever it surfaces is an ordinary finding and goes out in the batch below — which is why it happens here and not after the review is sent, where it could only produce a second one.
+
+**With nothing above the bar, publish nothing.** Not an empty review, not a summary-only one, not an approval — make no call at all. A review carrying a summary sentence and an empty `comments` array is a perfectly valid request, so nothing stops it but this rule, and once submitted it cannot be deleted, only dismissed. Go straight to step 5.
+
+With findings — of either label — publish them straight away: no questions, no confirmations, and as **one** review, because a human reviewer leaves a single review, not eight loose comments. One call, so the author gets one notification and a half-published review is impossible.
+
+**Write the request body to a file with the file-creation tool and pass it with `--input` — never build it inline in the shell.** Put the file in a temp dir, never in the working tree: this is the branch under review, and a stray file there shows up in `git status` and can be committed with the work. A heredoc or a long quoted argument makes the command multi-line, and the integrated terminal echoes such a command back with soft wrapping and `>` continuation prompts until the run looks hung, at which point nobody can tell whether the review was published. With a file the command is one short line whatever the findings say, and backticks, quotes, `$` and code blocks in a body never reach the shell at all.
 
 ```json
 {
   "commit_id": "{sha}",
   "event": "COMMENT",
-  "body": "🤖 {one line naming what was reviewed and how many questions follow}",
+  "body": "🤖 {one line: what was reviewed, and how many blocking findings and suggestions follow}",
   "comments": [
-    { "path": "{path}", "line": {line}, "side": "RIGHT", "body": "🤖 {the finding, in English}" }
+    { "path": "{path}", "line": {line}, "side": "RIGHT", "body": "🤖 blocking: {the finding, in English}" }
   ]
 }
 ```
+
+Each comment body opens with its label — `blocking:` or `suggestion:` — right after the 🤖, so the author can tell at a glance what holds the merge and what does not.
 
 ```sh
 gh api repos/{owner}/{repo}/pulls/{number}/reviews -X POST --input {file}
@@ -79,37 +128,46 @@ gh api repos/{owner}/{repo}/pulls/{number}/reviews -X POST --input {file}
 
 The top-level `body` is required by the API whenever `event` is `COMMENT` or `REQUEST_CHANGES` — without it the call fails with 422 before any line is even looked at. Keep it to a single sentence; the findings live in `comments`, not in the summary.
 
-Use `"side": "LEFT"` for deleted lines.
+Use `"side": "LEFT"` for deleted lines. A comment can only be anchored to a line that appears in the diff — an added or context line on the RIGHT, a deleted line on the LEFT — and any other line is rejected with 422.
 
-**On 422** — one line the API will not accept takes the whole batch down with it. The error body names the resource and the field (`line must be part of the diff`), not which entry in `comments` is at fault, so it usually cannot be used to pick the offender out of the batch.
-
-Diff the current reviews against the baseline captured before the POST to see whether anything landed despite the error:
-
-```sh
-gh api --paginate repos/{owner}/{repo}/pulls/{number}/reviews --jq '.[].id' | sort | comm -13 {before} -
-```
-
-**A new id is a candidate, not an answer.** Anything submitted while the POST was in flight — a human reviewer, a bot, another run of this skill — also shows up in that difference, and mistaking it for this call means silently dropping every finding. Confirm a candidate before believing it:
-
-```sh
-gh api user --jq '.login'                                        # who this token is
-gh api repos/{owner}/{repo}/pulls/{number}/reviews/{id} --jq '{user: .user.login, commit_id}'
-gh api repos/{owner}/{repo}/pulls/{number}/reviews/{id}/comments --jq '.[] | {path, line, body}'
-```
-
-A candidate is this call only if the author is the authenticated login, `commit_id` is `{sha}`, **and** its comments are the findings from the batch. Author and commit alone are circumstantial — an earlier run of this skill under the same token matches both — so the comments decide. If no candidate qualifies, nothing of ours landed.
-
-Then recover:
-
-1. **A candidate is confirmed — this review did land** — treat it as published. Do not repost the batch. Compare its comments with the findings and post only those absent from it, one at a time, as in item 3; that same read is what makes "missing" a decidable question rather than a guess.
-2. **No candidate qualifies and the message identifies the finding** — drop that one and repost the batch, **once**. If that repost also returns 422, run the candidate check from item 1 again — against the same snapshot taken before any POST, which is still valid — because the repost is a second POST to the reviews endpoint and can create a review despite the 422, exactly like the first one. Then stop reposting and go to item 3 only for the findings that no confirmed candidate already carries; retrying line by line burns a round trip per bad line and can loop as long as bad lines remain.
-
-   Two things to get right before reposting. If dropping the finding leaves `comments` empty, **post nothing at all** — that request would create exactly the summary-only review the top of this step forbids, and a submitted review cannot be deleted; tell the user instead that the single finding had no line the API would accept. And if findings remain, rebuild `body` to match how many actually go out: it was written before the drop, so it otherwise announces a question that is no longer there.
-3. **No candidate qualifies and the offender is unknown, or item 2 has been spent** — post each finding on its own with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST --input {file}` (`commit_id`, `path`, `line`, `side`, `body`), each request body written to a file the same way as the batch above. Each of these calls stands alone: one that returns 201 has published its comment for good, and one that returns 422 has published nothing. Work down the list once, skip the finding whose line the API rejected, and never resend one that already returned 201.
+**On 422 the review was not created.** One line the API will not accept takes the whole batch down, and the error names the field rather than the entry at fault. If it does identify the finding (`line must be part of the diff`), drop that one and repost once — but if dropping it empties `comments`, post nothing at all and say so. If the repost fails too, or the offender is unknown, post the findings one at a time with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST --input {file}` (`commit_id`, `path`, `line`, `side`, `body`, each body in its own file): a 201 is published for good and must never be resent, a 422 published nothing and that finding is skipped.
 
 Do not reply to your own comments, do not resolve them, do not edit the code — publishing findings is the whole job.
 
-When done, print one summary line: how many comments were posted, in which files, which findings were dropped on 422, and whether they went out as one review or as separate comments.
+## Step 5. The verdict
+
+End every run with one verdict, and make it the last thing printed.
+
+**Blocking findings stand** → not ready. Name them and stop; the next move is the author's.
+
+**No blocking findings** → ready, and the recheck from step 4 is what says so.
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{First round | Follow-up round} — {b} blocking, {s} suggestions, {x} dropped below the bar
+Recheck: {one line per changed file, or "clean"}
+
+## ✅ VERDICT: READY TO MERGE
+{one or two sentences: what the change does for the codebase, and
+which suggestions stay open — the author's call, not a condition}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+When blocking findings stand, the block is the same with the recheck line dropped and the verdict replaced by:
+
+```
+## 🛑 VERDICT: NOT READY
+{one or two sentences: which blocking findings stand in the way,
+and which area they cluster in}
+```
+
+Rules for the verdict:
+
+- Exactly one of the two lines, never both, never a hedged "maybe one more round".
+- **Ready means the change leaves the codebase better than it found it — not that it is perfect.** There is no perfect code, only better code, and holding a PR for the difference costs more than it buys. Open `suggestion` threads never block a merge.
+- A round that found only suggestions is a ready verdict. So is a round that found nothing.
+- Never recommend "another full review". After the author acts, what is unreviewed is the fix, and that is step 3.
+- Report a 422, a dropped finding or a one-at-a-time fallback only if it actually happened. Silence is the normal case.
 
 ## Language
 

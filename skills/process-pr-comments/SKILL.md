@@ -76,7 +76,7 @@ Two details that decide whether "every unresolved comment" is true:
 
   Keep paging with `comments(first: 100, after: "{endCursor}")` while `hasNextPage`. A single `gh api repos/{owner}/{repo}/pulls/comments/{root_databaseId}` is not a substitute: it returns the root comment you already have and none of the replies. If for some reason the thread cannot be read in full, say in step 3 that the middle of the discussion was not read. A verdict like "this was already agreed" is exactly the one a missing middle makes wrong.
 
-Keep only threads where `isResolved == false` and store each thread `id`. Ignore resolved threads entirely.
+Work through the threads where `isResolved == false`, storing each thread `id`. **Keep the resolved ones as the decision ledger** rather than discarding them: they are what this PR has already settled, and step 3 answers a comment that repeats a settled point from that record instead of arguing it out again.
 
 ## Step 2. Summarize, then start
 
@@ -96,6 +96,18 @@ For each comment (or group of related ones):
 3. Scrutinize bot comments (Copilot, CodeRabbit, …) especially hard — they are often wrong from missing context.
 4. Check the last reply first: if the thread already agreed on an outcome and only the resolve click is missing, do not re-open the discussion — say so and offer to just resolve it.
 
+### Grounds for rejecting it
+
+A review comment is a proposal, and most proposals cost code. Rejecting one is a normal outcome, not insubordination — but name which ground it falls under:
+
+- **It repeats a settled point.** A resolved thread in the ledger already weighed it and said no. It comes back only if its worth has visibly risen since — the code around it changed, or the case it predicted became reachable — and the reply says what changed.
+- **Its case is unreachable.** The failure it claims needs an input, state or caller that cannot occur here. Grep for the caller before believing one exists.
+- **It only adds code.** A guard, a fallback, a retry, a flag or a branch for something nobody can trigger. The PR ends up longer and more brittle and no defect is gone — that is the trade to refuse, and refusing it is the point of assessing at all.
+- **It is factually wrong.** The check in item 2 disproved it.
+- **The written approach is equally valid.** Where two designs both hold up on engineering grounds, the one already in the code wins; a reviewer's preference is not a reason to rewrite.
+
+Accept freely in the other direction: a comment that **removes** code or a concept, or that fixes a failure you can name and trigger, is worth doing even when it is small.
+
 ### Presentation format
 
 ```
@@ -109,7 +121,7 @@ For each comment (or group of related ones):
 **Assessment:**
 - Correct: yes / partly / no
 - Worth doing: needed / nice to have / no
-- Over-engineering: yes / no
+- Net effect on the code: removes / neutral / adds
 - Effort: small / medium / large
 
 **Options:**
@@ -126,7 +138,7 @@ Wait for the user's decision. Do not move on until they answer.
 Once the user decides:
 
 1. **If the decision is to change the code** — make the change.
-2. **Decide whether a reply is needed at all.** If the last replies already state the outcome and only the resolve click is missing — the case step 3 checks for before presenting anything — post nothing: say in the chat which reply settled it and go straight to item 4. Repeating a decision the thread already holds is exactly the noise that check exists to avoid.
+2. **Decide whether a reply is needed at all.** If the last replies already state the outcome and only the resolve click is missing — the case step 3 checks for before presenting anything — post nothing: say in the chat which reply settled it and go straight to item 4. Repeating a decision the thread already holds is exactly the noise that check exists to avoid. **A rejection is the exception: it always gets a reply, naming the ground it fell under.** That reply is the ledger entry the next round reads; a point turned down in silence comes straight back.
 3. **When a reply is going out, show it before posting.** Print the exact text that will go into the thread and wait for the user to approve or correct it. It is published under their name in a place they cannot edit away, so it is the one thing here that is not yours to send unilaterally. This is the only pause in step 4, and it happens only when something is actually being sent.
 
    **Post the approved text from a file, never inline in the command.** Write it with the file-creation tool — not with a heredoc, not with `echo` — into a temp dir, never into the working tree, and let `gh` read it back:
@@ -150,50 +162,38 @@ Once the user decides:
 
 > **Note:** `PullRequestReviewComment` has no `pullRequestReviewThread` field. Thread IDs must come from the PR's `reviewThreads` (step 1).
 
-## Step 5. Close the pass: is another review round worth it?
+## Step 5. Close the pass
 
-When no unresolved thread is left, end with a verdict on whether the PR should go through another review round. Judge it by what **this** pass turned up, not by how many comments there were.
+When no unresolved thread is left, count the threads whose decision **changed the code** in this pass. That count, and nothing else, decides what comes next.
 
-**The rule:** while a round is still finding things that change behaviour, another round pays for itself. Once a round produces only wording and polish, stop — the next one will cost attention and return noise.
+- **None did** — every comment was rejected, deferred or already settled. No code exists that nobody has looked at, so the pass is closed.
+- **Some did** — those edits are the only code on this PR that has not been reviewed. Hand them to `ali-review-pr`, which ends with the ready-to-merge verdict.
 
-Sort every thread of this pass into exactly one of five buckets, by **what the assessment concluded**, never by what the comment claimed. `N` counts threads, not assessments: when step 3 settled several threads in one go, each of them still gets its own bucket — usually the same one, but a grouped assessment that accepted one thread and rejected another splits them. That keeps `B + P + S + D + R == N` exact and the number equal to what the PR shows as resolved:
-
-- **B — behaviour-changing.** Accepted, and it was about a wrong result or a crash, a call that cannot succeed as written, a silently wrong default, a lost error, a missing case in the logic, or a check that was removed and still had a job to do.
-- **P — polish.** Accepted, but it was about wording, naming, comment phrasing, ordering, formatting, a test that reads weaker than it is, or restating something already true elsewhere.
-- **S — settled earlier.** The thread already recorded its outcome before this pass, so step 4 posted nothing and only clicked resolve. It belongs to whichever round did the work, not this one: counting it as `B` would recommend another round for work already finished, and counting it as `R` would misreport a reviewer whose point was taken.
-- **D — deferred.** The comment was found valid and the work was not done in this pass: out of scope, tracked separately, waiting on something else. Accepted in judgement, unfinished in the code, which is why it is neither `B` nor `P` nor `R` — filing it under `R` would misreport a reviewer who was right.
-- **R — rejected.** The comment was not acted on. A rejected comment lands here whatever it claimed: one that predicted a crash but turned out not to apply is `R`, not `B`, because there is no defect for the next round to find.
-
-Only `B` and `D` move the verdict, and `D` only when what was deferred is behaviour-changing: the defect is real, acknowledged and still in the code, so the next round will meet its consequences. A deferred polish item changes nothing.
-
-Print it as the last block of the pass, with the verdict on its own line and nothing after it:
+Print it as the last block of the pass, with the line on its own and nothing after it:
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-This pass: {N} threads — {B} behavioural, {P} polish, {S} settled earlier, {D} deferred, {R} rejected
-Heaviest find: {one line, or "none"}
+This pass: {N} threads — {C} changed the code, {U} left it as it was
+Deferred, still open: {one line, or "none"}
 
-## 🔁 RECOMMENDATION: ANOTHER ROUND
-{one or two sentences: which behavioural findings justify it,
-and which area they cluster in}
+## 🔁 NEXT: VERIFY THE FIXES
+{one line: which files this pass changed}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-When the pass produced only polish, the block is the same with the verdict line replaced by:
+When nothing changed, the block is the same with the verdict line replaced by:
 
 ```
-## ✅ RECOMMENDATION: STOP HERE
-{one or two sentences: this round found only wording-level items,
-so the code is not what is holding the PR back}
+## ✅ PASS CLOSED — NOTHING TO VERIFY
+{one line: why every comment was rejected, deferred or already settled}
 ```
 
-Rules for the verdict:
+Rules for the close:
 
-- Exactly one of the two lines, never both, never a hedged "maybe one more".
-- Base it on the findings of this pass only. A long queue of comments that all turned out to be polish still means stop.
-- A single behavioural finding is enough to recommend another round. Behavioural defects cluster; a round rarely finds exactly one.
-- Rejected threads never argue for another round, however alarming the claim was: they say something about the reviewer, not about the code.
-- It is a recommendation. If the user asks for another round after a stop verdict, run it without arguing.
+- **Never recommend a fresh review of the whole PR.** Code this pass did not touch was reviewed already, and reviewing it again is precisely what turns a review into a loop. Only the edits made here are new.
+- Whether the PR is ready to merge is not this skill's call, and neither is "one more round" — verifying the fixes answers both, and `ali-review-pr` prints that verdict.
+- The count is of threads, not of assessments: when step 3 settled several at once, each still counts on its own, so `C + U == N` and the number matches what the PR shows as resolved.
+- A rejected comment never argues for more review, however alarming its claim was: it says something about the reviewer, not about the code.
 
 ## Language
 
