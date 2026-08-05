@@ -167,7 +167,7 @@ Once the user decides:
 When no unresolved thread is left, count the threads whose decision **changed the code** in this pass. That count, and nothing else, decides what comes next.
 
 - **None did** — every comment was rejected, deferred or already settled. No code exists that nobody has looked at, so the pass is closed.
-- **Some did** — those edits are the only code on this PR that has not been reviewed. Hand them to `ali-review-pr`, which looks at exactly them and at nothing else, and which ends with the ready-to-merge verdict.
+- **Some did** — those edits are the only code on this PR that has not been reviewed. Hand them to `ali-review-pr`, which ends with the ready-to-merge verdict.
 
 Print it as the last block of the pass, with the line on its own and nothing after it:
 

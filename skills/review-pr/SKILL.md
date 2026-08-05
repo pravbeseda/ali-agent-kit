@@ -36,7 +36,7 @@ query {
           isResolved
           path
           line
-          raised: comments(first: 1) { nodes { body } }
+          raised: comments(first: 1) { nodes { body originalCommit { oid } } }
           outcome: comments(last: 1) { nodes { body } }
         }
       }
@@ -49,7 +49,7 @@ Two things come out of it.
 
 **The decision ledger.** Every thread is a finding that has already been weighed, and a resolved one that ends in "no, we are not doing this" is a decision, not an oversight. Do not raise it again. The single exception is a finding whose worth has visibly risen since — the code around it changed, or the case it predicted became reachable — and then the comment opens by saying what changed. Re-litigating a settled point is what turns a review into a treadmill, and the author cannot tell a fresh finding from a repeat one as cheaply as you can.
 
-**Which round this is.** A thread whose opening comment starts with 🤖 is one of this skill's earlier findings. If any exists, this is a follow-up round and step 3 fixes its scope. If none exists, this is the first round and the whole diff is in scope.
+**Which round this is.** A thread whose opening comment starts with 🤖 is one of this skill's earlier findings. If any exists, this is a follow-up round and step 3 fixes its scope; the newest such thread carries `{reviewed_sha}` in its `originalCommit.oid` — the commit those findings were written against. If none exists, this is the first round and the whole diff is in scope. Both answers come from these threads and from nothing else: a finding posted on its own by the fallback in step 4 leaves a 🤖 thread but no review, so any second source would disagree with this one on exactly that path.
 
 ## Step 2. The bar a finding has to clear
 
@@ -81,10 +81,9 @@ A comment must read like a human reviewer who is unsure and asks, not like a lin
 
 ## Step 3. A follow-up round reviews the fixes, nothing else
 
-When step 1 found earlier 🤖 threads, this round has one narrow job. Take the commit the last one pinned and read only what has changed since:
+When step 1 found earlier 🤖 threads, this round has one narrow job: read only what has changed since the commit they were written against.
 
 ```sh
-gh api --paginate repos/{owner}/{repo}/pulls/{number}/reviews --jq '.[] | select(.body | startswith("🤖")) | .commit_id' | tail -1
 gh api repos/{owner}/{repo}/compare/{reviewed_sha}...{sha} --jq '.files[] | {filename, patch}'
 ```
 
@@ -99,6 +98,8 @@ Otherwise the round covers three things and stops:
 **The same disagreement twice is not a defect.** If a finding lands on code that was written to satisfy the previous round's finding, and it is the same objection in new clothes, publish nothing there. Put it to the user as a design disagreement to settle in one decision. Each round objecting to the answer the last round forced is the loop this scope exists to break, and it never resolves by running one more round.
 
 ## Step 4. Publish
+
+**When nothing blocking came up, recheck before believing it.** Walk the files this round covered once more asking only the blocking question, and write one line per file naming the degradation or `none`. A bare "nothing found" without that line is a guess, and the recheck is cheap next to a merge recommendation that turns out wrong. Whatever it surfaces is an ordinary finding and goes out in the batch below — which is why it happens here and not after the review is sent, where it could only produce a second one.
 
 **With nothing above the bar, publish nothing.** Not an empty review, not a summary-only one, not an approval — make no call at all. A review carrying a summary sentence and an empty `comments` array is a perfectly valid request, so nothing stops it but this rule, and once submitted it cannot be deleted, only dismissed. Go straight to step 5.
 
@@ -131,8 +132,6 @@ Use `"side": "LEFT"` for deleted lines. A comment can only be anchored to a line
 
 **On 422 the review was not created.** One line the API will not accept takes the whole batch down, and the error names the field rather than the entry at fault. If it does identify the finding (`line must be part of the diff`), drop that one and repost once — but if dropping it empties `comments`, post nothing at all and say so. If the repost fails too, or the offender is unknown, post the findings one at a time with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST --input {file}` (`commit_id`, `path`, `line`, `side`, `body`, each body in its own file): a 201 is published for good and must never be resent, a 422 published nothing and that finding is skipped.
 
-Before any repost, list the PR's reviews once and check for one of yours on `{sha}` — if the batch landed despite the error, reposting publishes every finding twice.
-
 Do not reply to your own comments, do not resolve them, do not edit the code — publishing findings is the whole job.
 
 ## Step 5. The verdict
@@ -141,11 +140,11 @@ End every run with one verdict, and make it the last thing printed.
 
 **Blocking findings stand** → not ready. Name them and stop; the next move is the author's.
 
-**No blocking findings** → recheck before recommending the merge. Walk the changed files once more asking only the blocking question, and write one line per file naming the degradation or `none`. A verdict without that line is a guess, and the recheck is cheap next to a merge recommendation that turns out wrong. If it surfaces something, that is a finding — go back to step 4.
+**No blocking findings** → ready, and the recheck from step 4 is what says so.
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Round {n} — {b} blocking, {s} suggestions, {x} dropped below the bar
+{First round | Follow-up round} — {b} blocking, {s} suggestions, {x} dropped below the bar
 Recheck: {one line per changed file, or "clean"}
 
 ## ✅ VERDICT: READY TO MERGE
