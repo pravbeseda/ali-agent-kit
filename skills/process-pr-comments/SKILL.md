@@ -150,6 +150,8 @@ Once the user decides:
 
    `-F key=@path` reads the value from a file and passes it through as a string, so backticks, quotes, `$`, em dashes and code blocks in the reply never reach the shell. That is the point: a reply body carried in `-f body="…"` or in a heredoc turns into a long or multi-line command, which the integrated terminal echoes back with soft wrapping and `>` continuation prompts until the run looks hung. This command stays one short line however long the reply is.
 
+   **Name the file by the literal absolute path it was written to — never `$TMPDIR`, `~` or any other shell variable.** The shell expands those in the terminal's environment, which is not the one the file-creation tool wrote in: `$TMPDIR` in an editor terminal commonly points somewhere else entirely, so the command names a file that does not exist and fails with `no such file or directory`. Give the file-creation tool an absolute path, then paste that same string into the command.
+
    **If a post's outcome is unknown, read before resending.** A reply command that appears to hang may already have created the comment, and a blind retry posts it twice. List the thread's replies first and only resend when yours is genuinely absent:
 
    ```sh
