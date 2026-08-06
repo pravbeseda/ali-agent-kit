@@ -58,6 +58,7 @@ Two details that decide whether "every unresolved comment" is true:
 - **Take the tail of each thread, and always keep its head.** `comments(last: 20)` because the newest replies hold the current state — a thread can be settled in its last reply and still sit at `isResolved: false` because nobody clicked resolve. Judge the thread by its end, not its opening. `root` is fetched separately so the original objection is never among the comments the tail drops; it also carries the `databaseId` to reply to in step 4.
 
   **`root` is usually a duplicate, not an extra comment.** The tail counts back from the end of the whole thread, so for any thread of 20 or fewer — which is nearly all of them — it already contains the opening comment, and `root.nodes[0].databaseId` equals the `databaseId` of the tail's first entry. Read the thread once: `root` is there to guarantee the head is present and to address the reply, not to be weighed as a separate objection. Treating it as one makes a single argument look like it was raised twice.
+
 - **Notice when a thread is truncated.** `totalCount` is the full length of the thread, and it counts the root comment as well. What you hold is the root plus the comments the tail returned, so the thread is complete while `totalCount` is at most one more than the number of comments in the tail — with `last: 20`, anything up to 21 (the root, plus comments 2 through 21). Only above that does a middle exist that neither part covers. Do not judge such a thread from what you have — read it in full first, by asking for that one thread by its node id:
 
   ```sh
@@ -154,6 +155,7 @@ Once the user decides:
    ```sh
    gh api --paginate repos/{owner}/{repo}/pulls/{number}/comments --jq '.[] | select(.in_reply_to_id == {root_databaseId}) | .body'
    ```
+
 4. **Resolve the thread either way** — whether the comment was acted on or rejected, and whether or not a reply was needed:
    ```sh
    gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "{thread_id}"}) { thread { isResolved } } }'
