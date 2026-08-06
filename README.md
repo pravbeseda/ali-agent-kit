@@ -37,6 +37,12 @@ npm i -g ali-agent-kit && ali-agent-kit install
 npm update -g ali-agent-kit && ali-agent-kit install   # later updates
 ```
 
+If your npm points at a private registry that does not mirror this package — or whose TLS chain your Node cannot verify (`UNABLE_TO_VERIFY_LEAF_SIGNATURE`) — fetch it straight from the public registry:
+
+```sh
+npx --registry=https://registry.npmjs.org/ ali-agent-kit@latest install
+```
+
 ## Commands
 
 | Command                                    | What it does                                    |

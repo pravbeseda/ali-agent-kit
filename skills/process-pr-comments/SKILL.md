@@ -94,7 +94,7 @@ For each comment (or group of related ones):
    - "the tests will break" → run the tests
    - "the type is incompatible" → read the type definition
    - "the file does not export X" → read the file
-3. Scrutinize bot comments (Copilot, CodeRabbit, …) especially hard — they are often wrong from missing context.
+3. Scrutinize bot comments (Copilot, CodeRabbit, …) especially hard — they are often wrong from missing context. Who wrote a comment is read off `author.login`: a `[bot]` suffix or a known reviewer name. **A body opening with 🤖 settles it — that is a machine, whatever the login says.** `ali-review-pr` marks every finding it publishes that way, and its comments arrive under the login of whoever the token belongs to, so the heuristic alone reads them as a person's.
 4. Check the last reply first: if the thread already agreed on an outcome and only the resolve click is missing, do not re-open the discussion — say so and offer to just resolve it.
 
 ### Grounds for rejecting it
