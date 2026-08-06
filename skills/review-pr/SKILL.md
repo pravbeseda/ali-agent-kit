@@ -61,6 +61,7 @@ A review is worth running only if it can make the change smaller, simpler or saf
 - fragility: the code works only while some unstated condition holds, and nothing here holds it
 - structure degraded: a responsibility placed where it does not belong, a seam broken, one decision now edited in two places
 - complexity this change's own goal does not justify — a branch, a parameter, a layer, an option or a guard that nothing in the PR's purpose asks for
+- a rule the repository wrote down for itself is broken — read its CLAUDE.md / AGENTS.md before ruling on this one
 
 **`suggestion` — applying it removes code or removes a concept.** A guard for a case that cannot occur, an abstraction with one caller, a parameter no caller varies, a branch that cannot be taken, logic the diff already has elsewhere. A suggestion never holds up a merge; it is the author's call.
 

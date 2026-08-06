@@ -1,11 +1,13 @@
 ---
 name: review-branch
-description: Review the current branch — committed, staged, unstaged and untracked changes — against the repository's base branch and walk the user through the findings one at a time. Use when the user asks to "review the branch", "review my changes", "check this branch before the PR", or runs /ali-review-branch.
+description: Review the current branch — committed, staged, unstaged and untracked changes — against the repository's base branch, against one bar: does the change leave the codebase healthier than it found it. Walks the user through the blocking findings and suggestions one at a time and ends with a ready-for-a-PR verdict. Use when the user asks to "review the branch", "review my changes", "check this branch before the PR", or runs /ali-review-branch.
 ---
 
 # Review Branch
 
-Review the working tree as it stands right now against the repository's base branch — committed, staged, unstaged and untracked work alike — then go through the findings interactively.
+Answer one question about the working tree as it stands right now — committed, staged, unstaged and untracked work alike — against the repository's base branch: **does this change leave the codebase healthier than it found it?** If it does, say the branch is ready — a change does not have to be perfect to be ready. If it does not, go through what fails that bar interactively, one finding at a time.
+
+> **The same bar as `ali-review-pr`, a different channel.** That skill publishes its findings as inline comments on a pull request and touches nothing. This one has the author in front of it, so it presents options and applies the decision — but what counts as a finding at all is decided identically, so a branch that passes here does not collect a new set of objections the moment it becomes a PR.
 
 ## Step 1. Collect the context
 
@@ -68,27 +70,75 @@ Untracked files are the one gap, since no diff shows a file git does not know ab
 
 `git status --short` is only for telling committed work apart from work that is not committed yet. Use it to label findings, never as a second source of changes — and never as a source of paths either: it prints them relative to the current directory.
 
-## Step 2. Review
+## Step 2. The bar a finding has to clear
 
-1. Read each changed file **in full**, not only the diff — the surrounding code decides whether a change is correct. This includes the untracked files kept in Step 1; for those the whole file is the change.
-2. Summarize the scope: what was added, modified, removed. Mention how much of it is not committed yet — staged, unstaged, untracked — but review it all as one body of work, and do not split the findings by that.
-3. Categorize every finding by severity:
-   - **Critical** — bugs, security issues, data loss risks
-   - **Warning** — missed edge cases, missing tests, convention violations (check the repo's CLAUDE.md / AGENTS.md)
-   - **Suggestion** — duplication, possible simplifications, other improvements
-4. Anchor every finding to `file_path:line_number`.
+Read each changed file **in full**, not only the diff — the surrounding code decides whether a change is correct. This includes the untracked files kept in Step 1; for those the whole file is the change. Then summarize the scope: what was added, modified, removed. Mention how much of it is not committed yet — staged, unstaged, untracked — but review it all as one body of work, and do not split the findings by that.
+
+A review is worth running only if it can make the change smaller, simpler or safer. Exactly two kinds of finding do that, and nothing else is raised.
+
+**`blocking` — the change leaves the codebase worse than it found it.** One of:
+
+- a wrong result, a crash or a lost error on an input you can name
+- fragility: the code works only while some unstated condition holds, and nothing here holds it
+- structure degraded: a responsibility placed where it does not belong, a seam broken, one decision now edited in two places
+- complexity this change's own goal does not justify — a branch, a parameter, a layer, an option or a guard that nothing in the work's purpose asks for
+- a rule the repository wrote down for itself is broken — read its CLAUDE.md / AGENTS.md before ruling on this one
+
+**`suggestion` — applying it removes code or removes a concept.** A guard for a case that cannot occur, an abstraction with one caller, a parameter no caller varies, a branch that cannot be taken, logic the branch already has elsewhere. A suggestion never holds the work back; it is the author's call.
+
+Two gates decide what survives:
+
+- **Evidence.** Name the file, the line, and either the input or path where the code goes wrong today, or the code that would disappear. A finding that can only be phrased as "what if, one day" has no evidence and is not raised as a finding — mention it in one line if it matters at all.
+- **Growth.** If acting on the finding would make the code bigger, it must be `blocking`, or it is dropped. Hardening against a case nobody can reach is the single change that most reliably leaves the work longer and more brittle than it was, and asking for it does more damage than the case ever would.
+
+Not looked for at all: anything a linter or type checker catches, formatting, naming taste, and preferences with no consequence behind them.
+
+Anchor every finding to `file_path:line_number`, and label it `blocking` or `suggestion`.
+
+**When nothing blocking came up, recheck before believing it.** Walk the changed files once more asking only the blocking question, and write one line per file naming the degradation or `none`. A bare "nothing found" without that line is a guess, and the recheck is cheap next to telling the author the branch is ready. Whatever it surfaces is an ordinary finding and joins the walkthrough below — which is why it happens here and not after the walkthrough, where it could only reopen one that is already finished.
 
 ## Step 3. Interactive walkthrough
 
-Print a short numbered summary — one line per finding with its severity tag — then immediately start on the first one.
+Print a short numbered summary — one line per finding with its label — then immediately start on the first one.
 
-Go one finding at a time, sorted critical → warning → suggestion:
+Go one finding at a time, `blocking` first, then `suggestion`:
 
 - **Context** — what the code does now and why it is a problem (cite `file:line`)
 - **Options** — the possible fixes, if there is more than one; for each, what changes and what it costs
 - **Recommendation** — which option you would pick, and why
 
 Wait for the user's decision before changing anything. After applying or skipping, move to the next finding automatically. If the user asks a question instead of choosing, answer it and re-present the options — never decide for them.
+
+## Step 4. The verdict
+
+End every run with one verdict, once every finding has been applied or skipped, and make it the last thing printed.
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{b} blocking, {s} suggestions, {x} dropped below the bar
+Recheck: {one line per changed file, or "clean"}
+
+## ✅ VERDICT: READY FOR A PR
+{one or two sentences: what the change does for the codebase, and
+which suggestions the author left open — their call, not a condition}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+When blocking findings are still standing — because the user chose to skip them — the block is the same with the recheck line dropped and the verdict replaced by:
+
+```
+## 🛑 VERDICT: NOT READY
+{one or two sentences: which blocking findings stand in the way,
+and which area they cluster in}
+```
+
+Rules for the verdict:
+
+- Exactly one of the two lines, never both, never a hedged "maybe one more pass".
+- **Ready means the change leaves the codebase better than it found it — not that it is perfect.** Open suggestions never hold the work back.
+- A pass that found only suggestions is a ready verdict. So is a pass that found nothing.
+- A blocking finding the user skipped is still blocking. Fixing one during the walkthrough clears it.
+- Say in one line what is still uncommitted or untracked, so nothing is left behind when the PR is opened. It does not change the verdict.
 
 ## Language
 
