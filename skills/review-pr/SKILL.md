@@ -124,6 +124,8 @@ Each comment body opens with its label — `blocking:` or `suggestion:` — righ
 gh api repos/{owner}/{repo}/pulls/{number}/reviews -X POST --input {file}
 ```
 
+**Name the file by the literal absolute path it was written to — never `$TMPDIR`, `~` or any other shell variable.** The shell expands those in the terminal's environment, which is not the one the file-creation tool wrote in: `$TMPDIR` in an editor terminal commonly points somewhere else entirely, so the command names a file that does not exist and fails with `no such file or directory`. Give the file-creation tool an absolute path, then paste that same string into the command.
+
 **Every body published by this skill opens with 🤖.** The summary and each finding alike, including the ones sent one at a time in the 422 fallback below. A reader who meets a single inline comment on a line should be able to tell at a glance that a machine wrote it, without having to find the review it belongs to. Nothing else is added — no name, no tool, no signature.
 
 The top-level `body` is required by the API whenever `event` is `COMMENT` or `REQUEST_CHANGES` — without it the call fails with 422 before any line is even looked at. Keep it to a single sentence; the findings live in `comments`, not in the summary.
