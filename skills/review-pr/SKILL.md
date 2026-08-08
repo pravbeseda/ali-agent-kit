@@ -10,12 +10,22 @@ Answer one question about a pull request: **does this change leave the codebase 
 > **Not `ali-process-pr-comments`:** that skill triages existing threads and resolves them. This one posts NEW comments on the PR diff.
 > **Not a summary review:** the findings are published together as one review, but each one is still its own inline comment anchored to a line. Do not collapse them into a single prose comment, and do not apply fixes.
 
-## Step 1. PR context and what has already been decided
+## Step 1. A clean tree, then PR context and what has already been decided
 
-Fetch in parallel:
+**Before anything else, check the working tree:**
 
 ```sh
-gh pr view --json number,headRefOid --jq '{number: .number, sha: .headRefOid}'
+git status --short
+```
+
+**Any changed path stops the run** — modified, staged or untracked alike. Do not fetch the PR, do not read the diff, do not publish anything. Name the dirty paths and ask the user to commit and push them; the review resumes only when they have, or when they say in so many words that it should run against the pushed state without them.
+
+The reason is that this skill reviews what GitHub holds, not what is on disk. Uncommitted work is invisible to `gh pr diff`, so a review over a dirty tree either misses the code actually being written or comments on lines the author has already changed — and it still ends in a merge verdict, given on a PR whose newest work was never looked at. `ali-process-pr-comments` commits and pushes its fixes before handing over here for exactly this reason: a dirty tree at this point means something never reached the PR.
+
+Then fetch in parallel:
+
+```sh
+gh pr view --json number,headRefOid,headRefName --jq '{number: .number, sha: .headRefOid, branch: .headRefName}'
 gh repo view --json nameWithOwner --jq '.nameWithOwner'
 gh pr diff {number}
 ```
@@ -23,6 +33,26 @@ gh pr diff {number}
 `gh pr view` without an argument resolves the PR of the current branch. Pass the number explicitly (`gh pr view {number} --json ...`) when the user named one. If the command fails because the branch has no open PR, **stop**: say there is no PR to review and ask for a number — do not review the branch instead, that is `ali-review-branch`.
 
 `headRefOid` — the SHA of the PR's latest commit — is required; without it GitHub rejects inline comments.
+
+**It is also what says the branch is fully pushed.** The comparison is worth making only when this checkout is the PR's own branch, so let the branch names decide that — not how the skill was invoked:
+
+```sh
+git rev-parse --abbrev-ref HEAD
+```
+
+`/ali-review-pr {number}` typed while standing on that very branch is the ordinary way to name a PR, so keying the check off "the user passed a number" would skip it exactly where it is needed. When `headRefName` differs from the current branch, the local head has nothing to do with the PR and there is nothing to compare — skip to the review history below. The dirty-tree stop above still applies either way, since a review is about to be published from this tree.
+
+When they match, compare the heads:
+
+```sh
+git rev-parse HEAD
+```
+
+**A mismatch stops the run**, the same way a dirty tree does: the checkout and the PR are not the same code, so whichever of them is stale, a review of the other is not the review being asked for. Print both SHAs, say they disagree, and leave it there — reconciling them is the user's move, and they can see from those two lines what it is.
+
+**Do not work out which side is ahead.** It takes a fetch of a commit that may live in a fork, a remote whose name means different things in a maintainer's checkout and a contributor's, and an ancestry check that has an error state distinct from its two answers — several ways to be wrong, in service of an instruction the user did not need. The mismatch is the whole finding.
+
+Do not read ahead/behind off `git status` either: the tracking half of the branch line, `[ahead N]` included, appears only when the branch has an upstream configured, so a branch pushed with `git push origin HEAD` or checked out without tracking prints nothing at all and unpushed commits pass unseen. The SHAs are the fact itself and need no upstream to be configured.
 
 Then read the review history, **resolved threads included**:
 

@@ -166,7 +166,40 @@ Once the user decides:
 
 > **Note:** `PullRequestReviewComment` has no `pullRequestReviewThread` field. Thread IDs must come from the PR's `reviewThreads` (step 1).
 
-## Step 5. Close the pass
+## Step 5. Commit and push the fixes
+
+Once the last thread is resolved, the edits this pass made are still only in the working tree. Land them here, in one commit, and only when some decision actually changed the code — with nothing changed there is nothing to commit, so go straight to step 6.
+
+1. **Check the branch before touching anything.** If `git rev-parse --abbrev-ref HEAD` is the repository's default branch, stop the step and say so: this pass runs on a PR head branch, and a default branch there means something is wrong with the setup, not that a commit is due. The check belongs here rather than at the push, because a commit already made on the default branch has to be moved off it — which is the state this guard exists to prevent, not to report.
+2. Read what is there: `git status --short` and `git diff --stat`. If a file this pass edited also carries changes it did not make, say so and let the user decide what to do with them — do not split the file up on your own.
+3. **Track any file this pass created**, and only those:
+
+   ```sh
+   git add {new path}
+   ```
+
+   A pathspec matches tracked paths only, so an untracked one takes the whole commit down with `pathspec '{path}' did not match any file(s) known to git` and nothing is written at all — not even the files that would have matched. This `git add` is narrow on purpose: it names the paths this pass created and no others, so nothing foreign enters the index.
+
+4. **Commit the files this pass touched by naming them, and nothing else** — English message, whatever the language of the chat:
+
+   ```sh
+   git commit {path} {path} -m "fix: address review comments on {area}"
+   ```
+
+   **Name the paths on the commit itself; never stage everything and commit a bare index.** A bare `git commit` writes whatever the index holds, which includes anything that was already staged before this pass started — so the review-fix commit quietly carries code nobody discussed under a message that does not describe it. Pathspecs commit the named files as they stand on disk and leave the rest of the index exactly where it was, which is what keeps item 3's `git add` from mattering to anything but the new files. `git add -A` and `git add .` are wrong for the same reason, more obviously.
+
+   Pathspecs are per file, not per hunk: a foreign edit sitting inside a file this pass touched goes in with it, which is why item 2 puts it to the user before the commit is made rather than after. Dirty paths outside the named ones stay uncommitted and are reported in step 6.
+
+5. Push to the PR's branch:
+
+   ```sh
+   git push
+   ```
+
+6. **A rejected push stops the pass** — the remote has moved and the fixes need rebasing onto it. Report it and hand the decision to the user; never `--force`, never `--force-with-lease`, and never a merge to get around it.
+7. Report the resulting SHA and branch in the close block below. Leaving fixes uncommitted is what makes the next step read stale code: `ali-review-pr` reviews what GitHub holds, and it refuses to run against a dirty tree for exactly this reason.
+
+## Step 6. Close the pass
 
 When no unresolved thread is left, count the threads whose decision **changed the code** in this pass. That count, and nothing else, decides what comes next.
 
@@ -179,6 +212,7 @@ Print it as the last block of the pass, with the line on its own and nothing aft
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 This pass: {N} threads — {C} changed the code, {U} left it as it was
 Deferred, still open: {one line, or "none"}
+Pushed: {sha} → {branch}, or "nothing to commit"
 
 ## 🔁 NEXT: VERIFY THE FIXES
 {one line: which files this pass changed}
@@ -194,6 +228,7 @@ When nothing changed, the block is the same with the verdict line replaced by:
 
 Rules for the close:
 
+- **The `Pushed:` line is always there and always factual.** It names the commit that carries this pass's fixes, or says nothing was committed — and if step 5 could not push, it says that instead of a SHA. It is what tells the user the PR on GitHub now holds what was just decided.
 - **Never recommend a fresh review of the whole PR.** Code this pass did not touch was reviewed already, and reviewing it again is precisely what turns a review into a loop. Only the edits made here are new.
 - Whether the PR is ready to merge is not this skill's call, and neither is "one more round" — verifying the fixes answers both, and `ali-review-pr` prints that verdict.
 - The count is of threads, not of assessments: when step 3 settled several at once, each still counts on its own, so `C + U == N` and the number matches what the PR shows as resolved.
