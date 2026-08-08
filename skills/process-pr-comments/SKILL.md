@@ -166,7 +166,30 @@ Once the user decides:
 
 > **Note:** `PullRequestReviewComment` has no `pullRequestReviewThread` field. Thread IDs must come from the PR's `reviewThreads` (step 1).
 
-## Step 5. Close the pass
+## Step 5. Commit and push the fixes
+
+Once the last thread is resolved, the edits this pass made are still only in the working tree. Land them here, in one commit, and only when some decision actually changed the code — with nothing changed there is nothing to commit, so go straight to step 6.
+
+1. Read what is there: `git status --short` and `git diff --stat`.
+2. **Stage only the files this pass touched, named explicitly** — `git add {path} {path}`, never `git add -A` or `git add .`. The tree can hold edits that predate this pass, and sweeping them into a review-fix commit puts code nobody discussed onto the PR under a message that does not describe it. Whatever is left unstaged is reported in step 6, not committed.
+3. Commit with a message saying which review points were acted on — English, whatever the language of the chat:
+
+   ```sh
+   git commit -m "fix: address review comments on {area}"
+   ```
+
+4. Push to the PR's branch:
+
+   ```sh
+   git push
+   ```
+
+   **Check the branch first.** If `git rev-parse --abbrev-ref HEAD` is the repository's default branch, stop and say so: this pass runs on a PR head branch, and a default branch there means something is wrong with the setup, not that a push is due.
+
+5. **A rejected push stops the pass** — the remote has moved and the fixes need rebasing onto it. Report it and hand the decision to the user; never `--force`, never `--force-with-lease`, and never a merge to get around it.
+6. Report the resulting SHA and branch in the close block below. Leaving fixes uncommitted is what makes the next step read stale code: `ali-review-pr` reviews what GitHub holds, and it refuses to run against a dirty tree for exactly this reason.
+
+## Step 6. Close the pass
 
 When no unresolved thread is left, count the threads whose decision **changed the code** in this pass. That count, and nothing else, decides what comes next.
 
@@ -179,6 +202,7 @@ Print it as the last block of the pass, with the line on its own and nothing aft
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 This pass: {N} threads — {C} changed the code, {U} left it as it was
 Deferred, still open: {one line, or "none"}
+Pushed: {sha} → {branch}, or "nothing to commit"
 
 ## 🔁 NEXT: VERIFY THE FIXES
 {one line: which files this pass changed}
@@ -194,6 +218,7 @@ When nothing changed, the block is the same with the verdict line replaced by:
 
 Rules for the close:
 
+- **The `Pushed:` line is always there and always factual.** It names the commit that carries this pass's fixes, or says nothing was committed — and if step 5 could not push, it says that instead of a SHA. It is what tells the user the PR on GitHub now holds what was just decided.
 - **Never recommend a fresh review of the whole PR.** Code this pass did not touch was reviewed already, and reviewing it again is precisely what turns a review into a loop. Only the edits made here are new.
 - Whether the PR is ready to merge is not this skill's call, and neither is "one more round" — verifying the fixes answers both, and `ali-review-pr` prints that verdict.
 - The count is of threads, not of assessments: when step 3 settled several at once, each still counts on its own, so `C + U == N` and the number matches what the PR shows as resolved.

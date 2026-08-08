@@ -10,9 +10,21 @@ Answer one question about a pull request: **does this change leave the codebase 
 > **Not `ali-process-pr-comments`:** that skill triages existing threads and resolves them. This one posts NEW comments on the PR diff.
 > **Not a summary review:** the findings are published together as one review, but each one is still its own inline comment anchored to a line. Do not collapse them into a single prose comment, and do not apply fixes.
 
-## Step 1. PR context and what has already been decided
+## Step 1. A clean tree, then PR context and what has already been decided
 
-Fetch in parallel:
+**Before anything else, check that the branch is fully pushed:**
+
+```sh
+git status --short --branch
+```
+
+**Any changed path stops the run** — modified, staged or untracked alike. Do not fetch the PR, do not read the diff, do not publish anything. Name the dirty paths and ask the user to commit and push them; the review resumes only when they have, or when they say in so many words that it should run against the pushed state without them.
+
+The reason is that this skill reviews what GitHub holds, not what is on disk. Uncommitted work is invisible to `gh pr diff`, so a review over a dirty tree either misses the code actually being written or comments on lines the author has already changed — and it still ends in a merge verdict, given on a PR whose newest work was never looked at. `ali-process-pr-comments` commits and pushes its fixes before handing over here for exactly this reason: a dirty tree at this point means something never reached the PR.
+
+An `[ahead N]` marker on the branch line stops the run the same way. Those commits are not on the PR either; the tree being clean says nothing about that.
+
+Then fetch in parallel:
 
 ```sh
 gh pr view --json number,headRefOid --jq '{number: .number, sha: .headRefOid}'
