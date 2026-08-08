@@ -51,14 +51,19 @@ git rev-parse HEAD
 **A mismatch stops the run**, the same way a dirty tree does — but which side is stale decides what to say about it, so find out before saying anything. Fetch, so the PR's commit exists locally, then ask which one contains the other:
 
 ```sh
-git fetch
+git fetch origin refs/pull/{number}/head
 git merge-base --is-ancestor {sha} HEAD   # PR head is behind: local commits are unpushed
 git merge-base --is-ancestor HEAD {sha}   # local is behind: the PR has work this checkout lacks
 ```
 
-- **Local ahead** (the first succeeds) — commits exist that GitHub has not seen and the diff about to be read is the older one. Ask the user to push.
-- **Local behind** (the second succeeds) — GitHub holds the newest work, so the diff would be right, but the files read from this checkout for repository rules and context are not. Ask the user to pull, then compare again. **Do not ask them to push:** the push is rejected as non-fast-forward, and the nearest way out of that for someone following the instruction literally is a force-push over the PR head.
-- **Diverged** (neither succeeds) — both sides hold commits the other lacks. Report it and let the user decide; this is not a state to resolve on their behalf.
+**Fetch the pull ref, not a bare `git fetch`.** On a PR raised from a fork the head commit lives in the fork, and `origin` is the base repository — a bare fetch never brings that object down, and every comparison against it then fails on the missing commit rather than answering. The base repository serves the head under `refs/pull/{number}/head` whatever repository it was pushed from, so this one ref covers forks and same-repo branches alike.
+
+`git merge-base --is-ancestor` answers with its exit status: `0` yes, `1` no, anything else — `128` on `Not a valid commit name` — an error, not a no.
+
+- **Local ahead** (the first exits 0) — commits exist that GitHub has not seen and the diff about to be read is the older one. Ask the user to push.
+- **Local behind** (the second exits 0) — GitHub holds the newest work, so the diff would be right, but the files read from this checkout for repository rules and context are not. Ask the user to pull, then compare again. **Do not ask them to push:** the push is rejected as non-fast-forward, and the nearest way out of that for someone following the instruction literally is a force-push over the PR head.
+- **Diverged** (both exit 1) — both sides hold commits the other lacks. Report it and let the user decide; this is not a state to resolve on their behalf.
+- **Cannot compare** (either errors) — the fetch did not produce the commit. Say exactly that and stop; do not read it as divergence, which sends the user to reconcile histories that were never shown to disagree.
 
 Do not read ahead/behind off `git status` instead: the tracking half of the branch line, `[ahead N]` included, appears only when the branch has an upstream configured, so a branch pushed with `git push origin HEAD` or checked out without tracking prints nothing at all and unpushed commits pass unseen. The SHAs are the fact itself and need no upstream to be configured.
 
