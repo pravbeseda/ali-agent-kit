@@ -170,21 +170,23 @@ Once the user decides:
 
 Once the last thread is resolved, the edits this pass made are still only in the working tree. Land them here, in one commit, and only when some decision actually changed the code — with nothing changed there is nothing to commit, so go straight to step 6.
 
-1. Read what is there: `git status --short` and `git diff --stat`.
-2. **Stage only the files this pass touched, named explicitly** — `git add {path} {path}`, never `git add -A` or `git add .`. The tree can hold edits that predate this pass, and sweeping them into a review-fix commit puts code nobody discussed onto the PR under a message that does not describe it. Whatever is left unstaged is reported in step 6, not committed.
-3. Commit with a message saying which review points were acted on — English, whatever the language of the chat:
+1. **Check the branch before touching anything.** If `git rev-parse --abbrev-ref HEAD` is the repository's default branch, stop the step and say so: this pass runs on a PR head branch, and a default branch there means something is wrong with the setup, not that a commit is due. The check belongs here rather than at the push, because a commit already made on the default branch has to be moved off it — which is the state this guard exists to prevent, not to report.
+2. Read what is there: `git status --short` and `git diff --stat`. If a file this pass edited also carries changes it did not make, say so and let the user decide what to do with them — do not split the file up on your own.
+3. **Commit the files this pass touched by naming them, and nothing else** — English message, whatever the language of the chat:
 
    ```sh
-   git commit -m "fix: address review comments on {area}"
+   git commit {path} {path} -m "fix: address review comments on {area}"
    ```
+
+   **Name the paths on the commit itself; do not `git add` and then commit a bare index.** A bare `git commit` writes whatever the index holds, which includes anything that was already staged before this pass started — so the review-fix commit quietly carries code nobody discussed under a message that does not describe it. Pathspecs commit those files as they stand on disk and leave the rest of the index exactly where it was. `git add -A` and `git add .` are wrong for the same reason, more obviously.
+
+   Pathspecs are per file, not per hunk: a foreign edit sitting inside a file this pass touched goes in with it, which is why item 2 puts it to the user before the commit is made rather than after. Dirty paths outside the named ones stay uncommitted and are reported in step 6.
 
 4. Push to the PR's branch:
 
    ```sh
    git push
    ```
-
-   **Check the branch first.** If `git rev-parse --abbrev-ref HEAD` is the repository's default branch, stop and say so: this pass runs on a PR head branch, and a default branch there means something is wrong with the setup, not that a push is due.
 
 5. **A rejected push stops the pass** — the remote has moved and the fixes need rebasing onto it. Report it and hand the decision to the user; never `--force`, never `--force-with-lease`, and never a merge to get around it.
 6. Report the resulting SHA and branch in the close block below. Leaving fixes uncommitted is what makes the next step read stale code: `ali-review-pr` reviews what GitHub holds, and it refuses to run against a dirty tree for exactly this reason.

@@ -12,17 +12,15 @@ Answer one question about a pull request: **does this change leave the codebase 
 
 ## Step 1. A clean tree, then PR context and what has already been decided
 
-**Before anything else, check that the branch is fully pushed:**
+**Before anything else, check the working tree:**
 
 ```sh
-git status --short --branch
+git status --short
 ```
 
 **Any changed path stops the run** — modified, staged or untracked alike. Do not fetch the PR, do not read the diff, do not publish anything. Name the dirty paths and ask the user to commit and push them; the review resumes only when they have, or when they say in so many words that it should run against the pushed state without them.
 
 The reason is that this skill reviews what GitHub holds, not what is on disk. Uncommitted work is invisible to `gh pr diff`, so a review over a dirty tree either misses the code actually being written or comments on lines the author has already changed — and it still ends in a merge verdict, given on a PR whose newest work was never looked at. `ali-process-pr-comments` commits and pushes its fixes before handing over here for exactly this reason: a dirty tree at this point means something never reached the PR.
-
-An `[ahead N]` marker on the branch line stops the run the same way. Those commits are not on the PR either; the tree being clean says nothing about that.
 
 Then fetch in parallel:
 
@@ -35,6 +33,16 @@ gh pr diff {number}
 `gh pr view` without an argument resolves the PR of the current branch. Pass the number explicitly (`gh pr view {number} --json ...`) when the user named one. If the command fails because the branch has no open PR, **stop**: say there is no PR to review and ask for a number — do not review the branch instead, that is `ali-review-branch`.
 
 `headRefOid` — the SHA of the PR's latest commit — is required; without it GitHub rejects inline comments.
+
+**It is also what says the branch is fully pushed.** When the PR under review is the current branch's — the no-argument case above — compare it to the local head:
+
+```sh
+git rev-parse HEAD
+```
+
+**A mismatch stops the run**, the same way a dirty tree does: commits exist locally that GitHub has not seen, and the diff about to be read is the older one. Ask the user to push. Do not read ahead/behind off `git status` for this: the tracking half of the branch line, `[ahead N]` included, appears only when the branch has an upstream configured, so a branch pushed with `git push origin HEAD` or checked out without tracking prints nothing at all and unpushed commits pass unseen. The two SHAs are the fact itself and need no upstream to be configured.
+
+The comparison applies only to the current branch's PR. When the user named a PR number, the local head has nothing to do with it and the check is skipped — the dirty-tree stop above still holds, since a review is about to be published from this tree.
 
 Then read the review history, **resolved threads included**:
 
