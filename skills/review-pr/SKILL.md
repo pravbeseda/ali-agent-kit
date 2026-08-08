@@ -25,7 +25,7 @@ The reason is that this skill reviews what GitHub holds, not what is on disk. Un
 Then fetch in parallel:
 
 ```sh
-gh pr view --json number,headRefOid --jq '{number: .number, sha: .headRefOid}'
+gh pr view --json number,headRefOid,headRefName --jq '{number: .number, sha: .headRefOid, branch: .headRefName}'
 gh repo view --json nameWithOwner --jq '.nameWithOwner'
 gh pr diff {number}
 ```
@@ -34,15 +34,33 @@ gh pr diff {number}
 
 `headRefOid` — the SHA of the PR's latest commit — is required; without it GitHub rejects inline comments.
 
-**It is also what says the branch is fully pushed.** When the PR under review is the current branch's — the no-argument case above — compare it to the local head:
+**It is also what says the branch is fully pushed.** The comparison is worth making only when this checkout is the PR's own branch, so let the branch names decide that — not how the skill was invoked:
+
+```sh
+git rev-parse --abbrev-ref HEAD
+```
+
+`/ali-review-pr {number}` typed while standing on that very branch is the ordinary way to name a PR, so keying the check off "the user passed a number" would skip it exactly where it is needed. When `headRefName` differs from the current branch, the local head has nothing to do with the PR and there is nothing to compare — skip to the review history below. The dirty-tree stop above still applies either way, since a review is about to be published from this tree.
+
+When they match, compare the heads:
 
 ```sh
 git rev-parse HEAD
 ```
 
-**A mismatch stops the run**, the same way a dirty tree does: commits exist locally that GitHub has not seen, and the diff about to be read is the older one. Ask the user to push. Do not read ahead/behind off `git status` for this: the tracking half of the branch line, `[ahead N]` included, appears only when the branch has an upstream configured, so a branch pushed with `git push origin HEAD` or checked out without tracking prints nothing at all and unpushed commits pass unseen. The two SHAs are the fact itself and need no upstream to be configured.
+**A mismatch stops the run**, the same way a dirty tree does — but which side is stale decides what to say about it, so find out before saying anything. Fetch, so the PR's commit exists locally, then ask which one contains the other:
 
-The comparison applies only to the current branch's PR. When the user named a PR number, the local head has nothing to do with it and the check is skipped — the dirty-tree stop above still holds, since a review is about to be published from this tree.
+```sh
+git fetch
+git merge-base --is-ancestor {sha} HEAD   # PR head is behind: local commits are unpushed
+git merge-base --is-ancestor HEAD {sha}   # local is behind: the PR has work this checkout lacks
+```
+
+- **Local ahead** (the first succeeds) — commits exist that GitHub has not seen and the diff about to be read is the older one. Ask the user to push.
+- **Local behind** (the second succeeds) — GitHub holds the newest work, so the diff would be right, but the files read from this checkout for repository rules and context are not. Ask the user to pull, then compare again. **Do not ask them to push:** the push is rejected as non-fast-forward, and the nearest way out of that for someone following the instruction literally is a force-push over the PR head.
+- **Diverged** (neither succeeds) — both sides hold commits the other lacks. Report it and let the user decide; this is not a state to resolve on their behalf.
+
+Do not read ahead/behind off `git status` instead: the tracking half of the branch line, `[ahead N]` included, appears only when the branch has an upstream configured, so a branch pushed with `git push origin HEAD` or checked out without tracking prints nothing at all and unpushed commits pass unseen. The SHAs are the fact itself and need no upstream to be configured.
 
 Then read the review history, **resolved threads included**:
 
