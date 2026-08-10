@@ -201,7 +201,12 @@ End every run with one verdict, and make it the last thing printed.
 
 ### A round that posted nothing says what the PR does
 
-When this round published no comment at all — not one `blocking`, not one `suggestion` — the whole output is the verdict block, and "ready to merge" on its own tells the reader nothing about what they are about to merge. So in that case, and only in that case, print a plain-language summary of the PR directly above the block.
+When this round read code and published no comment at all — not one `blocking`, not one `suggestion` — it hands the user a merge recommendation with nothing in it about what is being merged. So in that case print a plain-language summary of the PR directly above the verdict block.
+
+Two things bound that:
+
+- **In addition to whatever else the round prints, never instead of it.** A follow-up round still owes its addressed / not-addressed report on every earlier finding and whatever it ruled out of scope — the summary goes below those and above the block. The trigger is an empty `comments` array, not an empty chat.
+- **A round that verified nothing writes no summary.** That is step 3's `reviewed_sha == sha` branch: nothing was pushed since the last review, so the round read no new code and says exactly that. Summarizing the whole PR there answers a question nobody asked and is the scope step 3 spent its own rule narrowing away from.
 
 Plain language means the reader is not looking at the diff: what the change makes the code do differently, and what that means for whoever uses or runs it. Not which functions moved, not file names, not identifiers, not counts of lines. Three to five sentences, or the same as bullets. If the PR does something the description does not mention, that is the part worth writing down.
 
