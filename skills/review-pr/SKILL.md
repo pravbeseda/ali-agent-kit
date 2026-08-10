@@ -86,6 +86,7 @@ query {
   repository(owner: "{owner}", name: "{repo}") {
     pullRequest(number: {number}) {
       reviewThreads(first: 100) {
+        pageInfo { hasNextPage endCursor }
         nodes {
           isResolved
           path
@@ -98,6 +99,8 @@ query {
   }
 }'
 ```
+
+**Page through.** While `pageInfo.hasNextPage`, repeat the query with `reviewThreads(first: 100, after: "{endCursor}")` — a truncated list looks exactly like a complete one. Both uses below need the full list: the pages come back oldest first, so on a long PR the newest 🤖 thread — the one whose `originalCommit.oid` is `{reviewed_sha}` — is precisely what the first page drops.
 
 Two things come out of it.
 
