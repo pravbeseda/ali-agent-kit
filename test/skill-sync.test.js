@@ -9,7 +9,10 @@ import { skillsSourceDir } from '../src/config.js';
 // These tests are what keeps the copies from drifting — an edit to one side
 // fails the build until the other side matches.
 
-const read = (name) => readFileSync(join(skillsSourceDir, name, 'SKILL.md'), 'utf8');
+// Normalized to LF so the paragraph-boundary search below works on a CRLF
+// checkout too — the repo has no .gitattributes and supports CRLF sources.
+const read = (name) =>
+  readFileSync(join(skillsSourceDir, name, 'SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
 
 /**
  * Slice from `startMarker` through the paragraph containing `endMarker`
