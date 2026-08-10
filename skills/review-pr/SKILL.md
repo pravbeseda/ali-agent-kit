@@ -156,7 +156,7 @@ Otherwise the round covers three things and stops:
 
 **When nothing blocking came up, recheck before believing it.** Walk the files this round covered once more asking only the blocking question, and write one line per file naming the degradation or `none`. A bare "nothing found" without that line is a guess, and the recheck is cheap next to a merge recommendation that turns out wrong. Whatever it surfaces is an ordinary finding and goes out in the batch below — which is why it happens here and not after the review is sent, where it could only produce a second one.
 
-**With nothing above the bar, publish nothing.** Not an empty review, not a summary-only one, not an approval — make no call at all. A review carrying a summary sentence and an empty `comments` array is a perfectly valid request, so nothing stops it but this rule, and once submitted it cannot be deleted, only dismissed. Go straight to step 5.
+**With nothing above the bar, publish nothing.** Not an empty review, not a summary-only one, not an approval — make no call at all. A review carrying a summary sentence and an empty `comments` array is a perfectly valid request, so nothing stops it but this rule, and once submitted it cannot be deleted, only dismissed. Go straight to step 5, where a round with nothing to say owes the user a plain-language summary of the PR instead.
 
 With findings — of either label — publish them straight away: no questions, no confirmations, and as **one** review, because a human reviewer leaves a single review, not eight loose comments. One call, so the author gets one notification and a half-published review is impossible.
 
@@ -198,6 +198,14 @@ End every run with one verdict, and make it the last thing printed.
 **Blocking findings stand** → not ready. Name them and stop; the next move is the author's.
 
 **No blocking findings** → ready, and the recheck from step 4 is what says so.
+
+### A round that posted nothing says what the PR does
+
+When this round published no comment at all — not one `blocking`, not one `suggestion` — the whole output is the verdict block, and "ready to merge" on its own tells the reader nothing about what they are about to merge. So in that case, and only in that case, print a plain-language summary of the PR directly above the block.
+
+Plain language means the reader is not looking at the diff: what the change makes the code do differently, and what that means for whoever uses or runs it. Not which functions moved, not file names, not identifiers, not counts of lines. Three to five sentences, or the same as bullets. If the PR does something the description does not mention, that is the part worth writing down.
+
+It goes to the chat only, in the language of the discussion — never to the PR. Posting it there is the summary-only review step 4 refuses to publish.
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
