@@ -36,7 +36,7 @@ This skill reviews what GitHub holds, not what is on disk, and it writes nothing
 
 Let the branch names decide that, not how the skill was invoked:
 
-- **`headRefName` differs from the current branch** → the local head has nothing to do with the PR. Reviewing PR #42 from an unrelated feature branch, or from a checkout with half-finished work in it, is ordinary and costs the review nothing. Check nothing, ask nothing, go straight to the review history below.
+- **`headRefName` differs from the current branch** → the local head has nothing to do with the PR. Reviewing PR #42 from an unrelated feature branch, or from a checkout with half-finished work in it, is ordinary and costs the review nothing. Check nothing and ask nothing — skip the two checks below, and go on from **Where the files being reviewed are read from**, which still applies to this path and decides where the review reads its files.
 - **They match** → run the two checks below.
 
 `/ali-review-pr {number}` typed while standing on that very branch is the ordinary way to name a PR, so keying this off "the user passed a number" would skip the checks exactly where they are needed.
@@ -64,6 +64,8 @@ Everything above decides one thing: **is this checkout provably the commit under
 ```sh
 gh api "repos/{owner}/{repo}/contents/{path}?ref={sha}" --jq '.content' | base64 -d
 ```
+
+**A 404 here means the PR deletes that path**, and it is an answer, not a failure: a deleted file appears in `gh pr diff` in full, every line of it, so its content is already in hand and there is nothing left to fetch. Read it from the diff and carry on.
 
 That covers a differing branch, and equally a matching branch the user chose to go on from: a dirty or diverging checkout is a different state of this repository just as an unrelated branch is. A file read from it can differ from the PR's version in content and in line numbers, and the rule the review is about to judge against may be one the PR never saw. That is how a review publishes a finding about code the author did not write, or misses one because the local copy already fixed it. Reading from `{sha}` costs one call per file and makes every finding provably about the reviewed commit.
 
