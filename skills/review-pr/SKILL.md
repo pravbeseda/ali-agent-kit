@@ -32,12 +32,22 @@ gh pr diff {number}
 
 ### The local checkout matters only when it is the PR's branch
 
-This skill reviews what GitHub holds, not what is on disk, and it writes nothing into the working tree — the request body of step 4 goes to a temp dir. So the state of the checkout is irrelevant to the review **unless this checkout is the PR's own branch**, where uncommitted or unpushed work would be work belonging to the PR that `gh pr diff` cannot see.
+This skill reviews what GitHub holds, not what is on disk, and it writes nothing into the working tree — the request body of step 4 goes to a temp dir. So no state of the checkout can hold up a review or corrupt what gets published **unless this checkout is the PR's own branch**, where uncommitted or unpushed work would be work belonging to the PR that `gh pr diff` cannot see.
 
 Let the branch names decide that, not how the skill was invoked:
 
-- **`headRefName` differs from the current branch** → the local head has nothing to do with the PR. Reviewing PR #42 from an unrelated feature branch, or from a checkout with half-finished work in it, is ordinary and costs the review nothing. Check nothing, ask nothing, go straight to the review history below.
+- **`headRefName` differs from the current branch** → the local head has nothing to do with the PR. Reviewing PR #42 from an unrelated feature branch, or from a checkout with half-finished work in it, is ordinary and costs the review nothing. Check nothing, ask nothing, go straight to the review history below — but read no project file off the disk for the rest of the run.
 - **They match** → run the two checks below.
+
+**On a differing branch, every file this review reads comes from the PR's head**, not from the checkout — the whole-file context around a hunk and the repository's own `CLAUDE.md` / `AGENTS.md` alike:
+
+```sh
+gh api "repos/{owner}/{repo}/contents/{path}?ref={sha}" --jq '.content' | base64 -d
+```
+
+The disk is then a different commit of this repository, so a file read from it can differ from the PR's version in content and in line numbers — and the rule the review is about to judge against may be one the PR never saw. That is how a review publishes a finding about code the author did not write, or misses one because the local copy already fixed it. Reading from `{sha}` costs one call per file and makes the finding provably about the reviewed commit.
+
+When the branches match and the two checks below pass, the checkout **is** that commit, so read files from disk as usual.
 
 `/ali-review-pr {number}` typed while standing on that very branch is the ordinary way to name a PR, so keying this off "the user passed a number" would skip the checks exactly where they are needed.
 

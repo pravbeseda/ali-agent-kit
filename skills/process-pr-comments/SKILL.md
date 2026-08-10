@@ -197,7 +197,7 @@ Once the last thread is resolved, the edits this pass made are still only in the
    ```
 
 6. **A rejected push stops the pass** — the remote has moved and the fixes need rebasing onto it. Report it and hand the decision to the user; never `--force`, never `--force-with-lease`, and never a merge to get around it.
-7. Report the resulting SHA and branch in the close block below. Leaving fixes uncommitted is what makes the next step read stale code: `ali-review-pr` reviews what GitHub holds, and it refuses to run against a dirty tree for exactly this reason.
+7. Report the resulting SHA and branch in the close block below. Leaving fixes uncommitted is what makes the next step read stale code: `ali-review-pr` reviews what GitHub holds, so a fix that never reached the PR is a fix it cannot see.
 
 ## Step 6. Close the pass
 
