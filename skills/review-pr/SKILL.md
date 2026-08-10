@@ -65,7 +65,12 @@ Everything above decides one thing: **is this checkout provably the commit under
 gh api "repos/{owner}/{repo}/contents/{path}?ref={sha}" --jq '.content' | base64 -d
 ```
 
-**A 404 here means the PR deletes that path**, and it is an answer, not a failure: a deleted file appears in `gh pr diff` in full, every line of it, so its content is already in hand and there is nothing left to fetch. Read it from the diff and carry on.
+**A 404 is an answer, not a failure**, and which answer it is comes from the diff already in hand:
+
+- **The path appears in `gh pr diff` as deleted** → the PR removes it, and the diff carries every line of it. Read it from there and carry on.
+- **The path is nowhere in the diff** → the repository simply does not have that file at `{sha}`. For `CLAUDE.md` / `AGENTS.md` this is the ordinary case: the repository wrote no rules down for itself, so step 2 has none to judge against and the review proceeds without them.
+
+Neither is a reason to stop, and neither is a finding: a 404 says nothing about the code until the diff says which of the two it was.
 
 That covers a differing branch, and equally a matching branch the user chose to go on from: a dirty or diverging checkout is a different state of this repository just as an unrelated branch is. A file read from it can differ from the PR's version in content and in line numbers, and the rule the review is about to judge against may be one the PR never saw. That is how a review publishes a finding about code the author did not write, or misses one because the local copy already fixed it. Reading from `{sha}` costs one call per file and makes every finding provably about the reviewed commit.
 
