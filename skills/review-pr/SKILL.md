@@ -36,18 +36,8 @@ This skill reviews what GitHub holds, not what is on disk, and it writes nothing
 
 Let the branch names decide that, not how the skill was invoked:
 
-- **`headRefName` differs from the current branch** → the local head has nothing to do with the PR. Reviewing PR #42 from an unrelated feature branch, or from a checkout with half-finished work in it, is ordinary and costs the review nothing. Check nothing, ask nothing, go straight to the review history below — but read no project file off the disk for the rest of the run.
+- **`headRefName` differs from the current branch** → the local head has nothing to do with the PR. Reviewing PR #42 from an unrelated feature branch, or from a checkout with half-finished work in it, is ordinary and costs the review nothing. Check nothing, ask nothing, go straight to the review history below.
 - **They match** → run the two checks below.
-
-**On a differing branch, every file this review reads comes from the PR's head**, not from the checkout — the whole-file context around a hunk and the repository's own `CLAUDE.md` / `AGENTS.md` alike:
-
-```sh
-gh api "repos/{owner}/{repo}/contents/{path}?ref={sha}" --jq '.content' | base64 -d
-```
-
-The disk is then a different commit of this repository, so a file read from it can differ from the PR's version in content and in line numbers — and the rule the review is about to judge against may be one the PR never saw. That is how a review publishes a finding about code the author did not write, or misses one because the local copy already fixed it. Reading from `{sha}` costs one call per file and makes the finding provably about the reviewed commit.
-
-When the branches match and the two checks below pass, the checkout **is** that commit, so read files from disk as usual.
 
 `/ali-review-pr {number}` typed while standing on that very branch is the ordinary way to name a PR, so keying this off "the user passed a number" would skip the checks exactly where they are needed.
 
@@ -64,6 +54,18 @@ Put it to them with the question tool, naming the dirty paths or printing both S
 - **Stop** — they commit and push first, then re-run.
 
 Nothing is published before that answer. `ali-process-pr-comments` commits and pushes its fixes before handing over here for exactly this reason: local divergence at this point usually means something never reached the PR.
+
+### Where the files being reviewed are read from
+
+Everything above decides one thing: **is this checkout provably the commit under review?** It is only when all three hold — the branch names matched, `git status` came back empty, and `HEAD` equals `headRefOid`. Then read files from disk as usual.
+
+**Otherwise every project file this run reads comes from the PR's head** — the whole-file context around a hunk and the repository's own `CLAUDE.md` / `AGENTS.md` alike:
+
+```sh
+gh api "repos/{owner}/{repo}/contents/{path}?ref={sha}" --jq '.content' | base64 -d
+```
+
+That covers a differing branch, and equally a matching branch the user chose to go on from: a dirty or diverging checkout is a different state of this repository just as an unrelated branch is. A file read from it can differ from the PR's version in content and in line numbers, and the rule the review is about to judge against may be one the PR never saw. That is how a review publishes a finding about code the author did not write, or misses one because the local copy already fixed it. Reading from `{sha}` costs one call per file and makes every finding provably about the reviewed commit.
 
 **Do not work out which side is ahead.** It takes a fetch of a commit that may live in a fork, a remote whose name means different things in a maintainer's checkout and a contributor's, and an ancestry check that has an error state distinct from its two answers — several ways to be wrong, in service of an instruction the user did not need. The divergence is the whole finding.
 
