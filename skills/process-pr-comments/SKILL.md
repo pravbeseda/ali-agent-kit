@@ -1,6 +1,6 @@
 ---
 name: process-pr-comments
-description: Work through the unresolved review comments on a pull request one by one — verify each claim, decide with the user, apply the change and resolve the thread. Use when the user asks to "process PR comments", "go through the review comments", "handle the PR feedback", or runs /ali-process-pr-comments.
+description: Work through the existing unresolved review comments on a pull request one by one, resolving each thread. Use when the user asks to handle review feedback already posted on a PR, or runs /ali-process-pr-comments.
 ---
 
 # Process PR comments

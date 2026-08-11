@@ -1,6 +1,6 @@
 ---
 name: one-by-one
-description: Work through the open questions in a plan or list one at a time — context, options with a rated comparison, a recommendation — record each decision, then implement what was decided once the user confirms. Use when the user asks to "go through the questions one by one", "resolve the plan questions", or runs /ali-one-by-one.
+description: Resolve the open questions in a plan or list one at a time, recording each decision and implementing the confirmed ones. Use when the user asks to go through a plan's questions one by one, or runs /ali-one-by-one.
 ---
 
 # Resolve the open questions one by one, then build it
@@ -39,9 +39,7 @@ which later decisions it blocks.
 |-----------|--------|
 | Effort | 🟢 low / 🟡 medium / 🔴 high |
 | Fragility | 🟢 robust / 🟡 moderate / 🔴 fragile |
-| Anti-patterns | 🟢 none / 🟡 minor / 🔴 present |
-| Architectural cleanliness | 🟢 clean / 🟡 acceptable / 🔴 messy |
-| Best practices | 🟢 follows / 🟡 tolerable / 🔴 violates |
+| Design fit | 🟢 clean / 🟡 acceptable / 🔴 messy |
 
 #### Option B: {name}
 …same shape…
@@ -76,7 +74,7 @@ Write a summary document only if the user asks for one; it is not part of this l
 
 - Exactly one question per message. Wait for the answer, then move on immediately.
 - Ratings must be concrete for **this** project, not generic.
-- Account for the patterns already in the codebase, and for the project's CLAUDE.md / AGENTS.md conventions when judging anti-patterns.
+- Account for the patterns already in the codebase, and for the project's CLAUDE.md / AGENTS.md conventions when judging design fit.
 - If an option touches several layers (backend + frontend + tests), let the effort rating show it.
 - If one option is clearly better, say so plainly — do not hide behind "both are fine".
 

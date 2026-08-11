@@ -1,6 +1,6 @@
 ---
 name: review-branch
-description: Review the current branch — committed, staged, unstaged and untracked changes — against the repository's base branch, against one bar: does the change leave the codebase healthier than it found it. Walks the user through the blocking findings and suggestions one at a time and ends with a ready-for-a-PR verdict. Use when the user asks to "review the branch", "review my changes", "check this branch before the PR", or runs /ali-review-branch.
+description: Review the current local branch — committed, uncommitted and untracked work — against its base branch. Use when the user asks to review the branch or their local changes, to check the branch before a PR, or runs /ali-review-branch.
 ---
 
 # Review Branch
@@ -31,7 +31,7 @@ Resolve the base branch first — never assume `main`, and never diff against a 
    git ls-remote --symref origin HEAD   # ref: refs/heads/master	HEAD
    ```
    The `ref:` line names the default branch. Ask the remote rather than reading the local `refs/remotes/origin/HEAD`, which can be missing in a fresh clone and is never retargeted by a plain fetch after a rename.
-3. **Check for an integration branch before settling for the default.** If `GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -oBatchMode=yes" git ls-remote --heads origin develop` (or `release/*`, `staging`, whatever the repo uses) comes back non-empty **and names a branch other than the one item 2 resolved**, ask the user which of the two to review against.
+3. **Check for an integration branch before settling for the default.** If `GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -oBatchMode=yes" git ls-remote --heads origin refs/heads/develop refs/heads/staging 'refs/heads/release/*'` comes back non-empty **and names a branch other than the one item 2 resolved**, list the branches it found and ask the user which of them — or the resolved default — to review against. The full `refs/heads/` patterns are deliberate: `ls-remote` matches bare patterns against the tail of the ref name, so a bare `develop` would also match `feat/develop`. If the probe comes back empty, fall through to the resolved default silently.
 4. **If nothing resolves** — `ls-remote` fails, say on a rate limit — fall back to the local `git symbolic-ref --quiet --short refs/remotes/origin/HEAD`, which prints `origin/master`; strip the prefix. If that prints nothing either, ask.
 
 State in one line which base was chosen and why — a review against the wrong base is worse than no review. Beyond the fetch below, change nothing that outlives the pass: no `git remote set-head`, no config writes, no local branches, no working-tree changes. There is deliberately no general `git fetch origin` either: nothing downstream reads what it would refresh, and in a narrow clone it still could not create the ref the diff needs.

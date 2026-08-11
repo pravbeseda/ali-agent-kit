@@ -1,6 +1,6 @@
 ---
 name: generate-pr-description-uc
-description: Generate a PR description for the Unite Client (UC) project by diffing the current branch against origin/develop and filling the UC pull request template — Problem, Solution, Changes, Affected Areas plus the mandatory checklists. Only for Unite Client repositories, which are the ones with an origin/develop branch. Use when the user asks to "write the PR description", "generate a description for this PR", or runs /ali-generate-pr-description-uc.
+description: Generate a PR description for the Unite Client (UC) project by filling the UC pull request template. Only for Unite Client repositories, which are the ones with an origin/develop branch. Use when the user asks to write the PR description, or runs /ali-generate-pr-description-uc.
 ---
 
 # Goal
