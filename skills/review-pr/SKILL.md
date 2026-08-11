@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: Review a pull request against one bar — does the change leave the codebase healthier than it found it — and post what fails it as inline comments through gh api, labelled blocking or suggestion, questions and doubts only, no fixes. Ends with a ready-to-merge verdict. Use when the user asks to "review the PR", "post a review on the PR", "leave comments on the PR", "comment on the PR as a reviewer", "is this PR ready to merge", or runs /ali-review-pr.
+description: Review a pull request and post new findings as inline comments. Use when the user asks to review or comment on a PR, asks whether a PR is ready to merge, or runs /ali-review-pr.
 ---
 
 # Review PR
