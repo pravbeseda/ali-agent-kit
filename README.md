@@ -15,7 +15,7 @@ Every skill is published with an `ali-` prefix: `skills/review-branch.md` in thi
 | `ali-review-pr`                  | Reviews a pull request against one bar — does the change leave the codebase healthier — posts what fails it as inline `blocking` / `suggestion` comments, and ends with a ready-to-merge verdict. A round that posts no comment at all explains the PR in plain language instead. |
 | `ali-process-pr-comments`        | Takes the unresolved review comments on a pull request one by one: verifies the claim, decides with you, applies the change, resolves the thread.                                                 |
 | `ali-one-by-one`                 | Resolves the open questions in a plan one at a time — context, rated options, a recommendation, then records the decision in the plan file.                                                       |
-| `ali-generate-pr-description-uc` | Diffs the current branch against `origin/develop` and writes a ready-to-paste PR description in the Unite Client (UC) template — sections plus the mandatory checklists.                          |
+| `ali-generate-pr-description`    | Diffs the current branch against its base branch and writes a ready-to-paste PR description, laid out in the repository's own `.github/pull_request_template.md` — checklists included, untouched — or in a neutral fallback when there is none. |
 
 ## Install / update
 
