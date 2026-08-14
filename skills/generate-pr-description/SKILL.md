@@ -22,7 +22,7 @@ Compare the current Git branch with its base branch and generate a complete PR d
       git ls-remote --heads origin refs/heads/develop refs/heads/staging
       git ls-remote --symref origin HEAD    # the "ref: refs/heads/<name>" line is the default
       ```
-      The full `refs/heads/` patterns are deliberate — `ls-remote` matches a bare pattern against the tail of the ref, so a bare `develop` would also match `feat/develop`. If the probe names a branch other than the default, ask the user which of the two to diff against.
+      The full `refs/heads/` patterns are deliberate — `ls-remote` matches a bare pattern against the tail of the ref, so a bare `develop` would also match `feat/develop`. If the probe comes back with any branch other than the one the default resolves to, list **every** branch it found alongside that default and ask the user to pick one of them: the probe can return several, and picking for them is what makes two runs describe the same branch against different bases. If it comes back empty, or names only the default itself, take the default silently.
    3. If nothing resolves — no remote, no network — ask the user for the base branch. Do not guess.
 
    State in one line which base was chosen and why, then fetch it:
@@ -52,13 +52,14 @@ Compare the current Git branch with its base branch and generate a complete PR d
 3. **Find the template in the current branch.** Ask git rather than guessing at a path, so the search covers the locations GitHub itself accepts and survives a repository that spells the file in upper case:
 
    ```bash
-   git ls-files --full-name -- ':(icase).github/pull_request_template.md' ':(icase)pull_request_template.md' ':(icase)docs/pull_request_template.md'
+   git ls-files --full-name -- ':(icase).github/pull_request_template.md' ':(icase)pull_request_template.md' ':(icase)docs/pull_request_template.md' ':(icase).github/pull_request_template/' ':(icase)docs/pull_request_template/'
    ```
 
-   - **One or more hits** — read the first one **in full, from the file**, and use it as the template. Never write a template from memory, and above all never write a checklist from memory: a remembered copy with a plausible number of `[ ]` items sails through the step 6 check while quietly differing from what the team maintains.
-   - **No hit** — say so in one line, then use [The default template](#the-default-template) at the end of this file.
+   The last two pathspecs end in a slash and carry no `.md`: they name the **directory** form GitHub also accepts, and a pathspec ending in `.md` matches nothing inside it.
 
-   A repository may instead hold a `.github/PULL_REQUEST_TEMPLATE/` **directory** of named templates; `ls-files` on it lists several files. Then name them to the user and ask which one to fill, rather than picking one.
+   - **Exactly one hit** — read it **in full, from the file**, and use it as the template. Never write a template from memory, and above all never write a checklist from memory: a remembered copy with a plausible number of `[ ]` items sails through the step 6 check while quietly differing from what the team maintains.
+   - **Several hits** — name them to the user and ask which one to fill, rather than picking one yourself. This is what a `PULL_REQUEST_TEMPLATE/` directory of named templates — bug, feature, release — looks like here.
+   - **No hit** — say so in one line, then use [The default template](#the-default-template) at the end of this file.
 
 4. **Analyze changes** and identify what the template actually asks for. Across templates that is usually some subset of:
    - what problem or issue is being addressed (from commit messages, branch name, code changes)
@@ -80,12 +81,12 @@ Compare the current Git branch with its base branch and generate a complete PR d
      ```
      A mismatch means the copy went wrong, never that the template is wrong — re-read the template and reproduce the checklists from it, and never edit the output to reach an expected count.
 
-7. **Output the filled template** as a fenced Markdown source code block (` ```markdown ... ``` `) so the user can copy-paste it into the PR on GitHub. After the block, remind the user in one line what the description still needs from them — the evidence lines you kept in step 5, if there were any.
+7. **Output the filled template** as a fenced Markdown source code block (` ```markdown ... ``` `) so the user can copy-paste it into the PR on GitHub. **Make the fence longer than the longest run of backticks inside the description** — a template carrying its own ` ``` ` code block closes a three-backtick fence early and splits the output into pieces that no longer copy as one, so use four backticks there, five against four, and so on. After the block, remind the user in one line what the description still needs from them — the evidence lines you kept in step 5, if there were any.
    Do NOT save to a file. Do NOT publish to GitHub. The user handles that manually.
 
 # Guidelines
 
-- The total output MUST NOT exceed 3000 characters — shorten the sections you wrote as needed, but NEVER truncate or remove a checklist
+- **The text you write MUST NOT exceed 3000 characters** — shorten your own sections as needed. The budget covers only what you wrote: everything copied from the template goes out in full however long it is, and a template that is itself longer than the budget is not a reason to truncate anything.
 - Be specific and concise in each section
 - Use bullet points for multiple items
 - Reference any related ticket if identifiable from the branch name or commits (e.g. a `UC-12345`-style ID in the branch name belongs in the first section)
@@ -94,7 +95,8 @@ Compare the current Git branch with its base branch and generate a complete PR d
 # Language
 
 - Discussion with the user — the language they write in, or the chat language configured by the user, if one is defined.
-- The PR description itself — **always English**, whatever language the conversation is in. Every word inside the output block, including the sections you wrote yourself, is English.
+- Anything copied from the template — reproduced verbatim, in whatever language the team wrote it. Never translate a heading or a checklist item.
+- The sections you write yourself — the language of the template you are filling, so the description reads as one document; **English** when no template was found and the default one is used. Never the language of the conversation.
 
 # The default template
 
