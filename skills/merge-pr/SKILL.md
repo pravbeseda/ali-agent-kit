@@ -1,6 +1,6 @@
 ---
 name: merge-pr
-description: Merge a pull request that is done, and refuse to while anything is still open — no unresolved review thread, no failing check, pending ones waited out — then switch the checkout to the base branch and pull. Use when the user asks to merge, land or finish a PR, or runs /ali-merge-pr.
+description: Merge a pull request that is done, and refuse to while anything is still open — no unresolved review thread, no failing check, pending ones waited out — then switch the checkout to the base branch, pull, and point at what to work on next. Use when the user asks to merge, land or finish a PR, or runs /ali-merge-pr.
 ---
 
 # Merge PR
@@ -213,7 +213,7 @@ The head branch stays on disk. Report it by name so the user can delete it in on
 
 ## Step 7. Close the pass
 
-Print this as the last block, with nothing after it:
+Print this block, with nothing between it and the end of the run except what [step 8](#step-8-what-to-do-next) may add after it:
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -257,6 +257,38 @@ Rules for the close:
 - **One blocker, not a list of everything wrong.** The run stops at the first one it hits; report that one and the checks it never got to reach.
 - **Never merge past a blocker**, however small it looks. An unresolved thread on a typo is still unresolved.
 - The block says what happened, not what might have. If the merge did not run, there is no SHA line.
+
+## Step 8. What to do next
+
+A landed PR leaves the user at a fork with no obvious next step on screen. This step puts one there — and only that. **It proposes, it does not start.** Do not open a branch, edit a file or pick up an issue off the back of it; the user's answer is what authorizes the next task.
+
+Run it **only after a ✅ verdict** — `MERGED` or `ALREADY MERGED`. A 🛑 block already ends with the one next action that matters, and a ⏳ queued PR has not finished the current task, so neither gets a suggestion after it.
+
+### Where the candidates come from
+
+Two sources, in this order:
+
+- **The plan** — a plan the conversation is already working through, or a plan file this PR's branch, title or body points at (`docs/plan*.md`, `PLAN.md`, whatever the repository keeps). Read the plan and work out which of its items this PR just closed and which items are still open.
+- **Open issues on the tracker**, when the repository has one:
+
+  ```sh
+  gh issue list --state open --limit 30 --json number,title,labels,updatedAt
+  ```
+
+  Drop what the merge just closed: a PR body with `Closes #12` takes `#12` off the list even if GitHub has not caught up yet.
+
+**Look, do not dig.** One pass over the plan and one issue listing is the whole budget. This step is a pointer at the end of a merge, not a planning session — if neither source answers in that pass, treat it as empty and say nothing.
+
+### What to print
+
+Append after the close block, separated by a blank line, in the user's chat language:
+
+- **One obvious next item** — the plan's next unstarted item, or a single issue that plainly follows from what just merged. Name it in one line, with its issue number or plan item, and ask whether to start it.
+- **No single obvious one** → offer **at most four** candidates drawn from both sources, ordered by what you would do first, each with a few words on why it earns that place. Say which one you would take, and let the user choose. Where the repository provides `ali-one-by-one`, or the user asks for such decisions in that format, ask in that format instead of a bare list.
+- **The merge closed the last open plan item** → say the plan is done, and name it. Then the remaining open issues, if there are any, are the candidates; if there are none either, the plan being finished is the whole message.
+- **No plan and no open issues** → print nothing at all. No "nothing to suggest", no empty heading. The close block is the end of the run.
+
+Uncertainty is worth stating in a half-sentence — "the plan has no item for this, so these come from the tracker" — and never worth resolving by inventing an item. Suggest only what a source actually says.
 
 ## Language
 
