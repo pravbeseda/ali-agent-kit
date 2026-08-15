@@ -1,9 +1,9 @@
 ---
-name: finalize-pr
-description: Land a pull request that is done — verify no unresolved review thread and no failing check, wait out the pending ones, merge, then switch the checkout to the base branch and pull. Use when the user asks to finish, land or merge a PR, or runs /ali-finalize-pr.
+name: merge-pr
+description: Merge a pull request that is done, and refuse to while anything is still open — no unresolved review thread, no failing check, pending ones waited out — then switch the checkout to the base branch and pull. Use when the user asks to merge, land or finish a PR, or runs /ali-merge-pr.
 ---
 
-# Finalize PR
+# Merge PR
 
 Land a pull request whose work is finished. The skill answers one question — **is there anything left that would make this merge premature?** — and acts on the answer: it merges when there is nothing, and it stops with a named blocker when there is.
 
