@@ -276,7 +276,7 @@ gh pr list --state open --author @me --limit 30 --json number,title,headRefName,
 
 Switch only once the user has picked one. What makes the switch safe is that the working tree is clean — step 1 saw to that, and the merge did not dirty it — so no work of theirs rides on the branch being left; it is still their choice which branch to be on.
 
-Which branch that is depends on how step 6 went, and it is worth saying which: normally the base branch, but on a run where the `git checkout` failed, the head branch of the PR just merged. Say where the checkout stands when the switch is offered, and expect `gh pr checkout` to fail for whatever reason step 6 did — a base branch held by another worktree usually means the next one is too. Report that as step 6 does and leave the checkout where it is.
+Which branch that is depends on how step 6 went, and it is worth saying which: normally the base branch, but on a run where the `git checkout` failed, whichever branch the run started on — step 1 admits any branch with a clean tree, so that need not be the merged PR's head. Say where the checkout stands when the switch is offered. If `gh pr checkout` fails in turn — the head branch it wants may itself be held by another worktree — report it as step 6 does and leave the checkout where it is.
 
 **While any such PR is open, say nothing about the plan and nothing about the issues.** Do not run the queries below, do not mention them as a second option, do not append them under the PR list. They come back into play only when this listing is empty.
 
