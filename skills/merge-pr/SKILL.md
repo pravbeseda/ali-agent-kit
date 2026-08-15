@@ -274,7 +274,9 @@ gh pr list --state open --author @me --limit 30 --json number,title,headRefName,
 
 **Any result at all takes over this step.** An open PR of the user's own is work already written and waiting on them — it outranks every plan item and every issue, because starting something new while it sits there only widens the queue. So list them for the user to pick from — number, title, branch, `draft` where it applies, oldest first, since the one that has waited longest is usually the one to look at — and offer to switch the checkout to one of them for review, with `gh pr checkout {number}`.
 
-Switch only once the user has picked one. The checkout is clean at this point (step 1 saw to that) and sitting on the base branch, so nothing is at risk in the switch itself — but it is still their choice which branch to be on.
+Switch only once the user has picked one. What makes the switch safe is that the working tree is clean — step 1 saw to that, and the merge did not dirty it — so no work of theirs rides on the branch being left; it is still their choice which branch to be on.
+
+Which branch that is depends on how step 6 went, and it is worth saying which: normally the base branch, but on a run where the `git checkout` failed, the head branch of the PR just merged. Say where the checkout stands when the switch is offered, and expect `gh pr checkout` to fail for whatever reason step 6 did — a base branch held by another worktree usually means the next one is too. Report that as step 6 does and leave the checkout where it is.
 
 **While any such PR is open, say nothing about the plan and nothing about the issues.** Do not run the queries below, do not mention them as a second option, do not append them under the PR list. They come back into play only when this listing is empty.
 
