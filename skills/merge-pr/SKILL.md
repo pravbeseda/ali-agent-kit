@@ -39,14 +39,18 @@ This applies whatever branch the checkout is on, for two different reasons:
 When the checkout **is** the PR's branch, one more check: is the commit on disk the commit that is about to be merged?
 
 ```sh
-git fetch origin {headRefName}
+git fetch origin refs/pull/{number}/head
 git rev-parse HEAD
 git merge-base --is-ancestor HEAD {headRefOid}
 ```
 
 Compare against `headRefOid` — the PR's head — and nothing else. Not against `@{upstream}`: a tracking ref points wherever the branch was configured to point, which is not necessarily this PR's branch, and a stale or unrelated one answers zero to the question that mattered. `headRefOid` is the commit GitHub will merge, so it is the only thing worth comparing to. The `fetch` is what puts that object in the local repository for the test.
 
-Two outcomes, and they are not the same:
+**Fetch the pull ref, not `origin {headRefName}`.** A branch of that name need not exist on `origin` at all: on a PR from a fork the head branch lives in the contributor's repository, and on a PR that is already merged the repository may have deleted it. `refs/pull/{number}/head` is served by the base repository for every PR, fork or not, and outlives the head branch — so the object the test needs is always there, and `--is-ancestor` cannot fail on a missing commit.
+
+If the fetch itself fails — no network, no access — that is the one case with no reading: say the gate could not be answered and stop, rather than merging on an unchecked assumption.
+
+Two outcomes otherwise, and they are not the same:
 
 - **`HEAD` equals `headRefOid`, or `--is-ancestor` exits `0`** — the checkout is the PR head or merely behind it. Nothing local is at risk. Say the checkout is behind, if it is, and go on.
 - **`--is-ancestor` exits `1`** — the checkout holds commits the PR does not. Those are exactly the commits the merge would exclude and then orphan. Report `HEAD` and `headRefOid` and stop.
