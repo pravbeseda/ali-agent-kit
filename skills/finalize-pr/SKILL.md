@@ -17,27 +17,38 @@ Land a pull request whose work is finished. The skill answers one question — *
 Fetch in parallel:
 
 ```sh
-gh pr view --json number,state,isDraft,mergeable,mergeStateStatus,reviewDecision,headRefName,baseRefName,url
+gh pr view --json number,title,state,isDraft,mergeable,mergeStateStatus,reviewDecision,headRefName,headRefOid,baseRefName,url
 gh repo view --json nameWithOwner --jq '.nameWithOwner'
 git rev-parse --abbrev-ref HEAD
 git status --porcelain
-git rev-list --count --left-right @{upstream}...HEAD
 ```
 
 `gh pr view` without an argument resolves the PR of the current branch; pass the number explicitly when the user named one. If it fails because the branch has no open PR, **stop** and ask which PR to land.
 
-**`state` is not `OPEN`** → stop. A `MERGED` PR is already done — say so and go straight to [step 5](#step-5-switch-the-checkout-to-the-base-branch), which is still worth running. A `CLOSED` one ends the pass.
+Every field is used later: `title` and `number` in the close block, `headRefOid` as the merge guard in step 5, `baseRefName` in step 6.
 
-### The local checkout has to be clean before anything is merged
+**`state` is not `OPEN`** → stop. A `MERGED` PR is already done — say so and go straight to [step 6](#step-6-switch-the-checkout-to-the-base-branch), which is still worth running. A `CLOSED` one ends the pass.
 
-The two `git` commands matter only when `headRefName` equals the current branch. When the checkout sits on some other branch, skip this section — nothing local belongs to this PR.
+### The working tree has to be clean
 
-When they match, both of these end the run **before** the merge, not after:
+`git status --porcelain` is non-empty → **stop, before anything is merged**. Report the paths.
 
-- **Uncommitted or untracked changes** (`git status --porcelain` is non-empty) — work on the PR's branch that GitHub has never seen. Report the paths and stop.
-- **Unpushed commits** (the right-hand number of `git rev-list --count --left-right` is above zero) — commits that would be excluded from the merge and orphaned by it. Report the count and stop.
+This applies whatever branch the checkout is on, for two different reasons:
 
-The gate is here rather than at step 5 on purpose: a merge cannot be taken back, so the state that would make it wrong is checked while it still can be.
+- **On the PR's own branch** (`headRefName` equals the current branch) the dirt is work belonging to this PR that GitHub has never seen. Merging leaves it stranded on a branch nobody will look at again.
+- **On any other branch** it is unrelated work that step 6 would drag onto the base branch, or that would make the `git checkout` fail outright.
+
+When the checkout **is** the PR's branch, one more check, and it needs an upstream to answer:
+
+```sh
+git rev-list --count --left-right @{upstream}...HEAD
+```
+
+The right-hand number above zero means unpushed commits — commits the merge would exclude and then orphan. Report the count and stop.
+
+The command exits `128` with `fatal: no upstream configured for branch '{name}'` when the branch has no tracking ref. That is not a failure of this step: no upstream means nothing was ever pushed from here, so compare against the PR's own head instead — `git rev-parse HEAD` against the `headRefOid` from above, and a mismatch stops the run the same way.
+
+The whole gate sits here rather than in step 6 on purpose: a merge cannot be taken back, so the state that would make it wrong is checked while it still can be.
 
 ## Step 2. Blockers on the PR itself
 
@@ -46,9 +57,12 @@ Read the fields from step 1:
 - **`isDraft` is true** → stop. A draft is not finished, whatever its checks say.
 - **`reviewDecision` is `CHANGES_REQUESTED`** → stop, and name the reviewer.
 - **`reviewDecision` is `REVIEW_REQUIRED`** → stop. The branch protection will refuse the merge anyway; saying so up front beats a failed `gh pr merge`.
+- **`reviewDecision` is `APPROVED` or empty** → not a blocker. Empty means the repository asks for no review at all, which is a policy, not an omission — do not invent an approval requirement the repository does not have.
 - **`mergeable` is `CONFLICTING`** → stop. The branch needs rebasing onto its base — the author's call, not this skill's.
 - **`mergeStateStatus` is `BEHIND`** → stop and say the branch has to be updated first (`gh pr update-branch {number}` is the usual fix, but run it only if the user asks).
 - **`mergeable` is `UNKNOWN`** → GitHub is still computing it. Re-read `gh pr view --json mergeable,mergeStateStatus` a few seconds later before deciding anything.
+
+`mergeStateStatus` values `BLOCKED` and `UNSTABLE` are **not** read as blockers here, and the reason is worth knowing: `BLOCKED` usually restates a missing review or a check still running, which steps 3 and 4 diagnose far better than one opaque word, and `UNSTABLE` means only non-required checks are failing — which this skill still refuses to merge past, from step 4, on its own terms. Report the value when the run stops, never decide on it alone.
 
 ## Step 3. Unresolved review threads
 
@@ -86,11 +100,12 @@ Report them as one compact list — `path:line`, author, the first line of the c
 gh pr checks {number} --json name,bucket,state,link
 ```
 
-`bucket` sorts every check into `pass`, `fail`, `pending`, `skipping` or `cancel`. The exit code says the same thing in one number: `0` all done and passing, `8` something is still pending, `1` something failed **or** the PR has no checks at all — so read the JSON rather than the exit code alone.
+`bucket` sorts every check into `pass`, `fail`, `pending`, `skipping` or `cancel`. The exit code says roughly the same thing in one number: `0` all done and passing, `8` something is still pending, `1` something failed **or** the PR has no checks at all. Those last two are different outcomes behind one code, so **read the JSON, not the exit code** — and a non-zero exit here is the command's answer, not a broken command. Do not report it as a tool failure and do not retry it.
 
 - **Any `fail` or `cancel`** → stop. Name each failing check and its `link`. A rerun is the user's call.
 - **Any `pending`** → wait, do not stop. This is the one place the skill blocks.
-- **All `pass` / `skipping`, or no checks reported** → go to step 5. Say it plainly when a PR has no checks; "nothing failed" and "nothing ran" read the same in a report and mean very different things.
+- **All `pass` / `skipping`** → go to step 5.
+- **No checks at all** (`gh` says `no checks reported on the '{branch}' branch`) → go to step 5, and say so in the close block. "Nothing failed" and "nothing ran" read the same in a report and mean very different things.
 
 ### How to wait
 
@@ -118,25 +133,48 @@ gh api repos/{owner}/{repo} --jq '{squash: .allow_squash_merge, merge: .allow_me
 Prefer squash, then merge commit, then rebase — unless the user named a method when invoking the skill, which always wins.
 
 ```sh
-gh pr merge {number} --squash
+gh pr merge {number} --squash --match-head-commit {headRefOid}
 ```
 
-**Leave branch deletion alone** — no `--delete-branch`. Whether the head branch goes is a repository setting, and deleting a branch the setting meant to keep is not undoable from here.
+**`--match-head-commit` is what makes the verified state and the merged state the same commit.** Everything checked so far was checked against one SHA; a push landing during step 4's wait moves the PR under the skill, and without the guard the merge quietly lands code no thread and no check in this pass ever saw. With it, GitHub refuses and the run stops.
+
+So re-read the head **after** the checks pass and use that value:
+
+```sh
+gh pr view {number} --json headRefOid --jq '.headRefOid'
+```
+
+If it differs from the SHA step 1 read, the PR moved during the wait — say so and start the pass again from step 3 rather than merging: the new commits have their own threads and their own checks.
+
+**Leave branch deletion alone** — no `--delete-branch`. Whether the head branch goes is a repository setting, and `-d` deletes the local branch too, which is not undoable from here.
 
 **A rejected merge ends the run as it stands.** Report `gh`'s message verbatim and stop; do not retry with another method, do not pass `--admin`, do not push anything.
 
+### A merge command that returns is not always a merge
+
+On a base branch with a **merge queue**, `gh pr merge` enqueues the PR or turns auto-merge on, and returns successfully having merged nothing yet. Confirm what actually happened before writing the close block:
+
+```sh
+gh pr view {number} --json state,mergedAt,mergeStateStatus
+```
+
+`state: MERGED` is the only thing that earns the merged verdict. Anything else — `OPEN` with auto-merge enabled, or queued — closes the pass as *queued, not merged*, and step 6 does not run: the base branch has nothing new to pull yet.
+
 ## Step 6. Switch the checkout to the base branch
 
-Only after the merge actually succeeded:
+Only after the PR actually reached `MERGED`:
 
 ```sh
 git checkout {baseRefName}
 git pull --ff-only --prune
+git rev-parse --short HEAD
 ```
 
-`--ff-only` is not optional: if the local base branch has diverged from the remote, the pull stops instead of writing a merge commit onto it. Report that and stop — reconciling it is a separate decision. `--prune` drops the remote-tracking ref of the head branch when the repository deleted it on merge.
+`--ff-only` is not optional: if the local base branch has diverged from the remote, the pull stops instead of writing a merge commit onto it. Report that and stop — reconciling it is a separate decision, and the merge itself is already done either way. `--prune` drops the remote-tracking ref of the head branch when the repository deleted it on merge. The last command is the SHA the close block reports.
 
 The head branch stays on disk. Report it by name so the user can delete it in one command if they want to.
+
+**A `git checkout` that fails leaves the pass merged but not switched.** Say exactly that — the merge is not in doubt, only the local checkout is. Never `--force` the switch, and never stash or discard anything to get past it: step 1's gate is what makes this case rare, and forcing it would spend the user's uncommitted work to tidy up a branch name.
 
 ## Step 7. Close the pass
 
@@ -145,7 +183,7 @@ Print this as the last block, with nothing after it:
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PR #{number} — {title}
-Checks: {n} passed{, waited {duration}}
+Checks: {n} passed{, waited {duration}} | or "none reported"
 Threads: all resolved
 
 ## ✅ MERGED ({method})
@@ -161,6 +199,14 @@ When something blocked it, the block is the same with the verdict replaced by th
 {one line: the next action — which skill, which command, or whose call it is}
 ```
 
+And when the merge went to a queue rather than to the base branch:
+
+```
+## ⏳ QUEUED — NOT MERGED YET
+{one line: auto-merge enabled, or position in the merge queue}
+Still on {head}; the base branch has nothing new to pull yet.
+```
+
 Rules for the close:
 
 - **One blocker, not a list of everything wrong.** The run stops at the first one it hits; report that one and the checks it never got to reach.
@@ -174,6 +220,6 @@ Rules for the close:
 
 ## Extra context
 
-If the user passed anything along with the invocation — a PR number, a merge method, an instruction to skip the wait — treat it as the scope of this pass. It arrives below; an empty line there means no arguments were given, not that something went missing.
+If the user passed anything along with the invocation — a PR number, a merge method, a longer wait to allow — treat it as the scope of this pass. One thing it can never mean is skipping a check: the gates are the skill. It arrives below; an empty line there means no arguments were given, not that something went missing.
 
 $ARGUMENTS
