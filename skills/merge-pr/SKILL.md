@@ -17,7 +17,7 @@ Land a pull request whose work is finished. The skill answers one question — *
 Fetch in parallel:
 
 ```sh
-gh pr view --json number,title,state,isDraft,mergeable,mergeStateStatus,reviewDecision,headRefName,headRefOid,baseRefName,url
+gh pr view --json number,title,state,isDraft,mergeable,mergeStateStatus,reviewDecision,headRefName,headRefOid,baseRefName
 gh repo view --json nameWithOwner --jq '.nameWithOwner'
 git rev-parse --abbrev-ref HEAD
 git status --porcelain
@@ -26,8 +26,6 @@ git status --porcelain
 `gh pr view` without an argument resolves the PR of the current branch; pass the number explicitly when the user named one. If it fails because the branch has no open PR, **stop** and ask which PR to land.
 
 Every field is used later: `title` and `number` in the close block, `headRefOid` as the merge guard in step 5, `baseRefName` in step 6.
-
-**`state` is not `OPEN`** → stop. A `MERGED` PR is already done — say so and go straight to [step 6](#step-6-switch-the-checkout-to-the-base-branch), which is still worth running. A `CLOSED` one ends the pass.
 
 ### The working tree has to be clean
 
@@ -38,17 +36,30 @@ This applies whatever branch the checkout is on, for two different reasons:
 - **On the PR's own branch** (`headRefName` equals the current branch) the dirt is work belonging to this PR that GitHub has never seen. Merging leaves it stranded on a branch nobody will look at again.
 - **On any other branch** it is unrelated work that step 6 would drag onto the base branch, or that would make the `git checkout` fail outright.
 
-When the checkout **is** the PR's branch, one more check, and it needs an upstream to answer:
+When the checkout **is** the PR's branch, one more check: is the commit on disk the commit that is about to be merged?
 
 ```sh
-git rev-list --count --left-right @{upstream}...HEAD
+git fetch origin {headRefName}
+git rev-parse HEAD
+git merge-base --is-ancestor HEAD {headRefOid}
 ```
 
-The right-hand number above zero means unpushed commits — commits the merge would exclude and then orphan. Report the count and stop.
+Compare against `headRefOid` — the PR's head — and nothing else. Not against `@{upstream}`: a tracking ref points wherever the branch was configured to point, which is not necessarily this PR's branch, and a stale or unrelated one answers zero to the question that mattered. `headRefOid` is the commit GitHub will merge, so it is the only thing worth comparing to. The `fetch` is what puts that object in the local repository for the test.
 
-The command exits `128` with `fatal: no upstream configured for branch '{name}'` when the branch has no tracking ref. That is not a failure of this step: no upstream means nothing was ever pushed from here, so compare against the PR's own head instead — `git rev-parse HEAD` against the `headRefOid` from above, and a mismatch stops the run the same way.
+Two outcomes, and they are not the same:
+
+- **`HEAD` equals `headRefOid`, or `--is-ancestor` exits `0`** — the checkout is the PR head or merely behind it. Nothing local is at risk. Say the checkout is behind, if it is, and go on.
+- **`--is-ancestor` exits `1`** — the checkout holds commits the PR does not. Those are exactly the commits the merge would exclude and then orphan. Report `HEAD` and `headRefOid` and stop.
 
 The whole gate sits here rather than in step 6 on purpose: a merge cannot be taken back, so the state that would make it wrong is checked while it still can be.
+
+### Only then, what state the PR is in
+
+The gate above runs first and runs for every state — including the two that skip most of this skill. A `git checkout` onto the base branch carries a dirty tree with it whatever the reason for the switch, so the branch the PR is in has no say in whether that check happens.
+
+- **`state` is `OPEN`** → go on to step 2.
+- **`state` is `MERGED`** → somebody merged it already. Steps 2 to 5 have nothing left to do: skip them, run [step 6](#step-6-switch-the-checkout-to-the-base-branch) — the checkout still wants moving off a branch that has landed — and close with the `ALREADY MERGED` block, which claims no check and no thread this pass never looked at. That block names who landed it and when, so read the two fields for it: `gh pr view {number} --json mergedAt,mergedBy`.
+- **`state` is `CLOSED`** → the PR was closed unmerged. Say so and end the pass; do not switch branches, and do not reopen it.
 
 ## Step 2. Blockers on the PR itself
 
@@ -124,16 +135,30 @@ Two limits on the loop:
 
 Nothing above stopped the run, so the PR is ready. Invoking this skill is the authorization to merge — do not ask again. Print one line naming the PR, the base branch and the method, then merge.
 
-Pick the method from what the repository allows:
+Take the method from the repository, not from a preference of your own:
 
 ```sh
-gh api repos/{owner}/{repo} --jq '{squash: .allow_squash_merge, merge: .allow_merge_commit, rebase: .allow_rebase_merge}'
+gh api graphql -f query='query {
+  repository(owner: "{owner}", name: "{repo}") {
+    viewerDefaultMergeMethod
+    squashMergeAllowed
+    mergeCommitAllowed
+    rebaseMergeAllowed
+  }
+}' --jq '.data.repository'
 ```
 
-Prefer squash, then merge commit, then rebase — unless the user named a method when invoking the skill, which always wins.
+`viewerDefaultMergeMethod` is the method GitHub preselects on the merge button for this user in this repository — `MERGE`, `SQUASH` or `REBASE`. Use it. A skill that squashes a repository which keeps merge commits is imposing a house style nobody asked it for.
+
+Two things bound that:
+
+- **The user's own choice wins**, whenever they named a method with the invocation.
+- **If the default is not among the allowed methods**, fall back to the first one that is, in the order squash, merge commit, rebase — and say which and why.
+
+**This has to be the GraphQL query, not `gh api repos/{owner}/{repo}`.** The REST object's `allow_squash_merge`, `allow_merge_commit` and `allow_rebase_merge` come back as `null` for anyone without admin rights on the repository — the ordinary case of holding write access on a repository someone else administers — and it carries no default-method field at all. The GraphQL fields answer with read access alone.
 
 ```sh
-gh pr merge {number} --squash --match-head-commit {headRefOid}
+gh pr merge {number} --{squash|merge|rebase} --match-head-commit {headRefOid}
 ```
 
 **`--match-head-commit` is what makes the verified state and the merged state the same commit.** Everything checked so far was checked against one SHA; a push landing during step 4's wait moves the PR under the skill, and without the guard the merge quietly lands code no thread and no check in this pass ever saw. With it, GitHub refuses and the run stops.
@@ -145,6 +170,12 @@ gh pr view {number} --json headRefOid --jq '.headRefOid'
 ```
 
 If it differs from the SHA step 1 read, the PR moved during the wait — say so and start the pass again from step 3 rather than merging: the new commits have their own threads and their own checks.
+
+### If step 4 waited, the threads are stale too
+
+A SHA guard only catches what a push changes, and a review thread is not one of those: a reviewer can open a blocking thread during the wait without touching a commit, and `--match-head-commit` would let that merge straight through. So **whenever step 4 actually waited**, run step 3's query again here, in the same breath as the head re-read, and treat a fresh unresolved thread exactly as step 3 does — stop, and hand it to `ali-process-pr-comments`.
+
+When step 4 did not wait — the checks were already green on arrival — step 3 ran seconds ago and the query is not worth repeating.
 
 **Leave branch deletion alone** — no `--delete-branch`. Whether the head branch goes is a repository setting, and `-d` deletes the local branch too, which is not undoable from here.
 
@@ -197,6 +228,16 @@ When something blocked it, the block is the same with the verdict replaced by th
 ## 🛑 NOT MERGED — {blocker in three or four words}
 {what is open, in one or two lines}
 {one line: the next action — which skill, which command, or whose call it is}
+```
+
+When the PR was already merged before this pass started, the block carries no
+`Checks:` and no `Threads:` line at all — this run verified neither — and the
+verdict is:
+
+```
+## ✅ ALREADY MERGED
+Merged before this pass started{, by {author}, on {mergedAt}}.
+Now on {base} at {sha}. Local branch {head} kept — `git branch -d {head}` to drop it.
 ```
 
 And when the merge went to a queue rather than to the base branch:
