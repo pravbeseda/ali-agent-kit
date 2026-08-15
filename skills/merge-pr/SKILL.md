@@ -264,7 +264,21 @@ A landed PR leaves the user at a fork with no obvious next step on screen. This 
 
 Run it **only after a ✅ verdict** — `MERGED` or `ALREADY MERGED`. A 🛑 block already ends with the one next action that matters, and a ⏳ queued PR has not finished the current task, so neither gets a suggestion after it.
 
-### Where the candidates come from
+### The user's own open PRs come first
+
+Before looking at anything else, ask whether the user has other pull requests still open here:
+
+```sh
+gh pr list --state open --author @me --limit 30 --json number,title,headRefName,isDraft,updatedAt
+```
+
+**Any result at all takes over this step.** An open PR of the user's own is work already written and waiting on them — it outranks every plan item and every issue, because starting something new while it sits there only widens the queue. So list them for the user to pick from — number, title, branch, `draft` where it applies, oldest first, since the one that has waited longest is usually the one to look at — and offer to switch the checkout to one of them for review, with `gh pr checkout {number}`.
+
+Switch only once the user has picked one. The checkout is clean at this point (step 1 saw to that) and sitting on the base branch, so nothing is at risk in the switch itself — but it is still their choice which branch to be on.
+
+**While any such PR is open, say nothing about the plan and nothing about the issues.** Do not run the queries below, do not mention them as a second option, do not append them under the PR list. They come back into play only when this listing is empty.
+
+### Where the candidates come from — with no open PR of the user's left
 
 Two sources, in this order:
 
@@ -277,12 +291,13 @@ Two sources, in this order:
 
   Drop what the merge just closed: a PR body with `Closes #12` takes `#12` off the list even if GitHub has not caught up yet.
 
-**Look, do not dig.** One pass over the plan and one issue listing is the whole budget. This step is a pointer at the end of a merge, not a planning session — if neither source answers in that pass, treat it as empty and say nothing.
+**Look, do not dig.** One PR listing, one pass over the plan and one issue listing is the whole budget. This step is a pointer at the end of a merge, not a planning session — if neither source answers in that pass, treat it as empty and say nothing.
 
 ### What to print
 
 Append after the close block, separated by a blank line, in the user's chat language:
 
+- **The user has other open PRs** → that list, and nothing else. Offer the switch, and end the run there.
 - **One obvious next item** — the plan's next unstarted item, or a single issue that plainly follows from what just merged. Name it in one line, with its issue number or plan item, and ask whether to start it.
 - **No single obvious one** → offer **at most four** candidates drawn from both sources, ordered by what you would do first, each with a few words on why it earns that place. Say which one you would take, and let the user choose. Where the repository provides `ali-one-by-one`, or the user asks for such decisions in that format, ask in that format instead of a bare list.
 - **The merge closed the last open plan item** → say the plan is done, and name it. Then the remaining open issues, if there are any, are the candidates; if there are none either, the plan being finished is the whole message.
