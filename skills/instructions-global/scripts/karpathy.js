@@ -102,11 +102,15 @@ async function main(flags, positional) {
   } else if (state.state === 'local-edit') result.proposal = 'FLAG: block edited by hand — keep local edit (default, mark as local) or restore upstream';
   else if (state.state === 'both') result.proposal = 'FLAG: block edited by hand AND upstream moved — show both diffs, ask';
   else if (state.state === 'broken') result.proposal = 'begin marker without end marker — repair by hand before continuing';
+  if (!config.karpathy.enabled && ['absent', 'upstream-ahead'].includes(state.state)) {
+    result.proposal = `none — karpathy.enabled=false in config (block ${state.state}); the state is reported, nothing is inserted or updated`;
+  }
 
   if (command === 'status') return result;
 
   if (command === 'put') {
     if (!flags.out) throw new UsageError('put needs --out');
+    if (!config.karpathy.enabled) throw new UsageError('karpathy.enabled is false in config — put refuses to insert or update the block (set it to true first)');
     const next = putKarpathyBlock(masterText, { source: up.source, ref: up.ref, hash: up.hash, body: up.rendered });
     atomicWrite(flags.out, next);
     return { ...result, written: flags.out, diff: unifiedDiff(masterText, next, { from: tildify(masterPath), to: flags.out }) };

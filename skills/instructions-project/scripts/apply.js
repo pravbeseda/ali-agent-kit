@@ -34,7 +34,16 @@ async function main(flags) {
   if (plan.skill !== 'instructions-project') throw new UsageError(`plan belongs to ${plan.skill}, not instructions-project`);
   if (flags.only) {
     const wanted = new Set(flags.only);
-    plan.actions = plan.actions.filter((a) => wanted.has(a.path) || wanted.has(tildify(a.path)));
+    const chosen = plan.actions.filter((a) => wanted.has(a.path) || wanted.has(tildify(a.path)));
+    // The shim and the Copilot copy carry the hash of the proposed AGENTS.md;
+    // applying them without it leaves drift.js pointing at a canon that never landed.
+    const agentsInPlan = plan.actions.some((a) => a.target === 'AGENTS.md');
+    const agentsChosen = chosen.some((a) => a.target === 'AGENTS.md');
+    const dependent = chosen.some((a) => a.target === 'claude-shim.md' || a.target === 'copilot-instructions.md');
+    if (agentsInPlan && !agentsChosen && dependent) {
+      throw new UsageError('--only: the plan changes AGENTS.md, so a subset with the shim or the Copilot copy must include it (or select only AGENTS.md and run --sync-only later)');
+    }
+    plan.actions = chosen;
   }
   const { config } = loadConfig(env);
 

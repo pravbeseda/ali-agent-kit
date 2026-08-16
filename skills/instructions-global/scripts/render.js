@@ -24,7 +24,6 @@ and writes runs/<id>/plan.json for apply.js.
   --run <id>               run id from inventory.js --new-run
   --master-from <file>     proposed master text (default: the current master)
   --targets <a,b>          restrict to surface ids (claude,codex,copilot-cli,jetbrains)
-  --include-undetected     also render for surfaces whose config dir is missing
   --vscode                 propose settings edits for every VS Code settings file found
   --vscode-settings <p,q>  ...or only for these settings.json files
   --archive <p,q>          files to move into ~/.agent-instructions/archive/<run-id>/ (legacy channels, memory)
@@ -66,7 +65,9 @@ async function main(flags) {
   // 2. targets
   const only = flags.targets;
   const all = detectSurfaces(env, { disabled: config.disabled_surfaces }).filter((s) => s.target && GLOBAL_TARGETS[s.id]);
-  const surfaces = all.filter((s) => (!only || only.includes(s.id)) && !s.disabled && (s.detected || flags['include-undetected']));
+  // Undetected surfaces are skipped, never rendered: writing the file would create
+  // the agent's config dir, and that dir's existence is the "agent installed" signal.
+  const surfaces = all.filter((s) => (!only || only.includes(s.id)) && !s.disabled && s.detected);
   const skipped = all
     .filter((s) => !surfaces.includes(s))
     .map((s) => ({ id: s.id, reason: s.disabled ? 'disabled in config' : !s.detected ? `not detected (${tildify(s.configDir)} missing)` : 'not in --targets' }));
@@ -86,8 +87,10 @@ async function main(flags) {
     rows.push({ ...row(s.id, s.target, current, text), status: s.file.exists ? 'overwrite' : 'create' });
   }
 
-  // 3. VS Code settings
-  const settingsTargets = flags['vscode-settings'] ?? (flags.vscode ? settingsFiles(env).filter((f) => f.scope === 'user').map((f) => f.path) : []);
+  // 3. VS Code settings (a surface without a file — disabled via config like the others)
+  const vscodeDisabled = config.disabled_surfaces.includes('vscode');
+  if (vscodeDisabled && (flags.vscode || flags['vscode-settings'])) skipped.push({ id: 'vscode', reason: 'disabled in config' });
+  const settingsTargets = vscodeDisabled ? [] : (flags['vscode-settings'] ?? (flags.vscode ? settingsFiles(env).filter((f) => f.scope === 'user').map((f) => f.path) : []));
   for (const path of settingsTargets) {
     const current = readSettings(path);
     const set = {};
@@ -172,7 +175,7 @@ function render(r) {
 
 if (isMain(import.meta.url)) {
   run({
-    spec: { run: 'string', 'master-from': 'string', targets: 'list', 'include-undetected': 'bool', vscode: 'bool', 'vscode-settings': 'list', archive: 'list', parked: 'string', 'memory-edits': 'string' },
+    spec: { run: 'string', 'master-from': 'string', targets: 'list', vscode: 'bool', 'vscode-settings': 'list', archive: 'list', parked: 'string', 'memory-edits': 'string' },
     help: HELP,
     main,
     render

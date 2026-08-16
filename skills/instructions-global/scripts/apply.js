@@ -39,7 +39,15 @@ async function main(flags) {
   if (plan.skill !== 'instructions-global') throw new UsageError(`plan belongs to ${plan.skill}, not instructions-global`);
   if (flags.only) {
     const wanted = new Set(flags.only);
-    plan.actions = plan.actions.filter((a) => wanted.has(a.path) || wanted.has(tildify(a.path)));
+    const chosen = plan.actions.filter((a) => wanted.has(a.path) || wanted.has(tildify(a.path)));
+    // Rendered targets carry the hash of the proposed master; applying them without
+    // the master leaves drift.js pointing at a master that never landed.
+    const masterInPlan = plan.actions.some((a) => a.target === 'master');
+    const masterChosen = chosen.some((a) => a.target === 'master');
+    if (masterInPlan && !masterChosen && chosen.some((a) => a.target !== 'master')) {
+      throw new UsageError('--only: the plan changes the master, so a subset must include it (or select only the master and run --sync-only later)');
+    }
+    plan.actions = chosen;
   }
   const { config } = loadConfig(env);
   const store = storePaths(env);

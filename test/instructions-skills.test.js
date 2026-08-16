@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, symlinkSync, readdirSync, realpathSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, symlinkSync, readdirSync, realpathSync, lstatSync, readlinkSync } from 'node:fs';
 import { tmpdir, platform } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -153,6 +153,12 @@ test('diff: unified diff for small texts', async () => {
   const d = unifiedDiff('a\nb\nc\n', 'a\nx\nc\n', { from: 'old', to: 'new' });
   assert.match(d, /^--- old\n\+\+\+ new\n@@ -1,3 \+1,3 @@\n a\n-b\n\+x\n c\n$/);
   assert.match(unifiedDiff('', 'a\nb\n'), /@@ -0,0 \+1,2 @@/);
+  // two changes 4 context lines apart merge into one hunk; no line is printed twice
+  const merged = unifiedDiff(['A', '1', '2', '3', '4', 'B', 'x', 'y'].join('\n'), ['A2', '1', '2', '3', '4', 'B2', 'x', 'y'].join('\n'));
+  assert.equal((merged.match(/^@@/gm) || []).length, 1);
+  assert.equal((merged.match(/^ 2$/gm) || []).length, 1);
+  const far = unifiedDiff(['A', ...Array.from({ length: 10 }, (_, i) => String(i)), 'B'].join('\n'), ['A2', ...Array.from({ length: 10 }, (_, i) => String(i)), 'B2'].join('\n'));
+  assert.equal((far.match(/^@@/gm) || []).length, 2);
   assert.deepEqual(diffStats('a\nb\n', 'a\nb\nc\n'), { added: 1, removed: 0 });
 });
 
@@ -222,6 +228,30 @@ test('apply: backup, verify, manifest, refuse outside roots, symlink guard, rest
     mkdirSync(join(home, '.codex'), { recursive: true });
     symlinkSync(target, linkTarget);
     assert.throws(() => applyPlan({ runId: 'r3', skill: 't', actions: [{ action: 'write', path: linkTarget, from: src }] }, { allow: [home], env }), /symlink/);
+    // a symlinked directory inside an allowed root must not smuggle a write outside it
+    const outside = tmp();
+    symlinkSync(outside, join(home, 'nested'));
+    assert.throws(() => applyPlan({ runId: 'r3a', skill: 't', actions: [{ action: 'write', path: join(home, 'nested', 'x.md'), from: src }] }, { allow: [home], env }), /outside the allowed roots/);
+    assert.ok(!existsSync(join(outside, 'x.md')));
+    // a dangling symlink is still a symlink
+    const dangling = join(home, '.codex', 'AGENTS.override.md');
+    symlinkSync(join(home, 'gone.md'), dangling);
+    assert.throws(() => applyPlan({ runId: 'r3b', skill: 't', actions: [{ action: 'write', path: dangling, from: src }] }, { allow: [home], env }), /symlink/);
+    // --replace-symlinks: the link is replaced by a file, the link target untouched, and restore brings the link back
+    const dotfile = join(home, 'dotfiles', 'AGENTS.md');
+    mkdirSync(join(home, 'dotfiles'));
+    writeFileSync(dotfile, 'dotfiles content\n');
+    const linked = join(home, '.codex', 'LINKED.md');
+    symlinkSync(dotfile, linked);
+    const m3 = applyPlan({ runId: 'r3c', skill: 't', actions: [{ action: 'write', path: linked, from: src }] }, { allow: [home], replaceSymlinks: true, env });
+    assert.equal(m3.entries[0].before.symlink, dotfile);
+    assert.ok(!lstatSync(linked).isSymbolicLink());
+    assert.equal(readFileSync(linked, 'utf8'), 'new\n');
+    assert.equal(readFileSync(dotfile, 'utf8'), 'dotfiles content\n');
+    restoreRun(m3);
+    assert.ok(lstatSync(linked).isSymbolicLink());
+    assert.equal(readlinkSync(linked), dotfile);
+    assert.equal(readFileSync(dotfile, 'utf8'), 'dotfiles content\n');
   }
   // partial failure: second action moves a missing file
   try {
@@ -232,6 +262,14 @@ test('apply: backup, verify, manifest, refuse outside roots, symlink guard, rest
     assert.equal(error.data.manifest.status, 'partial');
     assert.equal(error.data.manifest.entries.filter((e) => !e.failed).length, 1);
   }
+
+  // a settings file that did not exist before the run is removed again on restore
+  const freshSettings = join(home, 'fresh', 'settings.json');
+  const mS = applyPlan({ runId: 'r-settings', skill: 't', actions: [{ action: 'settings', path: freshSettings, set: { 'chat.useClaudeMdFile': false } }] }, { allow: [home], env });
+  assert.equal(mS.entries[0].backup, null);
+  assert.ok(existsSync(freshSettings));
+  restoreRun(mS);
+  assert.ok(!existsSync(freshSettings));
 
   const restored = restoreRun(manifest);
   assert.equal(restored.length, 3);
@@ -309,6 +347,10 @@ test('global flow: inventory → render → apply → drift → idempotent re-re
   const dry = runScript(G, 'apply.js', ['--run', runId, '--dry-run'], { home });
   assert.equal(dry.code, 0, dry.stderr);
   assert.ok(!existsSync(join(home, '.agent-instructions', 'global.md')));
+  // a subset with a rendered target but without the proposed master is refused
+  const subset = runScript(G, 'apply.js', ['--run', runId, '--only', join(home, '.claude', 'CLAUDE.md'), '--dry-run'], { home });
+  assert.equal(subset.code, 1);
+  assert.match(subset.stderr, /must include it/);
 
   const app = runScript(G, 'apply.js', ['--run', runId], { home });
   assert.equal(app.code, 0, app.stderr);
@@ -390,6 +432,22 @@ test('global apply refuses a repository path and a symlinked target without the 
   if (platform() !== 'win32') assert.ok(inv.json.warnings.some((w) => /AGENTS\.override\.md/.test(w)));
 });
 
+test('global: karpathy.enabled=false reports but neither proposes nor puts', () => {
+  const root = tmp();
+  const home = homeBloated(root);
+  mkdirSync(join(home, '.agent-instructions'), { recursive: true });
+  writeFileSync(join(home, '.agent-instructions', 'config.json'), JSON.stringify({ karpathy: { enabled: false } }));
+  const status = runScript(G, 'karpathy.js', ['status', '--offline'], { home });
+  assert.equal(status.code, 0, status.stderr);
+  assert.equal(status.json.state, 'absent');
+  assert.match(status.json.proposal, /karpathy\.enabled=false/);
+  const v1 = join(root, 'v1.md');
+  writeFileSync(v1, '# m\n');
+  const put = runScript(G, 'karpathy.js', ['put', '--master', v1, '--out', join(root, 'v2.md'), '--offline'], { home });
+  assert.equal(put.code, 1);
+  assert.ok(!existsSync(join(root, 'v2.md')));
+});
+
 test('global: disabled surface, CODEX_HOME override, karpathy skill doubling, custom instruction dirs', async () => {
   const root = tmp();
   const home = homeBloated(root);
@@ -404,6 +462,17 @@ test('global: disabled surface, CODEX_HOME override, karpathy skill doubling, cu
   assert.equal(inv.json.surfaces.find((s) => s.id === 'copilot-cli').disabled, true);
   assert.ok(inv.json.warnings.some((w) => /installed as a skill/.test(w)));
   assert.ok(inv.json.warnings.some((w) => /COPILOT_CUSTOM_INSTRUCTIONS_DIRS/.test(w)));
+
+  // disabled_surfaces: ["vscode"] must also silence --vscode in render.js
+  writeFileSync(join(home, '.agent-instructions', 'config.json'), JSON.stringify({ disabled_surfaces: ['vscode'] }));
+  const inv2 = runScript(G, 'inventory.js', ['--new-run'], { home });
+  const master = join(root, 'm.md');
+  writeFileSync(master, '# m\n- rule\n');
+  const ren = runScript(G, 'render.js', ['--run', inv2.json.runId, '--master-from', master, '--vscode'], { home });
+  assert.equal(ren.code, 0, ren.stderr);
+  const plan = JSON.parse(readFileSync(ren.json.plan, 'utf8'));
+  assert.ok(!plan.actions.some((a) => a.action === 'settings'));
+  assert.ok(ren.json.skipped.some((s) => s.id === 'vscode' && /disabled/.test(s.reason)));
 });
 
 // --- project scripts end to end ----------------------------------------------
@@ -462,6 +531,8 @@ test('project flow: solo repo with root CLAUDE.md → AGENTS.md + shim, archive,
   assert.deepEqual(plan.actions.map((a) => a.action), ['write', 'write', 'move']);
   assert.equal(plan.actions[2].path, join(repo, 'CLAUDE.md'));
 
+  const shimOnly = runScript(P, 'apply.js', ['--run', runId, '--only', join(repo, '.claude', 'CLAUDE.md'), '--dry-run'], { home, cwd: repo });
+  assert.equal(shimOnly.code, 1, 'the shim without its AGENTS.md is refused');
   const app = runScript(P, 'apply.js', ['--run', runId], { home, cwd: repo });
   assert.equal(app.code, 0, app.stderr);
   assert.ok(!existsSync(join(repo, 'CLAUDE.md')));

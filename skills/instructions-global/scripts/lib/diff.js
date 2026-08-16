@@ -46,24 +46,17 @@ export function diffLines(a, b) {
 export function unifiedDiff(a, b, { from = 'a', to = 'b', context = 3 } = {}) {
   const ops = diffLines(a, b);
   if (!ops.some((o) => o.t !== ' ')) return '';
+  // Group changes whose gap is <= 2*context into one hunk (like diff(1)), so
+  // no context line is ever printed twice.
+  const changes = ops.map((o, i) => (o.t !== ' ' ? i : -1)).filter((i) => i >= 0);
   const hunks = [];
-  let k = 0;
-  while (k < ops.length) {
-    if (ops[k].t === ' ') {
-      k++;
-      continue;
-    }
-    let start = Math.max(0, k - context);
-    let end = k;
-    let last = k;
-    while (end < ops.length) {
-      if (ops[end].t !== ' ') last = end;
-      else if (end - last > context) break;
-      end++;
-    }
-    end = Math.min(ops.length, last + context + 1);
-    hunks.push(ops.slice(start, end));
-    k = end;
+  let g = 0;
+  while (g < changes.length) {
+    let first = changes[g];
+    let last = first;
+    while (g + 1 < changes.length && changes[g + 1] - last <= 2 * context + 1) last = changes[++g];
+    g++;
+    hunks.push(ops.slice(Math.max(0, first - context), Math.min(ops.length, last + context + 1)));
   }
   const out = [`--- ${from}`, `+++ ${to}`];
   for (const h of hunks) {

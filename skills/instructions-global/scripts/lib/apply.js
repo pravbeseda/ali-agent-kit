@@ -11,8 +11,8 @@
 // Every path must fall under one of `allow` roots — the caller (each skill's own
 // apply.js) decides those, which is what keeps the two skills to their scopes.
 
-import { existsSync, lstatSync, statSync, readFileSync, renameSync, unlinkSync, rmSync, readdirSync } from 'node:fs';
-import { dirname, resolve, sep, join } from 'node:path';
+import { existsSync, lstatSync, statSync, readFileSync, renameSync, unlinkSync, rmSync, readdirSync, readlinkSync, symlinkSync, realpathSync } from 'node:fs';
+import { dirname, basename, resolve, sep, join } from 'node:path';
 import { atomicWrite, copyPreserving, ensureDir, sha256, readText, readJson, writeJson, walkFiles } from './fsx.js';
 import { parseJsonc, setTopLevelKey } from './jsonc.js';
 import { mirrorPath, storePaths } from './paths.js';
@@ -26,17 +26,53 @@ export class ApplyError extends Error {
   }
 }
 
+/**
+ * Real path of `p`: the deepest existing ancestor is resolved through symlinks
+ * (realpath), the missing tail is appended lexically. So a symlinked directory
+ * on the way cannot smuggle a write outside the allowed roots.
+ */
+function realish(p) {
+  let base = resolve(p);
+  const tail = [];
+  while (!existsSync(base)) {
+    const parent = dirname(base);
+    if (parent === base) return resolve(p);
+    tail.unshift(basename(base));
+    base = parent;
+  }
+  return join(realpathSync(base), ...tail);
+}
+
 function under(path, root) {
-  const p = resolve(path);
-  const r = resolve(root);
+  const p = realish(path);
+  const r = realish(root);
   return p === r || p.startsWith(r.endsWith(sep) ? r : r + sep);
 }
 
+/** lstat without following the link; null when nothing is there at all. */
+function lstatOrNull(path) {
+  try {
+    return lstatSync(path);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * State of `path` before/after an action. A symlink (dangling or not) is
+ * recorded as such, with its link target, so a rollback can recreate the link
+ * instead of materialising whatever it pointed to.
+ */
 function snapshot(path) {
-  if (!existsSync(path)) return null;
-  const st = statSync(path);
-  if (st.isDirectory()) return { directory: true };
-  return { sha256: sha256(readFileSync(path)), size: st.size };
+  const lst = lstatOrNull(path);
+  if (!lst) return null;
+  if (lst.isSymbolicLink()) {
+    const target = readlinkSync(path);
+    const st = existsSync(path) ? statSync(path) : null;
+    return { symlink: target, dangling: !st, sha256: st ? sha256(readFileSync(path)) : null, size: st?.size ?? 0 };
+  }
+  if (lst.isDirectory()) return { directory: true };
+  return { sha256: sha256(readFileSync(path)), size: lst.size };
 }
 
 /** Frontmatter, when present, must be a fenced list of `key: value` lines. */
@@ -85,7 +121,8 @@ export function applyPlan(plan, { allow, deny = [], replaceSymlinks = false, dry
     if (action.action === 'write' && !existsSync(action.from)) {
       throw new ApplyError(`missing source ${action.from} for ${action.path}`, { manifest });
     }
-    if (existsSync(action.path) && lstatSync(action.path).isSymbolicLink() && !replaceSymlinks) {
+    // lstat, not existsSync: a dangling symlink is still a symlink the user set up
+    if (lstatOrNull(action.path)?.isSymbolicLink() && !replaceSymlinks) {
       throw new ApplyError(`${action.path} is a symlink; rerun with --replace-symlinks to replace it`, { manifest });
     }
   }
@@ -101,7 +138,11 @@ export function applyPlan(plan, { allow, deny = [], replaceSymlinks = false, dry
     try {
       if (!dryRun && entry.before && !entry.before.directory) {
         entry.backup = mirrorPath(backupRoot, action.path);
-        copyPreserving(action.path, entry.backup);
+        // A symlink is backed up as a link (its target is not ours to copy or restore).
+        if (entry.before.symlink) {
+          ensureDir(dirname(entry.backup));
+          symlinkSync(entry.before.symlink, entry.backup);
+        } else copyPreserving(action.path, entry.backup);
       }
       switch (action.action) {
         case 'write': {
@@ -110,7 +151,8 @@ export function applyPlan(plan, { allow, deny = [], replaceSymlinks = false, dry
           const text = content.toString('utf8');
           if (/\.md$/i.test(action.path)) verifyFrontmatter(text);
           if (!dryRun) {
-            atomicWrite(action.path, content, { mode: action.mode });
+            // rename over a symlink replaces the link itself (the target file is left alone)
+            atomicWrite(action.path, content, { mode: action.mode ?? (entry.before?.symlink ? 0o644 : undefined) });
           }
           entry.after = dryRun ? { sha256: sha256(content), size: content.length } : snapshot(action.path);
           if (!dryRun && entry.after.sha256 !== sha256(content)) throw new Error('hash mismatch after write');
@@ -174,12 +216,18 @@ export function restoreRun(manifest, { only, dryRun = false } = {}) {
     if (!dryRun) {
       switch (entry.action) {
         case 'create':
-          if (existsSync(entry.path)) unlinkSync(entry.path);
+          if (lstatOrNull(entry.path)) unlinkSync(entry.path);
           break;
         case 'overwrite':
         case 'settings':
         case 'remove':
-          copyPreserving(entry.backup, entry.path);
+          if (entry.before?.symlink) {
+            // put the link back, not the content it pointed to
+            if (lstatOrNull(entry.path)) unlinkSync(entry.path);
+            ensureDir(dirname(entry.path));
+            symlinkSync(entry.before.symlink, entry.path);
+          } else if (entry.backup) copyPreserving(entry.backup, entry.path);
+          else if (lstatOrNull(entry.path)) unlinkSync(entry.path); // created by this run, nothing to bring back
           break;
         case 'move':
           if (existsSync(entry.to)) {
