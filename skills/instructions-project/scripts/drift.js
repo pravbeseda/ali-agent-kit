@@ -5,20 +5,21 @@
 
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { run, isMain, table } from './lib/cli.js';
+import { run, isMain, table, EXIT } from './lib/cli.js';
 import { readText } from './lib/fsx.js';
 import { parseShimMarker, parseGeneratedMarker, contentHash } from './lib/markers.js';
 import { renderShim, renderCopilotCopy } from './lib/render.js';
 import { unifiedDiff } from './lib/diff.js';
 import { classify } from './gate.js';
 
-const HELP = `usage: node drift.js [--dir <repo>] [--diff] [--json]
+const HELP = `usage: node drift.js [--dir <repo>] [--diff] [--check] [--json]
 
   in-sync        marker hash equals the current AGENTS.md
   agents-moved   AGENTS.md edited after the shim/copy was rendered → re-render (--sync-only)
   hand-edited    the generated file itself was edited (body differs from a fresh render) → merge or overwrite
   not-generated  file exists without our marker
-  absent         file missing`;
+  absent         file missing (not drift)
+  --check  exit 2 when drift is detected (for use as a verification step)`;
 
 export function projectDrift({ dir = process.cwd(), withDiff = false } = {}) {
   const root = classify(dir).root;
@@ -59,7 +60,10 @@ export function projectDrift({ dir = process.cwd(), withDiff = false } = {}) {
       rows.push(row);
     }
   }
-  return { root, agentsExists: agents !== null, agentsHash: hash?.slice(0, 12) ?? null, files: rows, anyChange: rows.some((r) => !['in-sync', 'absent'].includes(r.state)) };
+  // "absent" and a hand-written (never generated) file are states to report, not drift
+  const DRIFT = ['agents-moved', 'hand-edited', 'both'];
+  const anyChange = rows.some((r) => DRIFT.includes(r.state) || r.state.startsWith('orphan'));
+  return { root, agentsExists: agents !== null, agentsHash: hash?.slice(0, 12) ?? null, files: rows, anyChange };
 }
 
 function render(r) {
@@ -70,5 +74,13 @@ function render(r) {
 }
 
 if (isMain(import.meta.url)) {
-  run({ spec: { dir: 'string', diff: 'bool' }, help: HELP, main: (flags) => projectDrift({ dir: flags.dir, withDiff: !!flags.diff }), render });
+  run({
+    spec: { dir: 'string', diff: 'bool', check: 'bool' },
+    help: HELP,
+    main: (flags) => {
+      const r = projectDrift({ dir: flags.dir, withDiff: !!flags.diff });
+      return flags.check && r.anyChange ? { ...r, exitCode: EXIT.ERROR } : r;
+    },
+    render
+  });
 }

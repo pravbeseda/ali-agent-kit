@@ -38,7 +38,7 @@ the user asks for a change — never silently.
 | `karpathy.source` | upstream URL of the SKILL.md whose body is the block |
 | `karpathy.pin` | a ref (commit sha or date) — when set, upstream changes are reported but no update is proposed |
 | `disabled_surfaces` | surface ids to skip: `claude`, `codex`, `copilot-cli`, `jetbrains`, `vscode` |
-| `git_emails` | the user's other commit emails; the gate does not count them as "other authors" |
+| `git_emails` | the user's other commit emails (`git config user.email` of the repo always counts as the user); the gate does not count them as "other authors" |
 | `git_logins` | the user's GitHub logins; a remote owned by one of them is personal, `<login>@users.noreply.github.com` is the user |
 | `copilot_copy` | default for `--copilot-copy` in `instructions-project` |
 

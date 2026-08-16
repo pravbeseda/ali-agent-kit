@@ -124,8 +124,8 @@ function render(r) {
     `proposal: ${r.proposal ?? 'none — current'}`
   ];
   for (const n of r.notes) lines.push(`note: ${n}`);
-  if (r.written) lines.push(`written ${r.written}`);
-  if (r.diff) lines.push('', r.diff);
+  if (r.written) lines.push(`written ${r.written} (block ${r.state === 'absent' ? 'inserted' : 'replaced'}; the diff is in the --json output)`);
+  else if (r.diff) lines.push('', r.diff);
   return lines.join('\n');
 }
 

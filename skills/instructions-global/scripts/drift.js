@@ -3,7 +3,7 @@
 // is on disk now — in both directions: hand-edited targets and an edited master.
 
 import { existsSync } from 'node:fs';
-import { run, isMain, table } from './lib/cli.js';
+import { run, isMain, table, EXIT } from './lib/cli.js';
 import { storePaths, tildify } from './lib/paths.js';
 import { loadState, loadConfig } from './lib/config.js';
 import { readText, sha256 } from './lib/fsx.js';
@@ -12,7 +12,7 @@ import { renderGlobal, GLOBAL_TARGETS, stripRenderedHead } from './lib/render.js
 import { unifiedDiff } from './lib/diff.js';
 import { parseGeneratedMarker, contentHash } from './lib/markers.js';
 
-const HELP = `usage: node drift.js [--diff] [--json]
+const HELP = `usage: node drift.js [--diff] [--check] [--json]
 
 Compares every target's current content with the hash recorded by the last
 apply (state.json) and with a fresh render of the current master.
@@ -22,7 +22,9 @@ apply (state.json) and with a fresh render of the current master.
   both           both moved → show both diffs, ask
   missing        target file gone
   never-applied  no record in state.json for this target
-  --diff  include unified diffs (target vs render of the current master)`;
+  --diff   include unified diffs (target vs render of the current master)
+  --check  exit 2 when anything drifted (for use as a verification step)
+On a first run every target is "never-applied" — that is the expected state, not a problem.`;
 
 export function driftReport({ env = process.env, withDiff = false } = {}) {
   const store = storePaths(env);
@@ -76,5 +78,13 @@ function render(r) {
 }
 
 if (isMain(import.meta.url)) {
-  run({ spec: { diff: 'bool' }, help: HELP, main: (flags) => driftReport({ withDiff: !!flags.diff }), render });
+  run({
+    spec: { diff: 'bool', check: 'bool' },
+    help: HELP,
+    main: (flags) => {
+      const r = driftReport({ withDiff: !!flags.diff });
+      return flags.check && r.anyChange ? { ...r, exitCode: EXIT.ERROR } : r;
+    },
+    render
+  });
 }

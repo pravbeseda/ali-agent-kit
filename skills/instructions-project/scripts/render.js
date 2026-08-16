@@ -58,7 +58,7 @@ async function main(flags) {
       return;
     }
     actions.push({ action: 'write', path, from: p, target: name });
-    rows.push({ ...row(rel(path), before, after), status: status ?? (before ? 'overwrite' : 'create') });
+    rows.push({ ...row(rel(path), before, after), status: status ?? (before ? 'overwrite' : 'create'), proposal: name });
   };
 
   // 1. canonical AGENTS.md
@@ -69,7 +69,7 @@ async function main(flags) {
   const claudeOnly = flags['claude-only'] ? readText(flags['claude-only']).text : '';
   const shim = renderShim(agentsText, { claudeOnly });
   const currentShim = existsSync(shimPath) ? readText(shimPath).text : '';
-  stage('.claude-CLAUDE.md', shimPath, currentShim, shim.text, currentShim && !parseShimMarker(currentShim) ? 'replace hand-written file with shim' : undefined);
+  stage('claude-shim.md', shimPath, currentShim, shim.text, currentShim && !parseShimMarker(currentShim) ? 'replace hand-written file with shim' : undefined);
 
   // 3. root CLAUDE.md → migrated into AGENTS.md, file archived
   const rootClaude = join(root, 'CLAUDE.md');
@@ -117,7 +117,7 @@ async function main(flags) {
   const plan = { runId: flags.run, skill: 'instructions-project', root, createdAt: new Date().toISOString(), actions };
   writeJson(join(dir, 'plan.json'), plan);
   writeJson(join(dir, 'render.json'), {
-    rows: rows.map((r) => ({ target: r.file, file: r.file, status: r.status })),
+    rows: rows.map((r) => ({ target: r.file, file: r.file, status: r.status, proposal: r.proposal ?? null })),
     skipped: [],
     thresholdChecks: [{ label: 'AGENTS.md', path: agentsPath, limit: config.thresholds.project_lines, kind: 'lines' }]
   });

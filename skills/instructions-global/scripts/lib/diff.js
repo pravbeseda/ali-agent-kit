@@ -31,8 +31,14 @@ export function diffLines(a, b) {
       j++;
     }
   }
-  while (i < n) ops.push({ t: '-', line: x[i++], i, j });
-  while (j < m) ops.push({ t: '+', line: y[j++], i, j });
+  while (i < n) {
+    ops.push({ t: '-', line: x[i], i, j });
+    i++;
+  }
+  while (j < m) {
+    ops.push({ t: '+', line: y[j], i, j });
+    j++;
+  }
   return ops;
 }
 
@@ -61,10 +67,11 @@ export function unifiedDiff(a, b, { from = 'a', to = 'b', context = 3 } = {}) {
   }
   const out = [`--- ${from}`, `+++ ${to}`];
   for (const h of hunks) {
-    const aStart = (h.find((o) => o.t !== '+')?.i ?? h[0].i) + 1;
-    const bStart = (h.find((o) => o.t !== '-')?.j ?? h[0].j) + 1;
     const aLen = h.filter((o) => o.t !== '+').length;
     const bLen = h.filter((o) => o.t !== '-').length;
+    // an empty side is written as "-0,0" / "+0,0", like diff(1) does
+    const aStart = aLen ? h.find((o) => o.t !== '+').i + 1 : h[0].i;
+    const bStart = bLen ? h.find((o) => o.t !== '-').j + 1 : h[0].j;
     out.push(`@@ -${aStart},${aLen} +${bStart},${bLen} @@`);
     for (const o of h) out.push(`${o.t}${o.line}`);
   }

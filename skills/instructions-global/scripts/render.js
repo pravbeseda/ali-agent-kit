@@ -4,11 +4,11 @@
 // apply.js. Writes only inside ~/.agent-instructions/runs/<run-id>/.
 
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, basename, dirname } from 'node:path';
 import { run, isMain, UsageError, table, fmtBytes, fmtDelta } from './lib/cli.js';
-import { storePaths, tildify, mirrorPath } from './lib/paths.js';
+import { storePaths, tildify, mirrorPath, agentDirs } from './lib/paths.js';
 import { loadConfig, runDir } from './lib/config.js';
-import { readText, atomicWrite, writeJson, metricsOf, ensureDir } from './lib/fsx.js';
+import { readText, atomicWrite, writeJson, metricsOf, ensureDir, readJson } from './lib/fsx.js';
 import { detectSurfaces } from './lib/surfaces.js';
 import { renderGlobal, GLOBAL_TARGETS, stripRenderedHead } from './lib/render.js';
 import { parseGeneratedMarker } from './lib/markers.js';
@@ -28,6 +28,8 @@ and writes runs/<id>/plan.json for apply.js.
   --vscode                 propose settings edits for every VS Code settings file found
   --vscode-settings <p,q>  ...or only for these settings.json files
   --archive <p,q>          files to move into ~/.agent-instructions/archive/<run-id>/ (legacy channels, memory)
+  --parked <file>          new full content of ~/.agent-instructions/parked.md (MOVE targets with no project on this machine)
+  --memory-edits <json>    { "<memory file>": "<proposal file>" } — rewritten auto-memory files (frontmatter kept)
   --json`;
 
 const VSCODE_TARGET = { 'chat.useClaudeMdFile': false };
@@ -98,7 +100,27 @@ async function main(flags) {
     }
   }
 
-  // 4. archive (legacy channels, superseded memory files) — moves, never removals
+  // 4. parked.md and rewritten memory files
+  const stageWrite = (name, path, from) => {
+    const after = readText(from).text;
+    const before = existsSync(path) ? readText(path).text : '';
+    const p = join(proposalDir, name);
+    atomicWrite(p, after);
+    atomicWrite(join(diffDir, `${name}.diff`), unifiedDiff(before, after, { from: tildify(path), to: 'proposal' }));
+    if (before === after) return;
+    actions.push({ action: 'write', path, from: p, target: name });
+    rows.push({ ...row(name, path, before, after), status: before ? 'overwrite' : 'create' });
+  };
+  if (flags.parked) stageWrite('parked.md', store.parked, flags.parked);
+  if (flags['memory-edits']) {
+    const projects = join(agentDirs(env).claude, 'projects');
+    for (const [target, from] of Object.entries(readJson(flags['memory-edits']))) {
+      if (!target.startsWith(projects) || !/[\\/]memory[\\/]/.test(target)) throw new UsageError(`memory edit outside ${tildify(projects)}/<slug>/memory/: ${target}`);
+      stageWrite(`memory-${basename(dirname(dirname(target)))}-${basename(target)}`, target, from);
+    }
+  }
+
+  // 5. archive (legacy channels, superseded memory files) — moves, never removals
   for (const p of flags.archive ?? []) {
     if (!existsSync(p)) throw new UsageError(`--archive: ${p} does not exist`);
     const to = mirrorPath(join(store.root, 'archive', flags.run), p);
@@ -150,7 +172,7 @@ function render(r) {
 
 if (isMain(import.meta.url)) {
   run({
-    spec: { run: 'string', 'master-from': 'string', targets: 'list', 'include-undetected': 'bool', vscode: 'bool', 'vscode-settings': 'list', archive: 'list' },
+    spec: { run: 'string', 'master-from': 'string', targets: 'list', 'include-undetected': 'bool', vscode: 'bool', 'vscode-settings': 'list', archive: 'list', parked: 'string', 'memory-edits': 'string' },
     help: HELP,
     main,
     render

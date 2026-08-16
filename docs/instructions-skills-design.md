@@ -86,5 +86,14 @@ edited master → drift; restore; project: solo repo with root `CLAUDE.md`,
 with frontmatter kept, `.vscode/settings.json` override, directory without git.
 
 By hand / by the model: the label pass itself (rubric), the report narrative,
-the approval dialogue — see the eval runs in the workspace produced during the
-build.
+the approval dialogue. Four subagent runs against the fixtures were done during
+the build (global `--status`, global full run to the approval question,
+project full run on `repo-solo`, project `--status` on `repo-mixed` and
+`repo-team`): no script errors; the labels matched the calibration examples;
+their notes produced this round of changes — `--status` explicit and read-only
+also for shared repos, `runs/<id>/input/` for the model's own files,
+`render.js --parked/--memory-edits` so `plan.json` is never hand-edited,
+headings unlabelled, relative paths in global files → FLAG not STALE, FLAG
+lines stay in the v-next, `drift.js --check`, unified-diff hunk header for new
+files, the shim proposal no longer a dotfile. `test/fixtures/instructions/scenarios.md`
+lists the scenarios and their expected outcomes for the next hand run.

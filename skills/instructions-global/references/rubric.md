@@ -1,8 +1,10 @@
 # Cleanup rubric
 
-Shared by `instructions-global` and `instructions-project`. Every input line
-gets exactly one label; nothing disappears silently; every label appears in the
-full report with its reason. The scripts (`dupes.js`) only give hints — the
+Shared by `instructions-global` and `instructions-project`. Every input rule
+line gets exactly one label; nothing disappears silently; every label appears in
+the full report with its reason. Headings, blank lines, HTML comments and fence
+delimiters are structure, not rules: they carry no label (a heading whose lines
+all leave disappears with them). The scripts (`dupes.js`) only give hints — the
 labels are yours, and the FLAG batches are the user's.
 
 ## Labels — closed set
@@ -28,7 +30,9 @@ labels are yours, and the FLAG batches are the user's.
   "be careful", "follow best practices").
 - `STALE` — evidence required: the path does not exist on this machine, the tool
   is not installed, or a later and more specific line contradicts it. Say which.
-  No evidence → `FLAG`, never `DROP:STALE`.
+  No evidence → `FLAG`, never `DROP:STALE`. A *relative* path in a global file
+  ("`scripts/old-build.sh`") is weak evidence — it may exist in some repo — so
+  that is a `FLAG`, not a `DROP:STALE`.
 - `SECRET` — token, key, password, connection string. Remove, and warn
   separately (also that it must not sit in git). `dupes.js` points at candidates.
 - `DEFAULT` — behaviour the agents show without being told ("use meaningful
@@ -69,8 +73,9 @@ labels are yours, and the FLAG batches are the user's.
 From the global files:
 - project-specific line → that project's canon (`AGENTS.md`) when the project
   exists on this machine (guess the path from the memory slug or an explicit
-  mention; `memory.js` resolves slugs), otherwise `~/.agent-instructions/parked.md`
-  with provenance (file, line, date).
+  mention; the inventory resolves memory slugs to paths), otherwise
+  `~/.agent-instructions/parked.md` with provenance (file, line, date) —
+  `render.js --parked <file>` stages the new parked.md.
 
 From auto memory:
 - cross-project preference → master (Communication / Workflow / …);
@@ -80,8 +85,12 @@ From auto memory:
 - machine-specific fact (local path, version, port, absolute path under home) →
   stays in memory or is archived; **never enters a git-tracked canon**.
 
-After a MOVE out of memory the line is removed from the memory file (dedupe);
-frontmatter stays; a superseded memory file is archived, never deleted.
+After a MOVE out of memory the line is removed from the memory file (dedupe;
+`render.js --memory-edits <json>` stages the rewritten file); frontmatter lines
+are structure and stay; a superseded memory file is archived, never deleted.
+
+FLAG lines stay in the proposal text until the user answers — a FLAG is a
+question, not a removal. When the answer is "drop", relabel and re-render.
 
 ## Section templates
 

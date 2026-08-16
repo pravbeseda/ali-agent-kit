@@ -9,14 +9,16 @@ import { join, resolve } from 'node:path';
 import { run, isMain, EXIT } from './lib/cli.js';
 import { loadConfig } from './lib/config.js';
 
-const HELP = `usage: node gate.js [--dir <path>] [--shared-ok] [--plain-dir] [--json]
+const HELP = `usage: node gate.js [--dir <path>] [--shared-ok] [--status] [--plain-dir] [--json]
 
 Exit 0: proceed (personal repo, or shared with --shared-ok, or --plain-dir).
 Exit 2: stop — not a git repository, or shared without --shared-ok.
 
-Evidence used: distinct commit authors other than you (bots and the emails in
-config.git_emails excluded), the remote owner vs config.git_logins, CODEOWNERS,
-CONTRIBUTING. --plain-dir treats a non-git directory as the project root (only
+--status: a shared verdict is reported but does not stop (nothing is edited).
+
+Evidence used: distinct commit authors other than you ("you" = git config
+user.email plus config.git_emails / git_logins; bots excluded), the remote owner
+vs config.git_logins, CODEOWNERS, CONTRIBUTING. --plain-dir treats a non-git directory as the project root (only
 when the user insists; nothing is classified then).`;
 
 function git(args, cwd) {
@@ -98,6 +100,9 @@ async function main(flags) {
     return { ...c, proceed: false, exitCode: EXIT.ERROR, message: `${c.root} is not inside a git repository — instructions-project works on repositories; rerun with --plain-dir only if the user insists` };
   }
   if (c.verdict === 'shared' && !flags['shared-ok']) {
+    if (flags.status) {
+      return { ...c, proceed: true, mode: 'shared (read-only status)', message: `shared repository — read-only status is allowed; any edit needs --shared-ok` };
+    }
     return { ...c, proceed: false, exitCode: EXIT.ERROR, message: `shared repository — stopping. Rerun with --shared-ok to authorize edits for this run only.` };
   }
   return { ...c, proceed: true, mode: c.verdict === 'shared' ? 'shared (authorized for this run)' : 'personal', message: `${c.verdict} repository at ${c.root}` };
@@ -117,5 +122,5 @@ function render(r) {
 }
 
 if (isMain(import.meta.url)) {
-  run({ spec: { dir: 'string', 'shared-ok': 'bool', 'plain-dir': 'bool' }, help: HELP, main, render });
+  run({ spec: { dir: 'string', 'shared-ok': 'bool', status: 'bool', 'plain-dir': 'bool' }, help: HELP, main, render });
 }

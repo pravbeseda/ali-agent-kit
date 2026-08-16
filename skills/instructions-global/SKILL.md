@@ -29,7 +29,7 @@ mode", "just sync"). Default when nothing is said: full run.
 | Mode | Does | Writes |
 |---|---|---|
 | default | inventory → proposal → approval → apply → verify → report | after approval only |
-| `--status` | inventory, drift, Karpathy state; no proposal | nothing (a run dir for the report) |
+| `--status` | inventory, drift, Karpathy state, duplicate hints; no proposal, no `report.js` | only the run dir under `~/.agent-instructions/runs/` (`inventory.json`) |
 | `--sync-only` | re-render the master to every target (after the user hand-edited the master) | after approval only |
 | `--migrate-and-disable` | like default, plus: migrate everything usable out of auto memory, archive the rest, turn auto memory off (`autoMemoryEnabled: false` in `~/.claude/settings.json`) | after approval only |
 
@@ -57,13 +57,19 @@ takes `--run <id>` and writes only under `~/.agent-instructions/runs/<id>/`.
 Then, still read-only:
 
 ```sh
-node scripts/karpathy.js status            # fetches upstream (6 s timeout), else snapshot — says which
-node scripts/drift.js --diff               # only meaningful after a first apply
-node scripts/dupes.js <every existing target file and the master>
+node scripts/karpathy.js status            # fetches upstream (6 s timeout, fine in every mode; --offline when there is no network), else snapshot — says which
+node scripts/drift.js --diff               # on a first run every target is "never-applied": expected, not a problem
+node scripts/dupes.js <the master and every existing target file, plus the legacy files the inventory warns about>
 ```
 
+`dupes.js` returns exact and near duplicates and secret-looking lines — report
+the location of a secret, never echo the value. Contradictions between lines
+are yours to spot while reading; no script finds them.
+
 Show the inventory table to the user. In `--status` mode: add the drift and
-Karpathy state, print the diagnostics checklist, and stop.
+Karpathy state and the duplicate hints, print the diagnostics checklist as the
+*target* state ("what each surface should show once the run is applied"), and
+stop — no proposal, no `report.js`.
 
 Re-run semantics: `drift.js` classifies each target — `unchanged`,
 `master-moved` (re-render), `hand-edited` (offer: merge the edit into the
@@ -73,21 +79,31 @@ changed since the last run, say "no changes", make no backup, end.
 ## Step 2 — Proposal (writes only into the run dir)
 
 Source text: the master if it exists; on the first run the union of every
-detected target file. Read `references/rubric.md` before labelling — the label
-set is closed and each label needs its evidence.
+detected target file **plus the legacy channels the inventory warns about**
+(`~/.copilot/copilot-instructions.md`, VS Code profile `*.instructions.md`) —
+a rule that lives only there must not be lost. Read `references/rubric.md`
+before labelling — the label set is closed and each label needs its evidence.
+Everything you write by hand goes into `runs/<id>/input/` (the v-next,
+rewritten memory files, `parked.md`); `render.js` writes its output under
+`runs/<id>/proposal/`.
 
-1. **Label every line** of the source (`dupes.js` output is a hint, not a
-   verdict). Record the labels in `runs/<id>/labels.json` (schema at the end of
-   the rubric) — `report.js` counts from that file, so nothing is invented.
-   Never drop a "self-evident" line on your own: DEFAULT candidates go into a
-   FLAG batch. Prohibitions are never softened; concrete values are carried
-   verbatim; contradictions become FLAGs with both lines.
+1. **Label every rule line** of the source (`dupes.js` output is a hint, not a
+   verdict; headings and blank lines are structure and get no label). Record
+   the labels in `runs/<id>/labels.json` (schema at the end of the rubric) —
+   `report.js` counts from that file, so nothing is invented. Never drop a
+   "self-evident" line on your own: DEFAULT candidates go into a FLAG batch and
+   **stay in the v-next until the user answers**. Prohibitions are never
+   softened; concrete values are carried verbatim; contradictions become FLAGs
+   with both lines; a project-specific line with no project on this machine
+   goes to `parked.md` (`--parked` below).
 2. **Harvest auto memory.** For every memory dir from the inventory read the
    topic files: cross-project preferences → MOVE to the master (keep the
    frontmatter of the memory file, remove the moved lines from its body);
    project-specific notes are only counted per project ("project X: N notes →
    run instructions-project there"); machine-specific facts stay. Superseded
-   memory files are archived, never deleted (`--archive` below).
+   memory files are archived, never deleted (`--archive` below); a memory
+   file that loses lines is rewritten with its frontmatter kept
+   (`--memory-edits` below).
 3. **Karpathy block.** `karpathy.js status` says: `absent` → insert as the last
    section; `current` → nothing; `upstream-ahead` → show its diff, propose the
    update (never silently; `karpathy.pin` disables the proposal);
@@ -97,34 +113,45 @@ set is closed and each label needs its evidence.
    the "Local additions" subsection right after the block, phrased as deltas.
    Never edit inside the markers. If a karpathy skill is installed in any agent,
    warn: the block and the skill double each other — the user picks one.
-4. **Write the master v-next** to `runs/<id>/proposal/global.md`, laid out per
-   the section template (Communication, Workflow, Code, Environment & tools,
-   Safety, Karpathy guidelines + Local additions; an existing sane structure is
-   kept). One rule per line, imperative, English. To place the block use
-   `node scripts/karpathy.js put --master <v-next without block> --out <v-next>`.
+4. **Write the master v-next** to `runs/<id>/input/global.md`, laid out per the
+   section template (Communication, Workflow, Code, Environment & tools, Safety,
+   Karpathy guidelines + Local additions; an existing sane structure is kept).
+   One rule per line, imperative, English. Order of operations for the block:
+   write the v-next without it, run
+   `node scripts/karpathy.js put --master runs/<id>/input/global.noblock.md --out runs/<id>/input/global.md`,
+   then append `### Local additions` (an H3 under the block's H2, so the block
+   stays the last section) with the deltas. `karpathy.js status --master <v-next>`
+   must say `current` afterwards.
 5. **Render** to every detected target and build the plan:
 
    ```sh
-   node scripts/render.js --run <id> --master-from runs/<id>/proposal/global.md \
+   node scripts/render.js --run <id> --master-from runs/<id>/input/global.md \
      --vscode \
-     --archive ~/.copilot/copilot-instructions.md,<superseded memory files>
+     --archive <legacy copilot file>,<VS Code profile *.instructions.md>,<superseded memory files> \
+     [--parked runs/<id>/input/parked.md] [--memory-edits runs/<id>/input/memory-edits.json]
    ```
 
-   `render.js` writes `proposal/<target>.md`, `diff/<target>.diff` and
-   `plan.json`; it renders only detected, enabled surfaces and lists the skipped
-   ones with the reason. `--vscode` proposes `chat.useClaudeMdFile: false` and
+   `render.js` writes `proposal/*`, `diff/*.diff` and `plan.json` — the whole
+   plan; there is no need to hand-edit `plan.json`. It renders only detected,
+   enabled surfaces and lists the skipped ones with the reason. `--vscode`
+   proposes `chat.useClaudeMdFile: false` and
    `chat.instructionsFilesLocations["~/.copilot/instructions"] = true` for
    every user `settings.json` found (`--vscode-settings <paths>` to pick when
    there are several installs or profiles — ask which, or all). `--archive`
-   moves legacy channels and retired memory files into
-   `~/.agent-instructions/archive/<id>/` (never pruned). Codex
-   `AGENTS.override.md` present → ask where to write before rendering.
-   Symlink at a target → say so; `apply.js` needs `--replace-symlinks`.
+   (absolute paths) moves legacy channels and retired memory files into
+   `~/.agent-instructions/archive/<id>/` (never pruned). `--parked` is the
+   new full text of `parked.md`; `--memory-edits` maps memory files to their
+   rewritten versions. Codex `AGENTS.override.md` present → ask where to write
+   before rendering. Symlink at a target → say so; `apply.js` needs
+   `--replace-symlinks`.
 6. **Show the proposal**: the file table from `render.js`, label counts, the
    FLAG batches as questions (they block the next step), REWORDs as before →
    after, the Karpathy state, threshold warnings (`master_lines`, Codex budget)
    — warnings and questions, never automatic cutting. Diff inline when ≤ 80
-   lines, else per-section summary plus the `diff/` path.
+   lines, else per-section summary plus the `diff/` path (on a first run the
+   Karpathy block alone exceeds that, so summarise: "your rules: 20 → 7 lines;
+   Karpathy block: +66 lines"). Decisions the user must make go one at a time,
+   with options and a recommendation.
 
 Iterate with the user until the proposal is what they want (re-run `render.js`
 after every change to the v-next).
@@ -156,7 +183,7 @@ printed. `--migrate-and-disable`: after apply, propose the settings edit
 `apply.js` re-reads every file and records hashes in `state.json`; then:
 
 ```sh
-node scripts/drift.js          # must say: no changes
+node scripts/drift.js --check  # exit 0 = no changes
 node scripts/report.js --run <id> --write
 ```
 

@@ -31,7 +31,7 @@ go ahead" = `--shared-ok`).
 | Flag | Meaning |
 |---|---|
 | default | gate → inventory → proposal → approval → apply → verify → report |
-| `--status` | gate + inventory + drift; no proposal, no writes |
+| `--status` | gate (advisory: a shared verdict is reported, not enforced) + inventory + drift; no proposal; writes only the run dir under `~/.agent-instructions/runs/` |
 | `--sync-only` | re-render the shim (and the Copilot copy) from the current `AGENTS.md` |
 | `--shared-ok` | authorization to edit a shared/team repository — this run only |
 | `--assume-global` | the repo runs only on this machine: lines duplicated in the global master may be dropped |
@@ -42,7 +42,7 @@ Scripts live in `scripts/`; `node scripts/<name>.js --help`; `--json` on all.
 ## Step 1 — Gate
 
 ```sh
-node scripts/gate.js [--shared-ok] [--plain-dir]
+node scripts/gate.js [--shared-ok] [--status] [--plain-dir]
 ```
 
 Not a git repository → stop (exit 2). Only if the user insists, `--plain-dir`
@@ -50,18 +50,27 @@ treats the directory as the project root without classification. Otherwise the
 gate classifies the repository from evidence — other commit authors (bots and
 the user's own emails/logins from config excluded), CODEOWNERS, remote owner
 vs `config.git_logins`, CONTRIBUTING as a hint — and prints the evidence with
-the verdict. `shared` without `--shared-ok` → stop and tell the user how to
-authorize. With `--shared-ok`, edit the shared files directly, but every purely
-personal line (communication style, personal tool preferences) is a FLAG for
-the user: it does not belong in a team file.
+the verdict ("you" = `git config user.email` plus `config.git_emails` /
+`git_logins`). `shared` without `--shared-ok` → stop and tell the user how to
+authorize — except in `--status`, which is read-only: pass `--status` to the
+gate, report the verdict, and continue with the inventory. With `--shared-ok`,
+edit the shared files directly, but every purely personal line (communication
+style, personal tool preferences) is a FLAG for the user: it does not belong in
+a team file.
 
 ## Step 2 — Inventory (read-only)
 
 ```sh
 node scripts/inventory.js --new-run
 node scripts/drift.js --diff
-node scripts/dupes.js AGENTS.md CLAUDE.md .claude/CLAUDE.md .github/copilot-instructions.md ~/.agent-instructions/global.md   # those that exist
+node scripts/dupes.js <every root instruction file the inventory found> ~/.agent-instructions/global.md   # those that exist
 ```
+
+`dupes.js` finds exact and near duplicates and secret-looking lines (report
+those, never echo the value); contradictions between files are yours to spot
+while reading — no script finds them. If the global master is absent, do not
+audit the raw global files from here: say "run instructions-global first" and
+go on with the repository alone.
 
 The inventory lists the root files (`AGENTS.md`, `AGENTS.override.md`,
 `CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md`,
@@ -75,7 +84,10 @@ deduplicating against an unaudited global is meaningless; continue), and the
 Codex chain size (global + project) against the budget. `AGENTS.override.md`
 at the root shadows `AGENTS.md` for Codex — warn and ask before touching either.
 
-`--status`: show all that and stop.
+`--status`: show the gate verdict, the inventory table, the shim/copy state,
+the nested-files inventory, the drift table (`absent` is a state, not drift),
+the `dupes.js` summary and the warnings — then stop. `drift.js` says "drift
+detected" only for `agents-moved` / `hand-edited` / `both`.
 
 ## Step 3 — Proposal (writes only into `~/.agent-instructions/runs/<id>/`)
 
@@ -83,10 +95,12 @@ Read `references/rubric.md` first. Then:
 
 1. **Canonical `AGENTS.md`** = merge of the existing `AGENTS.md`, root
    `CLAUDE.md`, `.claude/CLAUDE.md` (if hand-written) and
-   `.github/copilot-instructions.md`, cleaned line by line with the rubric.
+   `.github/copilot-instructions.md`, cleaned line by line with the rubric
+   (headings and blank lines are structure, not rules — they get no label).
    Sections: About · Commands · Conventions · Architecture notes · Safety (an
-   existing sane structure is kept). Record every label in
-   `runs/<id>/labels.json`.
+   existing sane structure is kept). Write it to `runs/<id>/input/AGENTS.md`
+   (your input; `render.js` writes its output under `proposal/`) and record
+   every label in `runs/<id>/labels.json`.
    - Duplicates of the global master are **kept** by default (compress the
      wording, remove duplication inside the project file); only with
      `--assume-global` may they become `DROP:DUP` naming the master line.
@@ -100,12 +114,12 @@ Read `references/rubric.md` first. Then:
    stay in memory or are archived. After promotion the moved lines are removed
    from the memory file (frontmatter kept), `MEMORY.md` is kept ≤ 200 lines,
    superseded files are archived (never deleted). Write the rewritten memory
-   files into the run dir and pass them with `--memory-edits`.
+   files into `runs/<id>/input/` and pass them with `--memory-edits`.
 3. **Render and plan:**
 
    ```sh
-   node scripts/render.js --run <id> --agents-from runs/<id>/proposal/AGENTS.md \
-     [--claude-only <file>] [--copilot-copy] [--memory-edits <json>] [--archive <memory files>]
+   node scripts/render.js --run <id> --agents-from runs/<id>/input/AGENTS.md \
+     [--claude-only runs/<id>/input/claude-only.md] [--copilot-copy] [--memory-edits <json>] [--archive <memory files>]
    ```
 
    Produces `proposal/*`, `diff/*`, `plan.json`: write `AGENTS.md`; write the
@@ -130,7 +144,7 @@ memory dir is written before a yes.
 
 ```sh
 node scripts/apply.js --run <id> [--only <paths>] [--replace-symlinks]
-node scripts/drift.js            # shim must be in-sync
+node scripts/drift.js --check    # exit 0 = shim (and copy) in-sync
 node scripts/report.js --run <id> --write
 ```
 
