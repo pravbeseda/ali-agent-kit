@@ -108,6 +108,12 @@ Read `references/rubric.md` first. Then:
      conflict: it stays.
    - Claude-specific content (Claude tools, hooks, skills, `/commands`) is not
      for `AGENTS.md`: it goes into the shim after `@AGENTS.md`.
+   - `AGENTS.override.md` lines are labelled FLAG (batch `OVERRIDE`): keep the
+     override, merge it into `AGENTS.md`, or archive it (`render.js --archive
+     <absolute path>` works for repository files too). Never silently.
+   - `.vscode/settings.json` with `chat.useClaudeMdFile: true` is advice only
+     ("VS Code will read the shim and `AGENTS.md` both here"); the skill does not
+     edit workspace settings.
 2. **Memory promotion.** From this project's memory dir: stable project facts
    (commands, conventions, architecture) → `AGENTS.md`; machine-specific facts
    (absolute paths, local versions, ports) never enter a git-tracked file — they
@@ -131,7 +137,8 @@ Read `references/rubric.md` first. Then:
    when the user asked for a personal-only place (`--claude-local <file>`).
 4. **Show the proposal**: the file table, label counts, FLAG batches as
    questions (block the next step), REWORDs before → after, threshold warnings
-   (`project_lines`, Codex chain). Diff inline when ≤ 80 lines, else per-section
+   (`project_lines`, Codex chain) — `node scripts/report.js --run <id>` prints
+   the tables from `labels.json` and `plan.json`. Diff inline when ≤ 80 lines, else per-section
    summary plus the `diff/` path. Iterate until the user is happy.
 
 ## Step 4 — Approval

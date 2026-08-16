@@ -25,7 +25,8 @@ labels are yours, and the FLAG batches are the user's.
 - `KARPATHY` — fully covered by a section of the Karpathy block; name the section
   ("§2 Simplicity First"). If the user's line is stricter or more specific than
   the section, it is **not** a DROP: keep the delta in "Local additions" right
-  after the block, phrased as a delta ("In addition to §2: …").
+  after the block, phrased as a delta ("In addition to §2: …") — label it
+  `REWORD` with `after` = the delta line and `to` = "Local additions".
 - `VAGUE` — changes no behaviour and carries no specifics ("write good code",
   "be careful", "follow best practices").
 - `STALE` — evidence required: the path does not exist on this machine, the tool
@@ -87,10 +88,26 @@ From auto memory:
 
 After a MOVE out of memory the line is removed from the memory file (dedupe;
 `render.js --memory-edits <json>` stages the rewritten file); frontmatter lines
-are structure and stay; a superseded memory file is archived, never deleted.
+are structure and stay. Memory lines that stay get `KEEP` with the reason
+("machine-specific", "project fact — counted for X"), so the counts are
+complete. A memory file whose body is empty after the MOVEs is *superseded*:
+archive it and drop its line from `MEMORY.md` (rewrite the index with
+`--memory-edits` too; the index has no frontmatter). The secret value of a
+`DROP:SECRET` line never appears in chat or in the report; it does remain in
+the run dir's `diff/` and backups under the user's home — say so in the warning.
 
 FLAG lines stay in the proposal text until the user answers — a FLAG is a
-question, not a removal. When the answer is "drop", relabel and re-render.
+question, not a removal. Mark them in place with a trailing HTML comment
+`<!-- FLAG: <batch> -->` so they are easy to find; when the answer comes,
+relabel, remove the comment and re-render. The losing side of a conflict the
+user resolved becomes `DROP:STALE` with the evidence "user chose <line> (run
+<id>)".
+
+Batch names (use these; add a new one only when none fits): `DEFAULT` (drop as
+default behaviour?), `CONFLICT` (two lines contradict), `STALE` (looks
+outdated, no hard evidence), `OVERRIDE` (Codex `AGENTS.override.md` content),
+`PERSONAL` (personal line in a shared repository), `KARPATHY` (block edited by
+hand / upstream moved), `SCOPE` (unclear whether global or project).
 
 ## Section templates
 
@@ -128,6 +145,9 @@ where new lines go and the "where is this already said?" check.
     DROP:STALE with evidence "path not found"; if it exists → KEEP.
 15. A non-English line meaning "Answer briefly." → REWORD "Answer briefly."; if
     "User prefers short answers" already exists → MERGE into it.
+16. "Run `npm run lint` before committing." → KEEP, section Commands (a rule
+    that carries a command goes where the commands are; Conventions is for
+    rules without one).
 
 ## labels.json
 

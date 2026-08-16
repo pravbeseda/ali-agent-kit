@@ -144,9 +144,11 @@ rewritten memory files, `parked.md`); `render.js` writes its output under
    rewritten versions. Codex `AGENTS.override.md` present → ask where to write
    before rendering. Symlink at a target → say so; `apply.js` needs
    `--replace-symlinks`.
-6. **Show the proposal**: the file table from `render.js`, label counts, the
-   FLAG batches as questions (they block the next step), REWORDs as before →
-   after, the Karpathy state, threshold warnings (`master_lines`, Codex budget)
+6. **Show the proposal**: the file table, label counts, the FLAG batches as
+   questions (they block the next step), REWORDs as before → after, the
+   Karpathy state, threshold warnings (`master_lines`, Codex budget) —
+   `node scripts/report.js --run <id>` prints the tables from `plan.json` and
+   `labels.json`
    — warnings and questions, never automatic cutting. Diff inline when ≤ 80
    lines, else per-section summary plus the `diff/` path (on a first run the
    Karpathy block alone exceeds that, so summarise: "your rules: 20 → 7 lines;

@@ -65,7 +65,8 @@ export function driftReport({ env = process.env, withDiff = false } = {}) {
     }
     rows.push(row);
   }
-  const anyChange = masterState !== 'unchanged' || rows.some((r) => r.state !== 'unchanged');
+  const firstRun = !state.runs.length && rows.every((r) => r.state === 'never-applied');
+  const anyChange = !firstRun && (masterState !== 'unchanged' || rows.some((r) => r.state !== 'unchanged'));
   return { master: { path: tildify(store.master), exists: master !== null, state: masterState }, targets: rows, anyChange, lastRun: state.runs.at(-1) ?? null };
 }
 
@@ -73,7 +74,8 @@ function render(r) {
   const out = [`master ${r.master.path}: ${r.master.exists ? r.master.state : 'absent'}`, `last run: ${r.lastRun?.runId ?? 'none'}`, ''];
   out.push(table([['surface', 'surface'], ['file', 'file'], ['recorded', 'recorded run'], ['state', 'state']], r.targets));
   for (const t of r.targets) if (t.diff) out.push('', t.diff);
-  out.push('', r.anyChange ? 'drift detected' : 'no changes');
+  const firstRun = !r.lastRun && r.targets.every((t) => t.state === 'never-applied');
+  out.push('', firstRun ? 'first run — nothing applied yet (expected)' : r.anyChange ? 'drift detected' : 'no changes');
   return out.join('\n');
 }
 

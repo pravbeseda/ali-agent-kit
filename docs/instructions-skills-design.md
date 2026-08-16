@@ -95,5 +95,9 @@ also for shared repos, `runs/<id>/input/` for the model's own files,
 `render.js --parked/--memory-edits` so `plan.json` is never hand-edited,
 headings unlabelled, relative paths in global files → FLAG not STALE, FLAG
 lines stay in the v-next, `drift.js --check`, unified-diff hunk header for new
-files, the shim proposal no longer a dotfile. `test/fixtures/instructions/scenarios.md`
+files, the shim proposal no longer a dotfile. A second round (global full run,
+project full run on `repo-mixed` with `--copilot-copy`) needed no hand edits of
+`plan.json` and produced the expected labels; it added the FLAG batch names,
+the in-text FLAG marker, the delta label and the memory-index rules to the
+rubric. `test/fixtures/instructions/scenarios.md`
 lists the scenarios and their expected outcomes for the next hand run.
