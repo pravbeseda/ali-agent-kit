@@ -17,6 +17,8 @@ Every skill is published with an `ali-` prefix: `skills/review-branch.md` in thi
 | `ali-merge-pr`                   | Merges a finished pull request — and refuses to while a review thread is unresolved or a check failed, waiting out the pending ones — then switches the checkout to the base branch and pulls.                          |
 | `ali-one-by-one`                 | Resolves the open questions in a plan one at a time — context, rated options, a recommendation, then records the decision in the plan file.                                                       |
 | `ali-generate-pr-description`    | Diffs the current branch against its base branch and writes a ready-to-paste PR description, laid out in the repository's own `.github/pull_request_template.md` — checklists included, untouched — or in a neutral fallback when there is none. |
+| `ali-instructions-global`        | Manual-only. Audits and tidies the user-level agent instruction files on this machine — one master `~/.agent-instructions/global.md` rendered to Claude Code, Codex and Copilot, Karpathy guidelines as a managed block, auto memory curated, every write backed up and approved first. |
+| `ali-instructions-project`       | Manual-only. Audits and tidies one repository's agent instruction files — canonical `AGENTS.md`, Claude shim `.claude/CLAUDE.md`, optional Copilot copy — promotes stable auto-memory notes into it, and refuses team repositories unless authorized for the run. |
 
 ## Install / update
 

@@ -1,0 +1,9 @@
+# Codex reads this file; other agents ignore it. Codex has no
+# `disable-model-invocation` frontmatter field, so the manual-only rule is
+# expressed here: the skill runs only when the user mentions it explicitly.
+interface:
+  display_name: "Instructions: global"
+  short_description: "Audit, tidy and sync the user-level agent instruction files on this machine"
+  default_prompt: "Audit my global agent instruction files with $ali-instructions-global."
+policy:
+  allow_implicit_invocation: false

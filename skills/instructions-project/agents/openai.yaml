@@ -1,0 +1,9 @@
+# Codex reads this file; other agents ignore it. Codex has no
+# `disable-model-invocation` frontmatter field, so the manual-only rule is
+# expressed here: the skill runs only when the user mentions it explicitly.
+interface:
+  display_name: "Instructions: project"
+  short_description: "Audit and tidy this repository's agent instruction files (AGENTS.md + Claude shim)"
+  default_prompt: "Audit this repository's agent instruction files with $ali-instructions-project."
+policy:
+  allow_implicit_invocation: false
