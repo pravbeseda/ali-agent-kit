@@ -38,6 +38,17 @@ changed file with <n>-<name>.before.md (the file before the change; empty when
 the file is new), <n>-<name>.after.md (the file now) and <n>-<name>.diff.
 Read every before/after pair in full — the diffs alone hide reordering.
 
+By design of the tool that made the change (do not report these as unexplained,
+do report them when they look broken or partial): every generated file starts
+with an HTML marker naming its source and a sha256; a "Karpathy Guidelines"
+section between `<!-- karpathy-guidelines: begin ... -->` / `end` markers is a
+managed block copied from a public source and may appear in every file; VS Code
+settings may gain `chat.useClaudeMdFile: false` and
+`chat.instructionsFilesLocations["~/.copilot/instructions"] = true` (VS Code
+accepts `~` there); legacy files may have been moved into an archive directory
+under ~/.agent-instructions; lines may have moved between files (global master,
+a repository's AGENTS.md, a parked.md, memory files).
+
 Write a review of at most 25 lines, in English, plain text with three headings:
 
 Improved — what is objectively better: duplicates gone, contradictions
