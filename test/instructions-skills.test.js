@@ -233,6 +233,15 @@ test('apply: backup, verify, manifest, refuse outside roots, symlink guard, rest
     symlinkSync(outside, join(home, 'nested'));
     assert.throws(() => applyPlan({ runId: 'r3a', skill: 't', actions: [{ action: 'write', path: join(home, 'nested', 'x.md'), from: src }] }, { allow: [home], env }), /outside the allowed roots/);
     assert.ok(!existsSync(join(outside, 'x.md')));
+    // a root that does not exist yet, under a symlinked parent, still contains its own paths
+    const dotClaude = join(outside, 'dotfiles-claude');
+    mkdirSync(dotClaude);
+    const claudeLink = join(home, '.claude-linked');
+    symlinkSync(dotClaude, claudeLink);
+    const memRoot = join(claudeLink, 'projects', '-slug', 'memory');
+    const mMem = applyPlan({ runId: 'r3m', skill: 't', actions: [{ action: 'write', path: join(memRoot, 'note.md'), from: src }] }, { allow: [memRoot], env });
+    assert.equal(mMem.status, 'complete');
+    assert.ok(existsSync(join(dotClaude, 'projects', '-slug', 'memory', 'note.md')));
     // a dangling symlink is still a symlink
     const dangling = join(home, '.codex', 'AGENTS.override.md');
     symlinkSync(join(home, 'gone.md'), dangling);

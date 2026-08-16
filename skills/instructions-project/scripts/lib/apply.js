@@ -27,29 +27,33 @@ export class ApplyError extends Error {
 }
 
 /**
- * Real path of the *directory* of `p`: the deepest existing ancestor is resolved
- * through symlinks (realpath), the missing tail is appended lexically, and the
- * final component is kept as written. So a symlinked directory on the way cannot
- * smuggle a write outside the allowed roots, while a symlink *at* the target
- * (the dotfiles case behind --replace-symlinks) is judged by where the link
- * sits, not by where it points — the write replaces the link, not its target.
+ * Real path of a directory: the deepest existing ancestor is resolved through
+ * symlinks (realpath), the missing tail is appended lexically. So a symlinked
+ * directory on the way cannot smuggle a write outside the allowed roots, and a
+ * root that does not exist yet (a project's memory dir) still compares equal.
  */
-function realish(p) {
-  const full = resolve(p);
-  let base = dirname(full);
+function realDir(dir) {
+  let base = resolve(dir);
   const tail = [];
   while (!existsSync(base)) {
     const parent = dirname(base);
-    if (parent === base) return full;
+    if (parent === base) return resolve(dir);
     tail.unshift(basename(base));
     base = parent;
   }
-  return join(realpathSync(base), ...tail, basename(full));
+  return join(realpathSync(base), ...tail);
 }
 
+/**
+ * Both sides resolved the same way. The final component of `path` stays as
+ * written: a symlink *at* the target (the dotfiles case behind
+ * --replace-symlinks) is judged by where the link sits, not where it points —
+ * the write replaces the link, not its target.
+ */
 function under(path, root) {
-  const p = realish(path);
-  const r = existsSync(root) ? realpathSync(root) : resolve(root);
+  const full = resolve(path);
+  const p = join(realDir(dirname(full)), basename(full));
+  const r = realDir(root);
   return p === r || p.startsWith(r.endsWith(sep) ? r : r + sep);
 }
 
