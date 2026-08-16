@@ -15,9 +15,11 @@ export const SHARED = [
   'scripts/restore.js',
   'scripts/report.js',
   'scripts/dupes.js',
+  'scripts/review.js',
   'references/rubric.md',
   'references/report-template.md',
   'references/config-schema.md',
+  'references/review-prompt.md',
   'references/surfaces.md'
 ];
 

@@ -56,6 +56,9 @@ Sections, in order — paste the `report.js` tables where they belong:
 8. **Threshold warnings** — master / project lines, Codex chain bytes.
 9. **Diagnostics checklist** — from `references/diagnostics-checklist.md`, one
    line per surface, for the user to tick.
+9a. **Independent review** — the reviewer's text verbatim (model, clean
+   context or self-review), then the user's decision: accepted / rolled back
+   (which files).
 10. **Reminders** — VS Code Settings Sync of "Prompts and Instructions" is
     intentionally off (this skill runs per machine); memory files archived.
 11. **Backup** — dir, size, retention, restore command; previous run id.

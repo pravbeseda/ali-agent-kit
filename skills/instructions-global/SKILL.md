@@ -193,6 +193,23 @@ Print `references/diagnostics-checklist.md` — the user confirms each surface
 sees the text exactly once (Copilot CLI `/instructions`, VS Code Chat
 Diagnostics, Claude `/memory`, Codex by asking it).
 
+### Independent review, then accept or roll back
+
+The run is applied but not yet accepted. Build the review bundle and hand it to
+a second reader with a clean context and the strongest model available (at
+least Opus-class), exactly as `references/review-prompt.md` describes:
+
+```sh
+node scripts/review.js --run <id>        # runs/<id>/review/: before, after, diff per file
+```
+
+Delegate with the prompt from that file and nothing else; show the user the
+review verbatim; then ask the one question: accept the new version, or roll
+back (`node scripts/restore.js --run <id>`, or `--path <file>` for one file).
+Nothing happens until the user answers; a rollback is run only on their word.
+No subagent on this host → say so and review yourself from the bundle alone,
+marked "self-review". Record the review and the decision in the report.
+
 ## Step 6 — Report
 
 Short in chat, full in `runs/<id>/report.md` — layout in
@@ -212,5 +229,6 @@ works without the model, undoes the run from the manifest, last entry first.
 - `references/surfaces.md` — which surface reads which file, verified dates
 - `references/vscode-defaults.md` — settings defaults by version, wanted values
 - `references/diagnostics-checklist.md` — per-surface "seen once" checks
+- `references/review-prompt.md` — the independent review after apply
 - `references/report-template.md`, `references/config-schema.md`
 - `references/karpathy-guidelines.md` — offline snapshot of the block source

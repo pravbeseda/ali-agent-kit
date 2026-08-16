@@ -59,6 +59,7 @@ were produced during the build and their conclusions are summarised here.
 | §7 near-duplicate threshold | Dice ≥ 0.7 over token sets (stop words removed, trailing punctuation stripped) as the default hint threshold | 0.8 missed "Never push to main." vs "Never push to main without asking." — the calibration pair |
 | §5 detection of "VS Code Agent Host on/off" | detected and reported only; the wanted settings do not branch on it | as the brief requires |
 | §12 test loop | scripts covered by `test/instructions-skills.test.js` (19 tests, fake HOMEs and repos from `test/fixtures/instructions/make-fixtures.js`); model-driven runs on the fixtures done with subagents (with-skill only — a "no skill" baseline cannot run a manual workflow with bundled scripts, so it was not measured) | — |
+| (added after the brief, at the user's request) | after apply, `review.js` builds a before/after/diff bundle and a second reader with a clean context (at least Opus-class) reviews it; the user then accepts or rolls back (`references/review-prompt.md`) | the tidying pass and its reviewer must not share a context; the decision to keep the result stays with the user |
 | Acceptance run | `inventory.js`, `karpathy.js status`, `drift.js`, `dupes.js` were run on the developer's own machine with `AGENT_INSTRUCTIONS_DIR` pointed at a scratch dir, so no file under `~` was created; results in the summary of the PR | "proposal mode, no writes" taken literally |
 
 ## 4. Open questions

@@ -163,12 +163,30 @@ file lives in the repo. Report: short in chat, full in `runs/<id>/report.md`
 (`references/report-template.md`; tables from `report.js`), including "git
 status" of the changed paths — the user commits, this skill does not.
 
+**Independent review, then accept or roll back.** The run is applied but not
+yet accepted. Build the bundle and hand it to a second reader with a clean
+context and the strongest model available (at least Opus-class), exactly as
+`references/review-prompt.md` describes:
+
+```sh
+node scripts/review.js --run <id>        # runs/<id>/review/: before, after, diff per file
+```
+
+Delegate with the prompt from that file and nothing else; show the user the
+review verbatim; then ask the one question: accept the new version, or roll
+back (`node scripts/restore.js --run <id>`, or `--path <file>` for one file).
+Nothing happens until the user answers; a rollback is run only on their word.
+No subagent on this host → say so and review yourself from the bundle alone,
+marked "self-review". Record the review and the decision in the report.
+
 `--sync-only`: skip the proposal; `render.js --run <id>` with the current
-`AGENTS.md`, approve, apply.
+`AGENTS.md`, approve, apply — the review step still runs (a re-rendered shim is
+small; the reviewer confirms nothing else moved).
 
 ## References
 
 - `references/rubric.md` — labels, evidence, calibration, labels.json
 - `references/surfaces.md` — project-level readers per agent (Copilot CLI may
   count the shim's `@AGENTS.md` a second time — see the diagnostics note there)
+- `references/review-prompt.md` — the independent review after apply
 - `references/report-template.md`, `references/config-schema.md`
