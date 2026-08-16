@@ -11,6 +11,7 @@ import { loadConfig, loadState, saveState, runDir } from './lib/config.js';
 import { readJson, readText } from './lib/fsx.js';
 import { applyPlan, pruneBackups, ApplyError } from './lib/apply.js';
 import { contentHash } from './lib/markers.js';
+import { GLOBAL_TARGETS } from './lib/render.js';
 
 const HELP = `usage: node apply.js --run <run-id> [--only <path,...>] [--replace-symlinks] [--dry-run] [--json]
 
@@ -40,12 +41,13 @@ async function main(flags) {
   if (flags.only) {
     const wanted = new Set(flags.only);
     const chosen = plan.actions.filter((a) => wanted.has(a.path) || wanted.has(tildify(a.path)));
-    // Rendered targets carry the hash of the proposed master; applying them without
-    // the master leaves drift.js pointing at a master that never landed.
+    // Rendered surface targets carry the hash of the proposed master; applying them
+    // without the master leaves drift.js pointing at a master that never landed.
+    // Settings edits, archives, parked.md and memory files are independent of it.
     const masterInPlan = plan.actions.some((a) => a.target === 'master');
     const masterChosen = chosen.some((a) => a.target === 'master');
-    if (masterInPlan && !masterChosen && chosen.some((a) => a.target !== 'master')) {
-      throw new UsageError('--only: the plan changes the master, so a subset must include it (or select only the master and run --sync-only later)');
+    if (masterInPlan && !masterChosen && chosen.some((a) => GLOBAL_TARGETS[a.target])) {
+      throw new UsageError('--only: the plan changes the master, so a subset with a rendered target must include it (or select only the master and run --sync-only later)');
     }
     plan.actions = chosen;
   }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, symlinkSync, readdirSync, realpathSync, lstatSync, readlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, symlinkSync, readdirSync, realpathSync, lstatSync, readlinkSync, unlinkSync } from 'node:fs';
 import { tmpdir, platform } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -243,7 +243,8 @@ test('apply: backup, verify, manifest, refuse outside roots, symlink guard, rest
     writeFileSync(dotfile, 'dotfiles content\n');
     const linked = join(home, '.codex', 'LINKED.md');
     symlinkSync(dotfile, linked);
-    const m3 = applyPlan({ runId: 'r3c', skill: 't', actions: [{ action: 'write', path: linked, from: src }] }, { allow: [home], replaceSymlinks: true, env });
+    // scope is the agent dir, the link points elsewhere: the write is judged by where the link sits
+    const m3 = applyPlan({ runId: 'r3c', skill: 't', actions: [{ action: 'write', path: linked, from: src }] }, { allow: [join(home, '.codex'), join(home, '.agent-instructions')], replaceSymlinks: true, env });
     assert.equal(m3.entries[0].before.symlink, dotfile);
     assert.ok(!lstatSync(linked).isSymbolicLink());
     assert.equal(readFileSync(linked, 'utf8'), 'new\n');
@@ -252,6 +253,9 @@ test('apply: backup, verify, manifest, refuse outside roots, symlink guard, rest
     assert.ok(lstatSync(linked).isSymbolicLink());
     assert.equal(readlinkSync(linked), dotfile);
     assert.equal(readFileSync(dotfile, 'utf8'), 'dotfiles content\n');
+    // the backup holds the link itself; pruning must survive its target disappearing
+    unlinkSync(dotfile);
+    assert.doesNotThrow(() => pruneBackups(10, env));
   }
   // partial failure: second action moves a missing file
   try {
@@ -351,6 +355,10 @@ test('global flow: inventory → render → apply → drift → idempotent re-re
   const subset = runScript(G, 'apply.js', ['--run', runId, '--only', join(home, '.claude', 'CLAUDE.md'), '--dry-run'], { home });
   assert.equal(subset.code, 1);
   assert.match(subset.stderr, /must include it/);
+  // an independent subset (archive move, parked.md) is fine without the master
+  const independent = runScript(G, 'apply.js', ['--run', runId, '--only', `${join(home, '.copilot', 'copilot-instructions.md')},${join(home, '.agent-instructions', 'parked.md')}`, '--dry-run'], { home });
+  assert.equal(independent.code, 0, independent.stderr);
+  assert.equal(independent.json.entries.length, 2);
 
   const app = runScript(G, 'apply.js', ['--run', runId], { home });
   assert.equal(app.code, 0, app.stderr);

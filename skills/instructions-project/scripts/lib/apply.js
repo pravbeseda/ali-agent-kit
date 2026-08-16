@@ -27,25 +27,29 @@ export class ApplyError extends Error {
 }
 
 /**
- * Real path of `p`: the deepest existing ancestor is resolved through symlinks
- * (realpath), the missing tail is appended lexically. So a symlinked directory
- * on the way cannot smuggle a write outside the allowed roots.
+ * Real path of the *directory* of `p`: the deepest existing ancestor is resolved
+ * through symlinks (realpath), the missing tail is appended lexically, and the
+ * final component is kept as written. So a symlinked directory on the way cannot
+ * smuggle a write outside the allowed roots, while a symlink *at* the target
+ * (the dotfiles case behind --replace-symlinks) is judged by where the link
+ * sits, not by where it points — the write replaces the link, not its target.
  */
 function realish(p) {
-  let base = resolve(p);
+  const full = resolve(p);
+  let base = dirname(full);
   const tail = [];
   while (!existsSync(base)) {
     const parent = dirname(base);
-    if (parent === base) return resolve(p);
+    if (parent === base) return full;
     tail.unshift(basename(base));
     base = parent;
   }
-  return join(realpathSync(base), ...tail);
+  return join(realpathSync(base), ...tail, basename(full));
 }
 
 function under(path, root) {
   const p = realish(path);
-  const r = realish(root);
+  const r = existsSync(root) ? realpathSync(root) : resolve(root);
   return p === r || p.startsWith(r.endsWith(sep) ? r : r + sep);
 }
 
@@ -258,7 +262,8 @@ export function pruneBackups(keep, env = process.env) {
   for (const name of pruned) rmSync(join(root, name), { recursive: true, force: true });
   const kept = runs.slice(pruned.length);
   let totalBytes = 0;
-  for (const name of kept) for (const file of walkFiles(join(root, name))) totalBytes += statSync(file).size;
+  // lstat: a symlink backed up as a link may point at something that is gone by now
+  for (const name of kept) for (const file of walkFiles(join(root, name))) totalBytes += lstatSync(file).size;
   return { pruned, kept, totalBytes };
 }
 
