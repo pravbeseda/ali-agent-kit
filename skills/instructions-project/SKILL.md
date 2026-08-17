@@ -2,7 +2,6 @@
 name: instructions-project
 description: Audit and tidy the AI-agent instruction files of the current git repository — canonical AGENTS.md, Claude Code shim .claude/CLAUDE.md, optional Copilot copy — and promote stable auto-memory notes into it; refuses team repositories unless authorized for the run. Manual only, use it only when the user explicitly asks to audit, tidy or sync a repository's agent instructions, or runs /ali-instructions-project.
 disable-model-invocation: true
-allowed-tools: Agent
 argument-hint: "[--status|--sync-only|--shared-ok|--assume-global|--copilot-copy]"
 ---
 
@@ -176,9 +175,9 @@ node scripts/review.js --run <id>        # runs/<id>/review/: before, after, dif
 Ask first, in one line: "Launch the independent reviewer (a subagent with a
 clean context, Opus-class or better)?" — invoking this skill is already the
 user's request for that review, and this question makes it explicit for any
-host or session rule that wants one; no other permission is needed
-(`allowed-tools: Agent` in the frontmatter pre-approves the tool in Claude
-Code). Then delegate with the prompt from that file and nothing else; show the
+host or session rule that wants one (Claude Code's `Agent` tool needs no
+permission of its own). Then delegate with the prompt from that file and
+nothing else; show the
 user the review verbatim; then ask the one question: accept the new version, or
 roll back (`node scripts/restore.js --run <id>`, or `--path <file>` for one
 file).

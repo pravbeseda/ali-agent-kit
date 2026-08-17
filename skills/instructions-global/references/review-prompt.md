@@ -13,9 +13,8 @@ judges the result the way the user would when opening the files tomorrow.
    is that request already; the question makes it explicit for any session rule
    about subagents). Then delegate to a subagent with a fresh context and the
    strongest model available, at least an Opus-class model (Claude Code: `Agent`
-   with `model: "opus"` or better — pre-approved by `allowed-tools: Agent` in the
-   skill frontmatter; other hosts: their equivalent). Give it only the prompt
-   below and the review directory. If the host has no subagents, say so
+   with `model: "opus"` or better; other hosts: their equivalent). Give it only
+   the prompt below and the review directory. If the host has no subagents, say so
    to the user and do the review yourself in a separate pass **reading only the
    review directory** — mark the verdict "self-review, no clean context".
 3. Show the user the review verbatim, then ask one question:
