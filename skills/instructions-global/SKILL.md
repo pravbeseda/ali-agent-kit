@@ -2,6 +2,7 @@
 name: instructions-global
 description: Audit, tidy and sync the user-level ("global") AI-agent instruction files and Claude Code auto memory on this machine — one master file rendered to Claude Code, Codex and GitHub Copilot, Karpathy guidelines block kept current, drift detected. Manual only, use it only when the user explicitly asks to audit, tidy or sync their global agent instructions, or runs /ali-instructions-global.
 disable-model-invocation: true
+allowed-tools: Agent
 argument-hint: "[--status|--sync-only|--migrate-and-disable]"
 ---
 
@@ -203,9 +204,15 @@ least Opus-class), exactly as `references/review-prompt.md` describes:
 node scripts/review.js --run <id>        # runs/<id>/review/: before, after, diff per file
 ```
 
-Delegate with the prompt from that file and nothing else; show the user the
-review verbatim; then ask the one question: accept the new version, or roll
-back (`node scripts/restore.js --run <id>`, or `--path <file>` for one file).
+Ask first, in one line: "Launch the independent reviewer (a subagent with a
+clean context, Opus-class or better)?" — invoking this skill is already the
+user's request for that review, and this question makes it explicit for any
+host or session rule that wants one; no other permission is needed
+(`allowed-tools: Agent` in the frontmatter pre-approves the tool in Claude
+Code). Then delegate with the prompt from that file and nothing else; show the
+user the review verbatim; then ask the one question: accept the new version, or
+roll back (`node scripts/restore.js --run <id>`, or `--path <file>` for one
+file).
 Nothing happens until the user answers; a rollback is run only on their word.
 No subagent on this host → say so and review yourself from the bundle alone,
 marked "self-review". Record the review and the decision in the report.
