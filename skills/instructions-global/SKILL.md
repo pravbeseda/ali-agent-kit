@@ -203,9 +203,15 @@ least Opus-class), exactly as `references/review-prompt.md` describes:
 node scripts/review.js --run <id>        # runs/<id>/review/: before, after, diff per file
 ```
 
-Delegate with the prompt from that file and nothing else; show the user the
-review verbatim; then ask the one question: accept the new version, or roll
-back (`node scripts/restore.js --run <id>`, or `--path <file>` for one file).
+Ask first, in one line: "Launch the independent reviewer (a subagent with a
+clean context, Opus-class or better)?" — invoking this skill is already the
+user's request for that review, and this question makes it explicit for any
+host or session rule that wants one (Claude Code's `Agent` tool needs no
+permission of its own). Then delegate with the prompt from that file and
+nothing else; show the
+user the review verbatim; then ask the one question: accept the new version, or
+roll back (`node scripts/restore.js --run <id>`, or `--path <file>` for one
+file).
 Nothing happens until the user answers; a rollback is run only on their word.
 No subagent on this host → say so and review yourself from the bundle alone,
 marked "self-review". Record the review and the decision in the report.
