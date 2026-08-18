@@ -56,21 +56,28 @@ The report carries the console `uri` for each issue — keep it, it is better th
 ## 4. Find what is already filed
 
 ```sh
-gh issue list --state all --limit 200 --json number,title,body,state,url,labels
+gh issue list --state all --limit 1000 --json number,title,body,state,url,labels
 ```
 
+The scan has to be exhaustive — a marker that falls outside the window reads as "never filed" and
+the crash gets a second issue. Raise the limit if the repository has outgrown it, and check that
+the count returned is below the limit before trusting the result.
+
 Filter for a body containing `crashlytics-id: <issueId>`. Match on that marker only — titles drift,
-the id does not. Do **not** pass `--label crashlytics`: on a repository where nothing has been
-imported yet the label does not exist and `gh` fails on the unknown label rather than returning an
-empty list.
+the id does not. A row merged from several apps carries one id per app; it counts as filed when
+**any** of its ids matches. Do **not** filter by `--label crashlytics`: a marker can sit on an issue that was
+labelled later or not at all, so a label filter narrows the scan for no gain.
 
 **Then look in the comments too.** A crash that shares a root cause with one already filed belongs
 as a comment on that issue rather than as a second issue, and the marker goes into the comment — so
 a body-only scan will offer it again on the next run. For every issue that carries the `crashlytics`
 label, read `gh issue view <number> --json comments` and match the marker there as well. That is a
 handful of calls while the label is young; once the repository has imported dozens of crashes,
-switch to one `gh search issues "crashlytics-id" --repo <owner/repo> --json number,body` instead of
-walking them one by one.
+switch to one `gh search issues "crashlytics-id" --repo <owner/repo> --limit 1000 --json number`
+to get the issues that hold a marker anywhere, then read `gh issue view <number> --json body,comments`
+for each hit and match the marker in both. The search does find markers in comments, but its output
+carries only the issue body, so the second read is what makes a comment marker visible.
+`gh search issues` defaults to 30 results, so the explicit limit is not optional.
 
 ## 5. Check each candidate against the code as it stands
 
@@ -150,6 +157,10 @@ For each row the user picked:
   crashlytics-id: <issueId>
   ````
 
+  A row merged from several apps has one Crashlytics issue id per app — write one
+  `crashlytics-id:` line for each of them, or the next run matches only the first app and offers
+  the crash again for the others.
+
 - `gh issue create --title … --body-file <tmp> --label crashlytics`. Create the label first with
   `gh label create crashlytics --color B60205 --description "Imported from Firebase Crashlytics"`
   if `gh label list` does not have it. Write the body through a file, never inline: a stack trace
@@ -157,7 +168,9 @@ For each row the user picked:
 
 A candidate that shares its root cause with an issue already filed goes in as a **comment on that
 issue**, not as a new one: same body shape, ending with its own `crashlytics-id:` marker, plus a
-line on why it is the same cause. Two issues for one bug get fixed once and closed twice.
+line on why it is the same cause. Two issues for one bug get fixed once and closed twice. Add the
+`crashlytics` label to that issue as well (`gh issue edit <number> --add-label crashlytics`) — a
+hand-filed issue does not carry it, and step 4 scans comments only on labelled issues.
 
 Never rewrite the body of an existing issue and never close one here. This skill only adds — a new
 issue, or a comment on an existing one.
