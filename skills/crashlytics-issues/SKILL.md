@@ -125,6 +125,10 @@ issue for a crash that already has one.
 
 ## 7. File the selected ones
 
+First make sure the `crashlytics` label exists — both paths below attach it, and `gh` fails on an
+unknown label. If `gh label list` does not have it, create it once for the whole run:
+`gh label create crashlytics --color B60205 --description "Imported from Firebase Crashlytics"`.
+
 For each row the user picked:
 
 - Reuse the sample event already fetched in step 5. Fetch one now (`crashlytics_list_events`,
@@ -161,10 +165,8 @@ For each row the user picked:
   `crashlytics-id:` line for each of them, or the next run matches only the first app and offers
   the crash again for the others.
 
-- `gh issue create --title … --body-file <tmp> --label crashlytics`. Create the label first with
-  `gh label create crashlytics --color B60205 --description "Imported from Firebase Crashlytics"`
-  if `gh label list` does not have it. Write the body through a file, never inline: a stack trace
-  on a command line gets mangled by the shell.
+- `gh issue create --title … --body-file <tmp> --label crashlytics`. Write the body through a file,
+  never inline: a stack trace on a command line gets mangled by the shell.
 
 A candidate that shares its root cause with an issue already filed goes in as a **comment on that
 issue**, not as a new one: same body shape, ending with its own `crashlytics-id:` marker, plus a
