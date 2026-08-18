@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { run, isMain, table, EXIT } from './lib/cli.js';
 import { readText } from './lib/fsx.js';
 import { parseShimMarker, parseGeneratedMarker, contentHash } from './lib/markers.js';
-import { renderShim, renderCopilotCopy } from './lib/render.js';
+import { renderShim, renderCopilotCopy, shimImportState } from './lib/render.js';
 import { unifiedDiff } from './lib/diff.js';
 import { classify } from './gate.js';
 
@@ -36,9 +36,10 @@ export function projectDrift({ dir = process.cwd(), withDiff = false } = {}) {
     if (!marker) rows.push({ file: '.claude/CLAUDE.md', state: 'not-generated' });
     else if (agents === null) rows.push({ file: '.claude/CLAUDE.md', state: 'orphan (AGENTS.md missing)' });
     else {
-      // Claude-only content after @AGENTS.md is legitimate; a hand edit means the marker line or import changed.
-      const structural = /^@AGENTS\.md\s*$/m.test(text) && text.trimStart().startsWith('<!-- instructions-project: shim');
-      const state = marker.hash !== hash ? 'agents-moved' : structural ? 'in-sync' : 'hand-edited';
+      // Claude-only content after the import is legitimate; a hand edit means the marker line or import changed.
+      const importState = shimImportState(text);
+      const structural = importState === 'current' && text.trimStart().startsWith('<!-- instructions-project: shim');
+      const state = importState === 'stale' ? 'stale-import' : marker.hash !== hash ? 'agents-moved' : structural ? 'in-sync' : 'hand-edited';
       const row = { file: '.claude/CLAUDE.md', state, recordedHash: marker.hash.slice(0, 12), agentsHash: hash.slice(0, 12) };
       if (withDiff && state !== 'in-sync') row.diff = unifiedDiff(text, renderShim(agents).text, { from: '.claude/CLAUDE.md', to: 'fresh shim' });
       rows.push(row);
@@ -61,7 +62,7 @@ export function projectDrift({ dir = process.cwd(), withDiff = false } = {}) {
     }
   }
   // "absent" and a hand-written (never generated) file are states to report, not drift
-  const DRIFT = ['agents-moved', 'hand-edited', 'both'];
+  const DRIFT = ['agents-moved', 'hand-edited', 'both', 'stale-import'];
   const anyChange = rows.some((r) => DRIFT.includes(r.state) || r.state.startsWith('orphan'));
   return { root, agentsExists: agents !== null, agentsHash: hash?.slice(0, 12) ?? null, files: rows, anyChange };
 }

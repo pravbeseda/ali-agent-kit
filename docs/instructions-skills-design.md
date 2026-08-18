@@ -25,7 +25,7 @@ were produced during the build and their conclusions are summarised here.
 | Fact | Result | Source |
 |---|---|---|
 | Claude Code global file, `@` imports | `~/.claude/CLAUDE.md`; imports up to 4 hops; `~/.claude/rules/*.md` exists; `CLAUDE_CONFIG_DIR` overrides the dir | https://code.claude.com/docs/en/memory, https://code.claude.com/docs/en/env-vars |
-| Claude Code reads `AGENTS.md` natively? | **No** — "Claude Code reads CLAUDE.md, not AGENTS.md"; `@AGENTS.md` import recommended → the shim stands | https://code.claude.com/docs/en/memory |
+| Claude Code reads `AGENTS.md` natively? | **No** — "Claude Code reads CLAUDE.md, not AGENTS.md"; `@` import recommended → the shim stands; relative paths resolve against the importing file's directory, so the shim in `.claude/` imports `@../AGENTS.md` | https://code.claude.com/docs/en/memory |
 | `CLAUDE.md` vs `.claude/CLAUDE.md`, `CLAUDE.local.md`, `.claude/rules` | equivalent, both read; local file still supported; rules with `paths:` frontmatter | same |
 | Auto memory | `~/.claude/projects/<slug>/memory/`, keyed by git repo; `MEMORY.md` first 200 lines / 25 KB; disable via `/memory`, `autoMemoryEnabled: false`, `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`; slug documented only by example → resolved against the filesystem | same |
 | Claude Code skill frontmatter, arguments | `disable-model-invocation`, `argument-hint`, `user-invocable`, … honoured; `/skill --status` → `$ARGUMENTS`; without a placeholder `ARGUMENTS: --status` is appended | https://code.claude.com/docs/en/skills |
@@ -64,7 +64,7 @@ were produced during the build and their conclusions are summarised here.
 
 ## 4. Open questions
 
-1. **Copilot CLI doubling of the shim.** The CLI reads `.claude/CLAUDE.md`, expands `@AGENTS.md`, and dedupes only *identical copies*; the shim carries a marker, so the canon may be counted twice. Not testable without a Copilot CLI session on a repo. Listed in the diagnostics checklist; if confirmed, options are a symlink (not portable to Windows) or a shim without marker (drift then needs the state file the brief rules out for repos).
+1. **Copilot CLI doubling of the shim.** The CLI reads `.claude/CLAUDE.md`, expands `@../AGENTS.md`, and dedupes only *identical copies*; the shim carries a marker, so the canon may be counted twice. Not testable without a Copilot CLI session on a repo. Listed in the diagnostics checklist; if confirmed, options are a symlink (not portable to Windows) or a shim without marker (drift then needs the state file the brief rules out for repos).
 2. **Claude partner agent inside Copilot** — whether GitHub injects `AGENTS.md`/`.claude/CLAUDE.md` into it. Not documented.
 3. **JetBrains on Linux** — the global file path is documented for macOS and Windows only; `~/.config/github-copilot/intellij/` is assumed.
 4. **Copilot CLI argument passing** to skills — not documented; the SKILL.md bodies accept the options in natural language.

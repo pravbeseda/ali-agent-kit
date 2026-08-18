@@ -15,6 +15,7 @@ import { settingsFiles, readSettings } from './lib/vscode.js';
 import { detectSurfaces } from './lib/surfaces.js';
 import { selfCheck } from './lib/selfcheck.js';
 import { classify } from './gate.js';
+import { shimImportState } from './lib/render.js';
 
 const HELP = `usage: node inventory.js [--dir <repo>] [--new-run] [--json]
 
@@ -86,9 +87,11 @@ export function projectInventory({ dir = process.cwd(), env = process.env, newRu
   if (files.claudeShim.exists) {
     const text = readText(rootFiles.claudeShim).text;
     const marker = parseShimMarker(text);
-    const imports = /^@AGENTS\.md\s*$/m.test(text);
+    const importState = shimImportState(text);
+    const imports = importState === 'current';
     if (!marker) shim = { exists: true, state: 'not-a-shim', imports, note: 'a hand-written .claude/CLAUDE.md — merge into AGENTS.md and replace with the shim' };
     else if (!agentsHash) shim = { exists: true, state: 'orphan', marker, note: 'shim exists but AGENTS.md is missing' };
+    else if (importState === 'stale') shim = { exists: true, state: 'stale-import', marker, imports, note: 'shim imports @AGENTS.md, which Claude Code resolves to .claude/AGENTS.md — re-render (--sync-only)' };
     else if (marker.hash === agentsHash) shim = { exists: true, state: 'in-sync', marker, imports };
     else shim = { exists: true, state: 'drift', marker, imports, note: 'AGENTS.md changed since the shim was written — re-render (--sync-only)' };
   }

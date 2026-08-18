@@ -6,9 +6,9 @@ once: "sees the text exactly once".
 
 | Surface | How to check | Expect |
 |---|---|---|
-| Claude Code | `/memory` in a session (lists loaded memory files) | `~/.claude/CLAUDE.md` once; in a repo also `.claude/CLAUDE.md` → `@AGENTS.md`; no root `CLAUDE.md` after migration |
+| Claude Code | `/memory` in a session (lists loaded memory files) | `~/.claude/CLAUDE.md` once; in a repo also `.claude/CLAUDE.md` → `@../AGENTS.md`; no root `CLAUDE.md` after migration |
 | Codex CLI | no built-in listing (verified 2026-08-16); run `codex "Show which instruction files are active."` from the repo, or `/status` for the writable roots and `/debug-config` for config layers | `~/.codex/AGENTS.md` (or `AGENTS.override.md` if it exists — warned) + repo `AGENTS.md` chain |
-| Copilot CLI | `/instructions` in a session | `~/.copilot/instructions/global.instructions.md` once, no `~/.copilot/copilot-instructions.md`; in a repo `AGENTS.md`; watch for `.claude/CLAUDE.md` being counted a second time (its `@AGENTS.md` expands) — see the note below |
+| Copilot CLI | `/instructions` in a session | `~/.copilot/instructions/global.instructions.md` once, no `~/.copilot/copilot-instructions.md`; in a repo `AGENTS.md`; watch for `.claude/CLAUDE.md` being counted a second time (its `@../AGENTS.md` expands) — see the note below |
 | VS Code (Copilot Chat) | right-click the Chat view → **Diagnostics** after one request; or `Chat: Configure Instructions` | one user-level file from `~/.copilot/instructions`; no `~/.claude/CLAUDE.md` (setting off); root `AGENTS.md`; nothing from the profile `prompts/` folder |
 | VS Code Agent Host, Copilot harness | same Diagnostics view with the Agent Host on | same as above — the harness reads `~/.copilot/instructions` |
 | VS Code Agent Host, Claude harness | Claude's own `/memory` | Claude Code files, not the Copilot ones |
