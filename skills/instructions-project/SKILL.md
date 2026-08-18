@@ -32,7 +32,7 @@ go ahead" = `--shared-ok`).
 |---|---|
 | default | gate → inventory → proposal → approval → apply → verify → report |
 | `--status` | gate (advisory: a shared verdict is reported, not enforced) + inventory + drift; no proposal; writes only the run dir under `~/.agent-instructions/runs/` |
-| `--sync-only` | re-render the shim (and the Copilot copy) from the current `AGENTS.md` |
+| `--sync-only` | re-render the shim (and the Copilot copy) from the current `AGENTS.md`; the shim keeps its Claude-only tail |
 | `--shared-ok` | authorization to edit a shared/team repository — this run only |
 | `--assume-global` | the repo runs only on this machine: lines duplicated in the global master may be dropped |
 | `--copilot-copy` | keep `.github/copilot-instructions.md` as a generated copy (JetBrains does not read `AGENTS.md`); default from `config.copilot_copy` |
@@ -188,8 +188,9 @@ No subagent on this host → say so and review yourself from the bundle alone,
 marked "self-review". Record the review and the decision in the report.
 
 `--sync-only`: skip the proposal; `render.js --run <id>` with the current
-`AGENTS.md`, approve, apply — the review step still runs (a re-rendered shim is
-small; the reviewer confirms nothing else moved).
+`AGENTS.md` (the existing shim's Claude-only tail is kept), approve, apply — the
+review step still runs (a re-rendered shim is small; the reviewer confirms
+nothing else moved).
 
 ## References
 

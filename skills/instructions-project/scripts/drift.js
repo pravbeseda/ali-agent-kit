@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { run, isMain, table, EXIT } from './lib/cli.js';
 import { readText } from './lib/fsx.js';
 import { parseShimMarker, parseGeneratedMarker, contentHash } from './lib/markers.js';
-import { renderShim, renderCopilotCopy, shimImportState } from './lib/render.js';
+import { renderShim, renderCopilotCopy, shimImportState, shimTail } from './lib/render.js';
 import { unifiedDiff } from './lib/diff.js';
 import { classify } from './gate.js';
 
@@ -41,7 +41,7 @@ export function projectDrift({ dir = process.cwd(), withDiff = false } = {}) {
       const structural = importState === 'current' && text.trimStart().startsWith('<!-- instructions-project: shim');
       const state = importState === 'stale' ? 'stale-import' : marker.hash !== hash ? 'agents-moved' : structural ? 'in-sync' : 'hand-edited';
       const row = { file: '.claude/CLAUDE.md', state, recordedHash: marker.hash.slice(0, 12), agentsHash: hash.slice(0, 12) };
-      if (withDiff && state !== 'in-sync') row.diff = unifiedDiff(text, renderShim(agents).text, { from: '.claude/CLAUDE.md', to: 'fresh shim' });
+      if (withDiff && state !== 'in-sync') row.diff = unifiedDiff(text, renderShim(agents, { claudeOnly: shimTail(text) }).text, { from: '.claude/CLAUDE.md', to: 'fresh shim' });
       rows.push(row);
     }
   }

@@ -9,7 +9,7 @@ import { run, isMain, UsageError, table, fmtBytes, fmtDelta } from './lib/cli.js
 import { storePaths, tildify, mirrorPath } from './lib/paths.js';
 import { loadConfig, runDir } from './lib/config.js';
 import { readText, atomicWrite, writeJson, metricsOf, ensureDir, readJson } from './lib/fsx.js';
-import { renderShim, renderCopilotCopy, stripRenderedHead } from './lib/render.js';
+import { renderShim, renderCopilotCopy, stripRenderedHead, shimTail } from './lib/render.js';
 import { unifiedDiff, diffStats } from './lib/diff.js';
 import { parseShimMarker, parseGeneratedMarker } from './lib/markers.js';
 import { memoryDirFor } from './lib/memory.js';
@@ -18,7 +18,7 @@ import { classify } from './gate.js';
 const HELP = `usage: node render.js --run <run-id> [--dir <repo>] [options]
 
   --agents-from <file>     proposed AGENTS.md text (default: the current AGENTS.md)
-  --claude-only <file>     Claude-only content appended to the shim after @../AGENTS.md
+  --claude-only <file>     Claude-only content appended to the shim after @../AGENTS.md (default: the current shim's tail)
   --copilot-copy           write .github/copilot-instructions.md as a generated copy (default: archive it)
   --keep-copilot           leave a hand-written .github/copilot-instructions.md alone
   --claude-local <file>    write CLAUDE.local.md from this file (only when the user asked for a personal place)
@@ -66,9 +66,10 @@ async function main(flags) {
 
   // 2. shim
   const shimPath = join(root, '.claude', 'CLAUDE.md');
-  const claudeOnly = flags['claude-only'] ? readText(flags['claude-only']).text : '';
-  const shim = renderShim(agentsText, { claudeOnly });
   const currentShim = existsSync(shimPath) ? readText(shimPath).text : '';
+  // Without --claude-only (e.g. --sync-only) the existing shim's Claude-only tail is kept.
+  const claudeOnly = flags['claude-only'] ? readText(flags['claude-only']).text : shimTail(currentShim);
+  const shim = renderShim(agentsText, { claudeOnly });
   stage('claude-shim.md', shimPath, currentShim, shim.text, currentShim && !parseShimMarker(currentShim) ? 'replace hand-written file with shim' : undefined);
 
   // 3. root CLAUDE.md → migrated into AGENTS.md, file archived
