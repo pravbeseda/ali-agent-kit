@@ -32,11 +32,20 @@ export function renderGlobal(masterText, { target, runId, masterLabel = '~/.agen
   return { text: head + body, hash, body };
 }
 
-/** The Claude Code shim for a project: marker + `@AGENTS.md` + optional Claude-only content. */
+// Claude Code resolves `@` imports against the shim's own directory (.claude/), hence `../`.
+const SHIM_IMPORT = '@../AGENTS.md';
+
+/** Which import the shim's second line (right after the marker) carries: `current`, `stale` (pre-fix `@AGENTS.md`, resolves to .claude/AGENTS.md) or `none`. */
+export function shimImportState(text) {
+  const line = (text.split(/\r?\n/)[1] ?? '').trim();
+  return line === SHIM_IMPORT ? 'current' : line === '@AGENTS.md' ? 'stale' : 'none';
+}
+
+/** The Claude Code shim for a project: marker + `@../AGENTS.md` + optional Claude-only content. */
 export function renderShim(agentsText, { claudeOnly = '' } = {}) {
   const hash = contentHash(agentsText);
   const extra = claudeOnly.trim() ? `\n${normalizeText(claudeOnly)}` : '';
-  return { text: `${shimMarker(hash)}\n@AGENTS.md\n${extra}`, hash };
+  return { text: `${shimMarker(hash)}\n${SHIM_IMPORT}\n${extra}`, hash };
 }
 
 /** `.github/copilot-instructions.md` as a generated copy of AGENTS.md (flag --copilot-copy). */

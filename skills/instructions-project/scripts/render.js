@@ -18,7 +18,7 @@ import { classify } from './gate.js';
 const HELP = `usage: node render.js --run <run-id> [--dir <repo>] [options]
 
   --agents-from <file>     proposed AGENTS.md text (default: the current AGENTS.md)
-  --claude-only <file>     Claude-only content appended to the shim after @AGENTS.md
+  --claude-only <file>     Claude-only content appended to the shim after @../AGENTS.md
   --copilot-copy           write .github/copilot-instructions.md as a generated copy (default: archive it)
   --keep-copilot           leave a hand-written .github/copilot-instructions.md alone
   --claude-local <file>    write CLAUDE.local.md from this file (only when the user asked for a personal place)
