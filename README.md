@@ -19,6 +19,7 @@ Every skill is published with an `ali-` prefix: `skills/review-branch.md` in thi
 | `ali-generate-pr-description`    | Diffs the current branch against its base branch and writes a ready-to-paste PR description, laid out in the repository's own `.github/pull_request_template.md` — checklists included, untouched — or in a neutral fallback when there is none. |
 | `ali-instructions-global`        | Manual-only. Audits and tidies the user-level agent instruction files on this machine — one master `~/.agent-instructions/global.md` rendered to Claude Code, Codex and Copilot, Karpathy guidelines as a managed block, auto memory curated, every write backed up and approved first. |
 | `ali-instructions-project`       | Manual-only. Audits and tidies one repository's agent instruction files — canonical `AGENTS.md`, Claude shim `.claude/CLAUDE.md`, optional Copilot copy — promotes stable auto-memory notes into it, and refuses team repositories unless authorized for the run. |
+| `ali-crashlytics-issues`         | Imports Firebase Crashlytics crashes into the repository's GitHub issues — checks every candidate against the code as it stands, files only the rows a human picked, and never files the same crash twice. Android apps and GitHub trackers only; needs the Firebase MCP plugin. |
 
 ## Install / update
 
