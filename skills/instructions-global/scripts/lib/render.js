@@ -3,7 +3,7 @@
 // should contain: agent-specific blocks resolved, marker on top, frontmatter
 // for VS Code-style instruction files, UTF-8/LF.
 
-import { stripOnlyBlocks, generatedMarker, shimMarker, contentHash } from './markers.js';
+import { stripOnlyBlocks, generatedMarker, shimMarker, parseShimMarker, contentHash } from './markers.js';
 import { normalizeText } from './fsx.js';
 
 /**
@@ -39,6 +39,13 @@ const SHIM_IMPORT = '@../AGENTS.md';
 export function shimImportState(text) {
   const line = (text.split(/\r?\n/)[1] ?? '').trim();
   return line === SHIM_IMPORT ? 'current' : line === '@AGENTS.md' ? 'stale' : 'none';
+}
+
+/** The Claude-only content of an existing shim: everything after the import line (empty for a non-shim). */
+export function shimTail(text) {
+  if (!parseShimMarker(text) || shimImportState(text) === 'none') return '';
+  const tail = text.split(/\r?\n/).slice(2).join('\n').replace(/^(?:[ \t]*\n)+/, '');
+  return tail.trim() ? normalizeText(tail) : '';
 }
 
 /** The Claude Code shim for a project: marker + `@../AGENTS.md` + optional Claude-only content. */
