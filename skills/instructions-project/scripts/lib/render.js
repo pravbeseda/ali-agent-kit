@@ -34,12 +34,11 @@ export function renderGlobal(masterText, { target, runId, masterLabel = '~/.agen
 
 // Claude Code resolves `@` imports against the shim's own directory (.claude/), hence `../`.
 const SHIM_IMPORT = '@../AGENTS.md';
-const STALE_SHIM_IMPORT = /^@AGENTS\.md\s*$/m;
-const SHIM_IMPORT_LINE = /^@\.\.\/AGENTS\.md\s*$/m;
 
-/** Which import a shim carries: `current`, `stale` (pre-fix `@AGENTS.md`, resolves to .claude/AGENTS.md) or `none`. */
+/** Which import the shim's second line (right after the marker) carries: `current`, `stale` (pre-fix `@AGENTS.md`, resolves to .claude/AGENTS.md) or `none`. */
 export function shimImportState(text) {
-  return SHIM_IMPORT_LINE.test(text) ? 'current' : STALE_SHIM_IMPORT.test(text) ? 'stale' : 'none';
+  const line = (text.split(/\r?\n/)[1] ?? '').trim();
+  return line === SHIM_IMPORT ? 'current' : line === '@AGENTS.md' ? 'stale' : 'none';
 }
 
 /** The Claude Code shim for a project: marker + `@../AGENTS.md` + optional Claude-only content. */

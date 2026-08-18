@@ -564,7 +564,8 @@ test('project flow: solo repo with root CLAUDE.md → AGENTS.md + shim, archive,
   let drift = runScript(P, 'drift.js', [], { home, cwd: repo });
   assert.equal(drift.json.anyChange, false);
   // a shim from before the import-path fix (`@AGENTS.md` resolves to .claude/AGENTS.md) is drift, not in-sync
-  writeFileSync(join(repo, '.claude', 'CLAUDE.md'), shim.replace('@../AGENTS.md', '@AGENTS.md'));
+  // ...even when the Claude-only tail quotes the current import line
+  writeFileSync(join(repo, '.claude', 'CLAUDE.md'), shim.replace('@../AGENTS.md', '@AGENTS.md') + '\n```\n@../AGENTS.md\n```\n');
   drift = runScript(P, 'drift.js', ['--check'], { home, cwd: repo });
   assert.equal(drift.code, 2);
   assert.equal(drift.json.files[0].state, 'stale-import');
