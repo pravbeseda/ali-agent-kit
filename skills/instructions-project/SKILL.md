@@ -132,7 +132,10 @@ Read `references/rubric.md` first. Then:
 
    Produces `proposal/*`, `diff/*`, `plan.json`: write `AGENTS.md`; write the
    shim (`<!-- instructions-project: shim; canonical AGENTS.md sha256 … -->`,
-   `@../AGENTS.md`, optional Claude-only content); archive the root `CLAUDE.md`
+   `@../AGENTS.md`, optional Claude-only content — without `--claude-only` the
+   existing shim's tail is kept as it is, so pass the flag whenever the tail
+   changes, with an empty file to clear it, and never leave a line both in the
+   proposed `AGENTS.md` and in the kept tail); archive the root `CLAUDE.md`
    (merged) into `~/.agent-instructions/archive/<id>/`; archive
    `.github/copilot-instructions.md` (merged) unless `--copilot-copy` renders it
    or `--keep-copilot` leaves a hand-written one alone; `CLAUDE.local.md` only

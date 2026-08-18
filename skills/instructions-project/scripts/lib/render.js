@@ -44,8 +44,8 @@ export function shimImportState(text) {
 /** The Claude-only content of an existing shim: everything after the import line (empty for a non-shim). */
 export function shimTail(text) {
   if (!parseShimMarker(text) || shimImportState(text) === 'none') return '';
-  const tail = text.split(/\r?\n/).slice(2).join('\n').trim();
-  return tail ? normalizeText(tail) : '';
+  const tail = text.split(/\r?\n/).slice(2).join('\n').replace(/^(?:[ \t]*\n)+/, '');
+  return tail.trim() ? normalizeText(tail) : '';
 }
 
 /** The Claude Code shim for a project: marker + `@../AGENTS.md` + optional Claude-only content. */

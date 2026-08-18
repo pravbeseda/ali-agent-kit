@@ -127,6 +127,7 @@ test('render: global targets carry marker (+ frontmatter for Copilot), shim carr
   assert.equal(shimTail(shim.text), 'Claude only.\n');
   assert.equal(shimTail(shim.text.replace('@../AGENTS.md', '@AGENTS.md')), 'Claude only.\n');
   assert.equal(shimTail(renderShim('# A\n').text), '');
+  assert.equal(shimTail(renderShim('# A\n', { claudeOnly: '    indented first line\n' }).text), '    indented first line\n', 'a leading indent is kept');
   assert.equal(shimTail('hand-written\nfile\n'), '');
   assert.equal(renderShim('# B\n', { claudeOnly: shimTail(shim.text) }).text, renderShim('# B\n', { claudeOnly: 'Claude only.' }).text);
   const copy = renderCopilotCopy('# A\n', { runId: 'r' });
