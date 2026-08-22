@@ -94,7 +94,7 @@ For each comment (or group of related ones):
    - "the tests will break" → run the tests
    - "the type is incompatible" → read the type definition
    - "the file does not export X" → read the file
-3. Scrutinize bot comments (Copilot, CodeRabbit, …) especially hard — they are often wrong from missing context. Who wrote a comment is read off `author.login`: a `[bot]` suffix or a known reviewer name. **A body opening with 🤖 settles it — that is a machine, whatever the login says.** `ali-review-pr` marks every finding it publishes that way, and its comments arrive under the login of whoever the token belongs to, so the heuristic alone reads them as a person's.
+3. Scrutinize bot comments (Copilot, CodeRabbit, …) especially hard — they are often wrong from missing context. Who wrote a comment is read off `author.login`: a `[bot]` suffix or a known reviewer name. **A body opening with 🤖 settles it — that is a machine, whatever the login says.** `ali-review-pr` marks every finding it publishes that way, and its comments arrive under the login of whoever the token belongs to, so the heuristic alone reads them as a person's. That verdict carries into step 4, where it decides whether the reply is shown before it goes out.
 4. Check the last reply first: if the thread already agreed on an outcome and only the resolve click is missing, do not re-open the discussion — say so and offer to just resolve it.
 
 ### Grounds for rejecting it
@@ -140,9 +140,12 @@ Once the user decides:
 
 1. **If the decision is to change the code** — make the change.
 2. **Decide whether a reply is needed at all.** If the last replies already state the outcome and only the resolve click is missing — the case step 3 checks for before presenting anything — post nothing: say in the chat which reply settled it and go straight to item 4. Repeating a decision the thread already holds is exactly the noise that check exists to avoid. **A rejection is the exception: it always gets a reply, naming the ground it fell under.** That reply is the ledger entry the next round reads; a point turned down in silence comes straight back.
-3. **When a reply is going out, show it before posting.** Print the exact text that will go into the thread and wait for the user to approve or correct it. It is published under their name in a place they cannot edit away, so it is the one thing here that is not yours to send unilaterally. This is the only pause in step 4, and it happens only when something is actually being sent.
+3. **A reply to a person is shown before it goes out; a reply to a machine is posted straight away.** Which of the two this thread is was already settled in step 3 — a `[bot]` login or a body opening with 🤖 makes it a machine, and everything else is a person.
 
-   **Post the approved text from a file, never inline in the command.** Write it with the file-creation tool — not with a heredoc, not with `echo` — into a temp dir, never into the working tree, and let `gh` read it back:
+   - **Person** — print the exact text that will go into the thread and wait for the user to approve or correct it. It is published under their name in a place they cannot edit away, so it is the one thing here that is not yours to send unilaterally. This is the only pause in step 4, and it happens only when something is actually being sent to a person.
+   - **Machine** — post it without asking, then print in the chat what was sent. No one reads a bot thread for tone, and a bot round is mostly rejections, each of which owes the ledger a reply: stopping for approval on every one is what makes a twenty-comment pass unfinishable.
+
+   **Either way, post the reply from a file, never inline in the command.** Write it with the file-creation tool — not with a heredoc, not with `echo` — into a temp dir, never into the working tree, and let `gh` read it back:
 
    ```sh
    gh api repos/{owner}/{repo}/pulls/{number}/comments/{root_databaseId}/replies -F body=@{file} --jq '.id'
