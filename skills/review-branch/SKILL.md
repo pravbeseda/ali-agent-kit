@@ -88,7 +88,7 @@ A review is worth running only if it can make the change smaller, simpler or saf
 
 **Assertions in a new test that cannot fail.** Two shapes, and both are `suggestion`:
 
-- **The mock is what gets asserted.** The test stubs a collaborator to return `x`, then checks that `x` came back. Nothing in the code under test decides that line, so it passes for as long as the stub stands — including on the day the real behaviour breaks.
+- **The asserted value never passes through the subject.** It is read straight back off the stub, or a fixture constant is checked against itself, so the line stands or falls with the test's own setup and no change to the code under test can make it fail. A stubbed value returned *through* the subject is not this case: a subject that starts discarding, filtering or transforming it breaks that expectation, which is the test doing its job.
 - **The subject belongs to somebody else.** The assertion is about what a library, a framework or another component does, not about this change. That component has its own tests, and this one now fails when it is upgraded, in a file whose name points at the wrong code.
 
 Look for both only in the tests this change adds or rewrites — an existing test is not this change's to prune. And do not mistake a working assertion for one of these: checking that the code under test called a mock with the right arguments is the test doing its job. Where a shallow assertion is the only thing standing in for a path nobody exercises, the untested path is its own finding and is judged by the bar above like any other.
