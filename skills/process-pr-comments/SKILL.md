@@ -78,6 +78,8 @@ Two details that decide whether "every unresolved comment" is true:
 
   Keep paging with `comments(first: 100, after: "{endCursor}")` while `hasNextPage`. A single `gh api repos/{owner}/{repo}/pulls/comments/{root_databaseId}` is not a substitute: it returns the root comment you already have and none of the replies. If for some reason the thread cannot be read in full, say in step 3 that the middle of the discussion was not read. A verdict like "this was already agreed" is exactly the one a missing middle makes wrong.
 
+**An unresolved thread is read whole — every comment in it, not just the last one.** The three parts above exist to make that possible; what makes it necessary is that the state of a thread is rarely in any single comment. A thread `ali-review-pr` reopened is the clearest case: the root holds the finding, a reply in the middle claims a fix, and the last comment says what that fix left standing — read only the end and you are looking at a gap with no idea what it is a gap in. Judge the thread by its end, but read the rest first.
+
 Work through the threads where `isResolved == false`, storing each thread `id`. **Keep the resolved ones as the decision ledger** rather than discarding them: they are what this PR has already settled, and step 3 answers a comment that repeats a settled point from that record instead of arguing it out again.
 
 ## Step 2. Summarize, then start

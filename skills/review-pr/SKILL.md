@@ -88,11 +88,12 @@ query {
       reviewThreads(first: 100) {
         pageInfo { hasNextPage endCursor }
         nodes {
+          id
           isResolved
           path
           line
-          raised: comments(first: 1) { nodes { body originalCommit { oid } } }
-          outcome: comments(last: 1) { nodes { body } }
+          raised: comments(first: 1) { nodes { databaseId body originalCommit { oid } } }
+          outcome: comments(last: 10) { totalCount nodes { body } }
         }
       }
     }
@@ -100,11 +101,13 @@ query {
 }'
 ```
 
-**Page through.** While `pageInfo.hasNextPage`, repeat the query with `reviewThreads(first: 100, after: "{endCursor}")` — a truncated list looks exactly like a complete one. Both uses below need the full list: the pages come back oldest first, so on a long PR the newest 🤖 thread — the one whose `originalCommit.oid` is `{reviewed_sha}` — is precisely what the first page drops.
+**Page through.** While `pageInfo.hasNextPage`, repeat the query with `reviewThreads(first: 100, after: "{endCursor}")` — a truncated list looks exactly like a complete one. All three uses below need the full list: the pages come back oldest first, so on a long PR the newest 🤖 thread — the one whose `originalCommit.oid` is `{reviewed_sha}` — is precisely what the first page drops.
 
-Two things come out of it.
+Three things come out of it.
 
 **The decision ledger.** Every thread is a finding that has already been weighed, and a resolved one that ends in "no, we are not doing this" is a decision, not an oversight. Do not raise it again. The single exception is a finding whose worth has visibly risen since — the code around it changed, or the case it predicted became reachable — and then the comment opens by saying what changed. Re-litigating a settled point is what turns a review into a treadmill, and the author cannot tell a fresh finding from a repeat one as cheaply as you can.
+
+**The threads to audit.** A resolved thread that ends in a claimed change is the opposite case: nothing was settled there, something was promised. Collect every resolved thread whose opening comment starts with 🤖 and whose closing state says the code was changed — step 3 checks each against the code and reopens the ones the change did not cover. A 🤖 thread closed by a rejection stays in the ledger above and is not audited: there is no fix to compare it to. Keep the thread `id` and the `databaseId` of its opening comment for both operations. If `outcome.totalCount` is larger than the number of comments that came back, the middle of the discussion is missing — read that thread in full with `node(id: "{thread_id}")` before ruling on it, because a partial fix is usually agreed in exactly that middle.
 
 **Which round this is.** A thread whose opening comment starts with 🤖 is one of this skill's earlier findings. If any exists, this is a follow-up round and step 3 fixes its scope; the newest such thread carries `{reviewed_sha}` in its `originalCommit.oid` — the commit those findings were written against. If none exists, this is the first round and the whole diff is in scope. Both answers come from these threads and from nothing else: a finding posted on its own by the fallback in step 4 leaves a 🤖 thread but no review, so any second source would disagree with this one on exactly that path.
 
@@ -121,6 +124,13 @@ A review is worth running only if it can make the change smaller, simpler or saf
 - a rule the repository wrote down for itself is broken — read its CLAUDE.md / AGENTS.md before ruling on this one
 
 **`suggestion` — applying it removes code or removes a concept.** A guard for a case that cannot occur, an abstraction with one caller, a parameter no caller varies, a branch that cannot be taken, logic the diff already has elsewhere. A suggestion never holds up a merge; it is the author's call.
+
+**Assertions in a new test that cannot fail.** Two shapes, and both are `suggestion`:
+
+- **The mock is what gets asserted.** The test stubs a collaborator to return `x`, then checks that `x` came back. Nothing in the code under test decides that line, so it passes for as long as the stub stands — including on the day the real behaviour breaks.
+- **The subject belongs to somebody else.** The assertion is about what a library, a framework or another component does, not about this change. That component has its own tests, and this one now fails when it is upgraded, in a file whose name points at the wrong code.
+
+Look for both only in the tests this change adds or rewrites — an existing test is not this change's to prune. And do not mistake a working assertion for one of these: checking that the code under test called a mock with the right arguments is the test doing its job. Where a shallow assertion is the only thing standing in for a path nobody exercises, the untested path is its own finding and is judged by the bar above like any other.
 
 Two gates decide what survives:
 
@@ -145,15 +155,39 @@ When step 1 found earlier 🤖 threads, this round has one narrow job: read only
 gh api repos/{owner}/{repo}/compare/{reviewed_sha}...{sha} --jq '.files[] | {filename, patch}'
 ```
 
-If `reviewed_sha` equals `{sha}`, nothing has been pushed since the last review: there is nothing to verify, so publish nothing and say so.
+If `reviewed_sha` equals `{sha}`, nothing has been pushed since the last review: there is no new code to verify, so publish no new finding and say so — but still run the audit below. A thread resolved as fixed with nothing pushed is exactly what it catches.
 
 Otherwise the round covers three things and stops:
 
-1. **Each earlier finding: addressed or not addressed.** Attempted is not addressed. This is a report to the user in the chat, not new comments — those findings are already on the PR, and repeating them just doubles the thread.
+1. **Each earlier finding: addressed or not addressed.** Attempted is not addressed. This is a report to the user in the chat, not new comments — those findings are already on the PR, and repeating them just doubles the thread. The audit below is the single exception: a thread closed on a fix that does not hold gets one comment, in the thread it already belongs to.
 2. **Defects the fixes introduced**, judged by the same bar as step 2. These are the only new inline comments a follow-up round may post.
 3. **Everything else is out of scope.** Whatever you notice in code this pass did not touch goes to the user in the chat and stays off the PR. It was in scope for round 1 and was not worth a comment then; it does not get to extend the review now.
 
 **The same disagreement twice is not a defect.** If a finding lands on code that was written to satisfy the previous round's finding, and it is the same objection in new clothes, publish nothing there. Put it to the user as a design disagreement to settle in one decision. Each round objecting to the answer the last round forced is the loop this scope exists to break, and it never resolves by running one more round.
+
+### A thread closed on a fix that does not hold is reopened
+
+Resolved says the concern is gone. Nothing checks that, and the thread stops being read the moment it is closed — so a fix that misses half of what was raised looks exactly like one that covers it. Take each thread step 1 collected for the audit and put three things side by side: the finding the thread opened with, the reply that closed it, and the code at that path as it stands at `{sha}`, read the way step 1 says to read files.
+
+It fails in two ways:
+
+- **The change is not the one the reply claims.** The code at that path does something else, or nothing changed there at all.
+- **The change is real but the finding is only half closed.** One of two named cases handled, one call site of three, the symptom fixed where the finding was about the cause.
+
+Either way the concern still stands and the thread must not read as closed. When the change does cover the finding, leave the thread resolved and post nothing in it — an audit that comments on the threads it approves of is a treadmill of its own.
+
+Reply first, then unresolve. A reopened thread with no explanation in it tells the author only that a machine disagreed; if the order breaks halfway, a comment on a still-resolved thread is the readable half of the two.
+
+```sh
+gh api repos/{owner}/{repo}/pulls/{number}/comments/{root_databaseId}/replies -F body=@{file}
+gh api graphql -f query='mutation { unresolveReviewThread(input: {threadId: "{thread_id}"}) { thread { isResolved } } }'
+```
+
+Write that body with the file-creation tool into a temp dir and name the file by its literal absolute path — the same rule, and for the same reasons, as the review body in step 4.
+
+The reply opens with 🤖, says what the change did and what of the finding it leaves standing, and asks about the gap the way any other comment here does — no fix, no ready-made code. It carries no `blocking:` / `suggestion:` label of its own: the thread already has one from the finding it belongs to, and that label is what counts in step 5. A reopened `blocking` thread is a blocking finding that stands; a reopened `suggestion` never holds up the merge.
+
+**Reopen a thread once.** If it already carries a 🤖 reply reopening it and the code at that path has not moved since, the disagreement is real and neither side is going to move by repeating itself. Leave the thread as it is and put it to the user, the same way the paragraph above puts a repeated objection.
 
 ## Step 4. Publish
 
@@ -192,19 +226,19 @@ Use `"side": "LEFT"` for deleted lines. A comment can only be anchored to a line
 
 **On 422 the review was not created.** One line the API will not accept takes the whole batch down, and the error names the field rather than the entry at fault. If it does identify the finding (`line must be part of the diff`), drop that one and repost once — but if dropping it empties `comments`, post nothing at all and say so. If the repost fails too, or the offender is unknown, post the findings one at a time with `gh api repos/{owner}/{repo}/pulls/{number}/comments -X POST --input {file}` (`commit_id`, `path`, `line`, `side`, `body`, each body in its own file): a 201 is published for good and must never be resent, a 422 published nothing and that finding is skipped.
 
-Do not reply to your own comments, do not resolve them, do not edit the code — publishing findings is the whole job.
+Do not reply to your own comments, do not resolve them, do not edit the code — publishing findings is the whole job. The audit in step 3 is the one place this skill writes into an existing thread, and it only ever reopens one; nothing here resolves a thread.
 
 ## Step 5. The verdict
 
 End every run with one verdict, and make it the last thing printed.
 
-**Blocking findings stand** → not ready. Name them and stop; the next move is the author's.
+**Blocking findings stand** → not ready. Name them and stop; the next move is the author's. A thread step 3 reopened counts here under the label it already carried: a reopened `blocking` finding is one of them.
 
 **No blocking findings** → ready, and the recheck from step 4 is what says so.
 
 ### A round that posted nothing says what the PR does
 
-When this round read code and published no comment at all — not one `blocking`, not one `suggestion` — it hands the user a merge recommendation with nothing in it about what is being merged. So in that case print a plain-language summary of the PR directly above the verdict block.
+When this round read code and published no comment at all — not one `blocking`, not one `suggestion`, and no thread reopened — it hands the user a merge recommendation with nothing in it about what is being merged. So in that case print a plain-language summary of the PR directly above the verdict block.
 
 Two things bound that:
 
@@ -217,7 +251,7 @@ It goes to the chat only, in the language of the discussion — never to the PR.
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{First round | Follow-up round} — {b} blocking, {s} suggestions, {x} dropped below the bar
+{First round | Follow-up round} — {b} blocking, {s} suggestions, {x} dropped below the bar, {r} threads reopened
 Recheck: {one line per changed file, or "clean"}
 
 ## ✅ VERDICT: READY TO MERGE
