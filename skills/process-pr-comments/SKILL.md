@@ -16,9 +16,10 @@ Get the repository and PR number in parallel:
 ```sh
 gh pr view --json number --jq '.number'
 gh repo view --json nameWithOwner --jq '.nameWithOwner'
+gh api user --jq '.login'
 ```
 
-`gh pr view` without an argument resolves the PR of the current branch; pass the number explicitly when the user named one. If it fails because the branch has no open PR, **stop** and ask which PR to work through.
+The login is the one this pass posts under, which step 3 needs to tell the replies it left on an earlier pass from other people's comments. `gh pr view` without an argument resolves the PR of the current branch; pass the number explicitly when the user named one. If it fails because the branch has no open PR, **stop** and ask which PR to work through.
 
 Load the review threads with their thread IDs — the ID is required to resolve a thread in step 4:
 
@@ -32,7 +33,7 @@ query {
         nodes {
           id
           isResolved
-          root: comments(first: 1) { nodes { databaseId body path line author { login } } }
+          root: comments(first: 1) { nodes { databaseId body path line author { login __typename } } }
           comments(last: 20) {
             totalCount
             nodes {
@@ -41,7 +42,7 @@ query {
               body
               path
               line
-              author { login }
+              author { login __typename }
               createdAt
             }
           }
@@ -68,7 +69,7 @@ Two details that decide whether "every unresolved comment" is true:
       ... on PullRequestReviewThread {
         comments(first: 100) {
           pageInfo { hasNextPage endCursor }
-          nodes { body author { login } createdAt }
+          nodes { body author { login __typename } createdAt }
         }
       }
     }
@@ -94,7 +95,7 @@ For each comment (or group of related ones):
    - "the tests will break" → run the tests
    - "the type is incompatible" → read the type definition
    - "the file does not export X" → read the file
-3. Scrutinize bot comments (Copilot, CodeRabbit, …) especially hard — they are often wrong from missing context. Who wrote a comment is read off `author.login`: a `[bot]` suffix or a known reviewer name. **A body opening with 🤖 settles it — that is a machine, whatever the login says.** `ali-review-pr` marks every finding it publishes that way, and its comments arrive under the login of whoever the token belongs to, so the heuristic alone reads them as a person's.
+3. Scrutinize bot comments (Copilot, CodeRabbit, …) especially hard — they are often wrong from missing context. **A comment is a machine's when its author's `__typename` is `Bot`, or when its body opens with 🤖** — and a person's otherwise. Do not look for a `[bot]` suffix on the login: GraphQL returns bot logins without it, so `github-actions` and `copilot-pull-request-reviewer` arrive bare and only `__typename` tells them apart from people. The 🤖 half is the other direction: `ali-review-pr` marks every finding it publishes that way, and its comments arrive under the login of whoever the token belongs to, so the author alone reads them as a person's. **The verdict is over the whole thread, not its opening comment: the thread is a machine's only while its root is a machine's and no later comment comes from a person other than the login of step 1**, because the moment someone joins a bot's thread it is a discussion a person is reading. That login is excluded because the replies this skill leaves go out under it, so an earlier pass's own reply would otherwise turn every thread it touched into a person's. The verdict carries into step 4, where it decides whether the reply is shown before it goes out.
 4. Check the last reply first: if the thread already agreed on an outcome and only the resolve click is missing, do not re-open the discussion — say so and offer to just resolve it.
 
 ### Grounds for rejecting it
@@ -140,9 +141,12 @@ Once the user decides:
 
 1. **If the decision is to change the code** — make the change.
 2. **Decide whether a reply is needed at all.** If the last replies already state the outcome and only the resolve click is missing — the case step 3 checks for before presenting anything — post nothing: say in the chat which reply settled it and go straight to item 4. Repeating a decision the thread already holds is exactly the noise that check exists to avoid. **A rejection is the exception: it always gets a reply, naming the ground it fell under.** That reply is the ledger entry the next round reads; a point turned down in silence comes straight back.
-3. **When a reply is going out, show it before posting.** Print the exact text that will go into the thread and wait for the user to approve or correct it. It is published under their name in a place they cannot edit away, so it is the one thing here that is not yours to send unilaterally. This is the only pause in step 4, and it happens only when something is actually being sent.
+3. **A reply to a person is shown before it goes out; a reply to a machine is posted straight away.** Which of the two this thread is was already settled in step 3, and is not re-decided here.
 
-   **Post the approved text from a file, never inline in the command.** Write it with the file-creation tool — not with a heredoc, not with `echo` — into a temp dir, never into the working tree, and let `gh` read it back:
+   - **Person** — print the exact text that will go into the thread and wait for the user to approve or correct it. It is published under their name in a place they cannot edit away, so it is the one thing here that is not yours to send unilaterally. This is the only pause in step 4, and it happens only when something is actually being sent to a person.
+   - **Machine** — post it without asking, then print in the chat what was sent. No one reads a bot thread for tone, and a bot round is mostly rejections, each of which owes the ledger a reply: stopping for approval on every one is what makes a twenty-comment pass unfinishable.
+
+   **Either way, post the reply from a file, never inline in the command.** Write it with the file-creation tool — not with a heredoc, not with `echo` — into a temp dir, never into the working tree, and let `gh` read it back:
 
    ```sh
    gh api repos/{owner}/{repo}/pulls/{number}/comments/{root_databaseId}/replies -F body=@{file} --jq '.id'
