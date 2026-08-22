@@ -16,9 +16,10 @@ Get the repository and PR number in parallel:
 ```sh
 gh pr view --json number --jq '.number'
 gh repo view --json nameWithOwner --jq '.nameWithOwner'
+gh api user --jq '.login'
 ```
 
-`gh pr view` without an argument resolves the PR of the current branch; pass the number explicitly when the user named one. If it fails because the branch has no open PR, **stop** and ask which PR to work through.
+The login is the one this pass posts under, which step 3 needs to tell the replies it left on an earlier pass from other people's comments. `gh pr view` without an argument resolves the PR of the current branch; pass the number explicitly when the user named one. If it fails because the branch has no open PR, **stop** and ask which PR to work through.
 
 Load the review threads with their thread IDs — the ID is required to resolve a thread in step 4:
 
@@ -94,7 +95,7 @@ For each comment (or group of related ones):
    - "the tests will break" → run the tests
    - "the type is incompatible" → read the type definition
    - "the file does not export X" → read the file
-3. Scrutinize bot comments (Copilot, CodeRabbit, …) especially hard — they are often wrong from missing context. **A comment is a machine's when its author's `__typename` is `Bot`, or when its body opens with 🤖** — and a person's otherwise. Do not look for a `[bot]` suffix on the login: GraphQL returns bot logins without it, so `github-actions` and `copilot-pull-request-reviewer` arrive bare and only `__typename` tells them apart from people. The 🤖 half is the other direction: `ali-review-pr` marks every finding it publishes that way, and its comments arrive under the login of whoever the token belongs to, so the author alone reads them as a person's. **The verdict is over the whole thread, not its opening comment: one person's comment anywhere in it makes the thread a person's**, because the moment someone joins a bot's thread it is a discussion a person is reading. A reply this skill posted on an earlier pass counts as a person's too — it is under the user's login — and the cost of that is one pause, which is the side to err on. The verdict carries into step 4, where it decides whether the reply is shown before it goes out.
+3. Scrutinize bot comments (Copilot, CodeRabbit, …) especially hard — they are often wrong from missing context. **A comment is a machine's when its author's `__typename` is `Bot`, or when its body opens with 🤖** — and a person's otherwise. Do not look for a `[bot]` suffix on the login: GraphQL returns bot logins without it, so `github-actions` and `copilot-pull-request-reviewer` arrive bare and only `__typename` tells them apart from people. The 🤖 half is the other direction: `ali-review-pr` marks every finding it publishes that way, and its comments arrive under the login of whoever the token belongs to, so the author alone reads them as a person's. **The verdict is over the whole thread, not its opening comment: the thread is a machine's only while its root is a machine's and no later comment comes from a person other than the login of step 1**, because the moment someone joins a bot's thread it is a discussion a person is reading. That login is excluded because the replies this skill leaves go out under it, so an earlier pass's own reply would otherwise turn every thread it touched into a person's. The verdict carries into step 4, where it decides whether the reply is shown before it goes out.
 4. Check the last reply first: if the thread already agreed on an outcome and only the resolve click is missing, do not re-open the discussion — say so and offer to just resolve it.
 
 ### Grounds for rejecting it
