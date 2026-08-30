@@ -70,6 +70,11 @@ shell tool's `run_in_background` — and not waiting on it here. Run that comman
 the foreground and the Claude subagent is not dispatched until Codex has finished
 and published, which is exactly the order this rule exists to prevent.
 
+**Both prompts ask for one more thing: the plain-language summary `ali-review-pr`
+already writes when a round publishes nothing.** That skill owns when the summary
+exists and what it says; the ask here is only to return it, so this run has it to
+print. A reviewer whose own rules produced none returns none.
+
 **Codex.** Write the prompt to a file exactly as `ali-review-pr` writes its own
 request bodies — its rule for that file, temp dir and literal absolute path alike,
 holds here unchanged — then:
@@ -80,7 +85,8 @@ codex exec - -s workspace-write -c sandbox_workspace_write.network_access=true <
 
 The prompt in that file: use the `$ali-review-pr` skill to review PR #{number},
 the user's own scope if they gave one, the checkout answer from step 1, and one
-line saying to ask nothing and to end with the verdict block.
+line saying to ask nothing, to end with the verdict block, and to return that
+summary with it.
 
 **The prompt goes through a file, never on the command line.** The user's scope is
 free text, and one apostrophe in it — `the parser's error paths` — closes the
@@ -103,7 +109,8 @@ alone. One review is worth more than a stopped run.
 
 **Claude.** The `Agent` tool, `model: "opus"`, told to invoke the `ali-review-pr`
 skill on PR #{number}, carrying the same scope and the same checkout answer, to
-ask nothing, and to return the verdict block it ends with.
+ask nothing, and to return the verdict block it ends with together with that
+summary.
 
 Then say in one line which two reviewers are running, so the wait is not silent.
 
@@ -113,6 +120,17 @@ Do nothing while they work — no partial report, and above all no comment pass 
 half the findings. When both are in, print the two verdicts side by side, each
 labelled with the model that produced it, and nothing else: the findings are on
 the PR, not in this summary.
+
+**One exception, and only one: the all-clear.** Every verdict that came in says
+ready to merge and no reviewer published a comment this run — the state `ali-review-pr` writes
+its plain-language summary for, and the one where the verdicts alone say nothing
+about what is being merged. Print that summary after them, in the user's language and to the chat only,
+never onto the PR, whose description already answers that question there.
+Where both reviewers returned one, print one and add only what the other names and
+it does not; two summaries of one change is the noise this exception is narrow to
+avoid. Where neither did — a round that verified nothing writes none — print
+nothing, and go on to step 4 either way, which is where the threads this run did
+not touch are dealt with.
 
 **A verdict saying nothing was pushed since the last review is not always
 agreement.** When both reviewers ran, the other verdict says which of its two
