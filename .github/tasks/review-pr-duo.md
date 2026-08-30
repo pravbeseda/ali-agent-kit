@@ -46,7 +46,7 @@ learns anything about subagents. The new skill only dispatches.
       stripping, per-agent filtering and the prune-on-narrowing case, and they fail
       before the change
 
-- [ ] 2. **The orchestrator skill.** `skills/review-pr-duo/SKILL.md`, frontmatter
+- [x] 2. **The orchestrator skill.** `skills/review-pr-duo/SKILL.md`, frontmatter
       `agents: claude-code` and `disable-model-invocation: true`. What it does:
       1. Resolve the PR — `$ARGUMENTS` or the current branch's PR; stop if there is
          none.
@@ -70,9 +70,9 @@ learns anything about subagents. The new skill only dispatches.
       — done when: the skill loads under `npm run check` and a live run on a real PR
       produces two reviews and one comment pass
 
-- [ ] 3. **Documentation.** A row in the README skills table (`test/readme.test.js`
-      fails until it is there), and a section in `docs/agent-plugins.md` on scoping
-      a skill to named agents.
+- [ ] 3. **Documentation.** A section in `docs/agent-plugins.md` on scoping a skill
+      to named agents. The README skills row moved into step 2: `test/readme.test.js`
+      fails without it, so the step could not end green otherwise.
       — done when: `npm run check` is green
 
 - [ ] 4. **Live verification** on a real PR in another repository: both reviews
