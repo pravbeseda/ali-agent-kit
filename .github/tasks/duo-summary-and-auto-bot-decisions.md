@@ -14,7 +14,7 @@ asking the user about a machine's finding that has only one sensible answer.
 
 ## Steps
 - [x] 1. `review-pr-duo`: both dispatch prompts ask for a plain-language summary, and step 3 prints one when both reviewers cleared the PR and neither published a comment — files: `skills/review-pr-duo/SKILL.md` — done when: `npm run check` is green and step 2's two prompts and step 3's all-clear branch both name the summary
-- [ ] 2. `process-pr-comments`: a machine's finding whose options have one obviously right answer is decided without asking; behaviour changes and equal options still go to the user — files: `skills/process-pr-comments/SKILL.md` — done when: `npm run check` is green, step 3 names the rule with both exceptions, step 2's one-at-a-time rule accounts for it, and the close block reports what was decided unattended
+- [x] 2. `process-pr-comments`: a machine's finding whose options have one obviously right answer is decided without asking; behaviour changes and equal options still go to the user — files: `skills/process-pr-comments/SKILL.md` — done when: `npm run check` is green, step 3 names the rule with both exceptions, step 2's one-at-a-time rule accounts for it, and the close block reports what was decided unattended
 
 ## Rulings
 - Step 1, spec `suggestion`: the commit flips the step's checkbox in this plan

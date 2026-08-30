@@ -86,7 +86,7 @@ Work through the threads where `isResolved == false`, storing each thread `id`. 
 
 Print one line: how many unresolved comments there are and who left them (people / bots). Then go straight into the first one.
 
-> **Mandatory: show exactly ONE comment at a time.** Present a comment → wait for the user → apply the decision → only then show the next. Never put two or more comments in one message. The single exception: several comments about the same thing (one topic, one decision) may be grouped — that is rare.
+> **Mandatory: show exactly ONE comment at a time.** Present a comment → wait for the user → apply the decision → only then show the next. Never put two or more comments in one message. Two exceptions: several comments about the same thing (one topic, one decision) may be grouped — that is rare — and a machine's comment step 3 decides on its own is never presented at all, only reported in the two lines that step defines.
 
 ## Step 3. Assess one comment
 
@@ -136,6 +136,18 @@ Accept freely in the other direction: a comment that **removes** code or a conce
 ```
 
 Wait for the user's decision. Do not move on until they answer.
+
+### The one case that does not wait
+
+**A machine's thread whose options have a single right answer is decided here, without asking.** Item 3 already settled that the thread is a machine's, and the assessment above already settled what the answer is — the claim is wrong against the code, or it is right and the fix is small and obvious. Presenting that is asking the user to confirm arithmetic, and a bot round is mostly such threads. Decide it, apply step 4, and say in two lines what you decided and on which ground — the same grounds as above — instead of the block. Then go straight to the next comment.
+
+**Three things go to the user however obvious they look:**
+
+- **The decision changes what the software does for whoever uses or runs it** — an error message, a default, an empty state, a public contract, a stored format. This one is the reason the rule is narrow: a bot is a fine judge of code and no judge at all of what the product should do.
+- **Two or more options are genuinely worth the same**, so choosing between them is a preference rather than a finding.
+- **The thread is a person's.** Nothing here changes that; only machine threads are ever decided unattended.
+
+**Weighing it is the answer.** If deciding takes an argument, the option was not obvious, and it goes to the user in the block above.
 
 ## Step 4. Apply and move on
 
@@ -217,6 +229,7 @@ Print it as the last block of the pass, with the line on its own and nothing aft
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 This pass: {N} threads — {C} changed the code, {U} left it as it was
+Decided without asking: {n} machine threads, or "none"
 Deferred, still open: {one line, or "none"}
 Pushed: {sha} → {branch}, or "nothing to commit"
 
