@@ -98,6 +98,21 @@ learns anything about subagents. The new skill only dispatches.
   truthy, so `appliesTo` would answer no for every agent and the skill would
   install nowhere without a word. That silent no-install is the failure the step
   exists to prevent. Cost if this is wrong: five lines of guard and one test.
+- Step 2 fired four review lenses (spec, quality, structure, security): one prose
+  file that dispatches a subagent, shells out to another CLI and speaks for two
+  sibling skills is three planes of risk in one step. Eight blocking findings came
+  out of it, all fixed; a step this broad should have been split.
+- Spec reviewer — the "if one of them failed, carry on with the other" branch and
+  the Language section are not in the step's wording. **Kept.** A spawned process
+  that dies is a case this skill creates by spawning it, and without that line the
+  run reports nothing at all; every sibling skill carries a Language section.
+  Cost if this is wrong: four lines.
+- Spec reviewer — the command deviates from the step's literal double-quoted
+  `codex exec "..."`. **Kept and taken further:** the prompt now goes through a
+  file on stdin, because the step's own form lets the shell eat `$ali-review-pr`
+  and a quote in the user's scope.
+- Spec reviewer — the live-run half of the done-criterion is unevidenced in the
+  diff. **True and open:** it is plan step 4, and nothing here claims otherwise.
 
 ## Parked
 

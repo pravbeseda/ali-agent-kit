@@ -7,68 +7,103 @@ disable-model-invocation: true
 
 # Review PR twice
 
-Run `ali-review-pr` twice over the same pull request, on two different models that
-cannot see each other's reasoning, wait for both, and hand what they published to
+Run `ali-review-pr` twice over the same pull request, on two models that cannot
+see each other's reasoning, wait for both, and hand what they published to
 `ali-process-pr-comments`. This skill reviews nothing itself: it resolves the PR,
-answers the one question the reviewers cannot ask, dispatches them, and gets out
-of the way.
+answers the one question the reviewers cannot be asked, dispatches them, and gets
+out of the way.
 
 > **Not `ali-review-pr`:** that skill is the review. This one runs two copies of it.
-> **Manual only.** It spawns processes and publishes to a pull request, so it
+> **Manual only.** It spawns a process and publishes to a pull request, so it
 > starts when the user asks for it and never on its own.
 
-## Step 1. Resolve the PR, and settle the question the reviewers cannot ask
+**Run it on pull requests you trust.** The Codex reviewer works unattended, with
+the network open and this machine's `gh` credentials, over text somebody else
+wrote — a diff, a description, existing comments. On a PR from a stranger's fork
+that is content nobody has vetted driving an agent nobody is watching. Step 2
+stops and asks before dispatching such a PR; `ali-review-pr` in your own session
+is the answer that stays supervised.
+
+## Step 1. Resolve the PR, and settle the one question for both
 
 ```sh
-gh pr view --json number,headRefOid,headRefName --jq '{number: .number, sha: .headRefOid, branch: .headRefName}'
+gh pr view --json number,headRefOid,headRefName,isCrossRepository --jq '{number: .number, sha: .headRefOid, branch: .headRefName, fork: .isCrossRepository}'
 git rev-parse --abbrev-ref HEAD
 git status --short
 git rev-parse HEAD
 ```
 
 `gh pr view` without an argument resolves the PR of the current branch; pass the
-number explicitly when the user named one. **No PR, no run** — say so and ask for
-a number rather than reviewing the branch, which is `ali-review-branch`.
+number explicitly when the user named one. **No PR, no run** — stop, and follow
+`ali-review-pr` step 1's own rule about what to say.
 
 **Then settle the checkout question here, before anything is dispatched.**
 `ali-review-pr` step 1 stops and asks the user when the checkout is the PR's own
-branch and holds work the PR does not — uncommitted paths, or a `HEAD` that
-differs from `headRefOid`. Neither a subagent nor a `codex exec` process can hold
-that conversation: one would guess, the other would sit there. So ask it yourself,
-exactly once, and pass the answer down to both.
+branch and holds work the PR does not. Neither a subagent nor a `codex exec`
+process can hold that conversation: one would guess, the other would sit there.
+So apply that skill's rule against the output above, and where it says to ask,
+ask — in the shape it defines, with the ways forward it offers — exactly once.
 
-Ask only when the current branch **is** `headRefName` and either check comes back
-dirty. Otherwise the local state has nothing to do with the PR — dispatch straight
-away.
+**If the user chooses to stop and push first, the run ends here** — that is one of
+the two ways forward that question offers, and dispatching anyway would review the
+state they just said not to review. Otherwise both dispatch prompts below carry
+their answer verbatim: an answer settled here and not passed down leaves each
+reviewer facing the question it was told not to ask.
 
 ## Step 2. Dispatch both reviewers
 
-Both run at the same time, in a context that has never seen this conversation, and
-both publish under the `gh` login of this machine.
+**A PR from a fork stops here for one question.** `fork` is true, so its branch,
+its diff and its description were written by somebody outside this repository, and
+the Codex side reads all three unsupervised with the network open. Say that, and
+dispatch only if the user says to.
 
-**Claude.** The `Agent` tool, `model: "opus"`, told to invoke the `ali-review-pr`
-skill on the PR by number, to ask nothing, and to return the verdict block it ends
-with.
+Both publish under the `gh` login of this machine, and each works in a context
+that has never seen this conversation.
 
-**Codex.** In the background, from the repository root:
+**Start the background Codex process first, then the Claude subagent — that order,
+and no work in between.** `ali-review-pr` reads the PR's existing 🤖 threads to
+decide which round it is in, and a review published before the other reviewer gets
+that far turns the second run into a follow-up round with nothing new to review,
+which by that skill's own rule publishes nothing at all. Both must have started
+before either can publish.
+
+**Codex.** Write the prompt to a file with the file-creation tool, into a temp
+dir — never into the working tree, which may be the branch under review — then:
 
 ```sh
-codex exec 'Use $ali-review-pr to review PR #{number}. Ask nothing: if something is ambiguous, review the pushed state and say so at the end.' -s workspace-write -c sandbox_workspace_write.network_access=true
+codex exec - -s workspace-write -c sandbox_workspace_write.network_access=true < "{file}"
 ```
 
-**Single quotes, always.** `$ali-review-pr` is how Codex names a skill, and a
-double-quoted string hands that to the shell instead, which expands it to nothing
-and asks Codex to review a PR with no instructions at all.
+The prompt in that file: use the `$ali-review-pr` skill to review PR #{number},
+the user's own scope if they gave one, the checkout answer from step 1, and one
+line saying to ask nothing and to end with the verdict block.
+
+**The prompt goes through a file, never on the command line.** The user's scope is
+free text, and one apostrophe in it — `the parser's error paths` — closes the
+quoting and hands the rest of the sentence to the shell.
+
+**Call the file `codex-review-prompt.md`, and nothing derived from the PR.** The
+path is the one thing still on that command line, and a branch name is the PR
+author's to choose: `pr-$(...)` is a legal ref, and a file named after it puts a
+command substitution back into the very command the file was meant to keep clean.
+Name it by the literal absolute path it was written to, in double quotes as above,
+and never `$TMPDIR` or `~` — the shell expands those in a different environment
+than the file-creation tool wrote in.
 
 **The network flag is not optional.** Codex's `workspace-write` sandbox has no
-network, and `ali-review-pr` publishes its findings with `gh api` — without the
-flag the run looks like a review that simply found nothing.
-
-Model and reasoning effort come from the user's `~/.codex/config.toml`; do not
-override them.
+network, and `ali-review-pr` publishes with `gh api` — without the flag the run
+looks like a review that found nothing, and with it the process reaches the whole
+network, which is what the fork question above is for. Model and reasoning effort
+come from the user's `~/.codex/config.toml`; do not override them.
 
 **If `codex` is not on the PATH**, say so in one line and run the Claude side
 alone. One review is worth more than a stopped run.
+
+**Claude.** The `Agent` tool, `model: "opus"`, told to invoke the `ali-review-pr`
+skill on PR #{number}, carrying the same scope and the same checkout answer, to
+ask nothing, and to return the verdict block it ends with.
+
+Then say in one line which two reviewers are running, so the wait is not silent.
 
 ## Step 3. Wait for both
 
@@ -76,6 +111,13 @@ Do nothing while they work — no partial report, and above all no comment pass 
 half the findings. When both are in, print the two verdicts side by side, each
 labelled with the model that produced it, and nothing else: the findings are on
 the PR, not in this summary.
+
+**A verdict saying nothing was pushed since the last review is not agreement**, and
+which of its two causes this is depends on whether a 🤖 review of this same commit
+was already on the PR before this run started. If it was, the reviewer is right:
+this head has been reviewed and nothing has been pushed since. If it was not, that
+reviewer read the other one's comments as an earlier round of its own and reviewed
+nothing. Say which, rather than reporting either as a clean second opinion.
 
 If one of them failed — a non-zero exit, a subagent that came back empty — say
 which one and what it said, and carry on with the other's findings.
@@ -93,8 +135,7 @@ as it always does, and it is the only thing in this run that edits code.
 ## Language
 
 Conduct the run in the language the user writes in, or the chat language
-configured by the user, if one is defined. Everything published to the PR is
-English, which is `ali-review-pr`'s own rule and not this skill's to change.
+configured by the user, if one is defined.
 
 ## Extra context
 
