@@ -139,7 +139,7 @@ Wait for the user's decision. Do not move on until they answer.
 
 ### The one case that does not wait
 
-**A machine's thread whose options have a single right answer is decided here, without asking.** Item 3 already settled that the thread is a machine's, and the assessment above already settled what the answer is — the thread settled it itself, the claim is wrong against the code, or it is right and the fix is small and obvious. Presenting that is asking the user to confirm arithmetic, and a bot round is mostly such threads. Decide it, apply step 4, and say in two lines what you decided and on which ground — one of the grounds for rejecting it above, or the failure the fix removes — instead of the block. Then go straight to the next comment.
+**A machine's thread whose options have a single right answer is decided here, without asking.** Item 3 already settled that the thread is a machine's, and the assessment above already settled what the answer is — the thread settled it itself, the claim is wrong against the code, or it is right and the fix is small and obvious. Presenting that is asking the user to confirm arithmetic, and a bot round is mostly such threads. Decide it, apply step 4, and say in two lines what you decided and on which ground — one of the grounds for rejecting it above, the reply that settled the thread, or the failure the fix removes — instead of the block. Then go straight to the next comment.
 
 **Three things go to the user however obvious they look:**
 
