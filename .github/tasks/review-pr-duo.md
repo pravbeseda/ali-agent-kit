@@ -33,7 +33,7 @@ learns anything about subagents. The new skill only dispatches.
 
 ## Steps
 
-- [ ] 1. **Scope a skill to named agents.** `agents: claude-code` (comma-separated
+- [x] 1. **Scope a skill to named agents.** `agents: claude-code` (comma-separated
       ids or aliases) in the source frontmatter. `src/skills.js` parses it into
       `skill.agents`, rejects an unknown id at load time — so `npm run check`
       catches a typo instead of installing the skill nowhere — and strips the key

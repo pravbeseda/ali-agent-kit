@@ -324,3 +324,36 @@ test('a missing agent is reported once, with its default config dir', () => {
   assert.deepEqual(skipped.map((a) => a.adapter.id).sort(), ['claude-code', 'codex', 'copilot']);
   assert.equal(skipped[0].configDir, join(home, '.claude'));
 });
+
+/** A skill scoped to named agents with the frontmatter `agents:` key. */
+function scopedSkills(name, agents) {
+  const dir = mkdtempSync(join(tmpdir(), 'ali-src-'));
+  writeFileSync(
+    join(dir, `${name}.md`),
+    `---\nname: ${name}\ndescription: scoped\nagents: ${agents}\n---\nbody\n`
+  );
+  return loadSkills(dir);
+}
+
+test('a scoped skill installs only into the agents it names', () => {
+  const home = fakeHome(['claude', 'codex']);
+  const result = sync({ skills: scopedSkills('duo', 'claude-code'), home, env });
+
+  assert.ok(existsSync(join(home, '.claude/skills/ali-duo/SKILL.md')));
+  assert.ok(!existsSync(join(home, '.codex/skills/ali-duo')));
+
+  const codex = result.agents.find((a) => a.adapter.id === 'codex');
+  assert.deepEqual(codex.added, [], 'the codex location is still visited, with nothing to write');
+});
+
+test('narrowing a skill scope prunes the copy from the agent it dropped', () => {
+  const home = fakeHome(['claude', 'codex']);
+  sync({ skills: sourceSkills({ duo: 'unscoped' }), home, env });
+  assert.deepEqual(installedSkills(join(home, '.codex/skills')), ['ali-duo']);
+
+  const result = sync({ skills: scopedSkills('duo', 'claude-code'), home, env });
+
+  assert.deepEqual(result.agents.find((a) => a.adapter.id === 'codex').removed, ['ali-duo']);
+  assert.ok(!existsSync(join(home, '.codex/skills/ali-duo')));
+  assert.ok(existsSync(join(home, '.claude/skills/ali-duo/SKILL.md')));
+});

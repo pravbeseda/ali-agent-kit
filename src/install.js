@@ -182,6 +182,11 @@ function writeSkillAtomically(skillsDir, skill) {
   }
 }
 
+/** Whether a skill's `agents:` scope lets it into this agent. No scope, every agent. */
+function appliesTo(skill, adapter) {
+  return !skill.agents || skill.agents.includes(adapter.id);
+}
+
 /** Apply an adapter's transform and check that it returned a usable skill. */
 function reshape(target, skill) {
   const shaped = target.adapter.transform(skill);
@@ -248,9 +253,13 @@ export function sync({
   const results = [];
 
   for (const target of detected) {
-    // Reshape first: the plan below must reason about the paths we will really
+    // Scope first, so a skill this agent is not meant to have is absent from the
+    // plan — which is also what makes pruning drop a copy an earlier version,
+    // or a wider scope, installed here.
+    const scoped = skills.filter((skill) => appliesTo(skill, target.adapter));
+    // Reshape next: the plan below must reason about the paths we will really
     // write, or a renaming transform would make us prune what we just installed.
-    const shaped = target.adapter.transform ? skills.map((skill) => reshape(target, skill)) : skills;
+    const shaped = target.adapter.transform ? scoped.map((skill) => reshape(target, skill)) : scoped;
     const restored = reclaimLeftovers(target.skillsDir, { dryRun });
     const plan = inspect(target, shaped, prune);
     const skip = new Set(plan.conflicts.map((conflict) => conflict.name));

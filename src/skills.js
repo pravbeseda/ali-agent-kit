@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, lstatSync, existsSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { INSTALL_NOTICE, MARKER, NOTICE_SENTINEL, PREFIX, skillsSourceDir } from './config.js';
+import { getAdapter } from './adapters/index.js';
 
 /**
  * A skill as it lives in this repo.
@@ -8,6 +9,7 @@ import { INSTALL_NOTICE, MARKER, NOTICE_SENTINEL, PREFIX, skillsSourceDir } from
  * @property {string} sourceName  name in the repo, e.g. `review-branch`
  * @property {string} name        published name, e.g. `ali-review-branch`
  * @property {string} description from frontmatter
+ * @property {string[]|null} agents adapter ids this skill installs into; null means every agent
  * @property {{path: string, content: Buffer|string, mode: number}[]} files
  *           paths relative to the skill dir; `mode` keeps the executable bit of
  *           bundled scripts, which a plain write would drop
@@ -140,14 +142,74 @@ function buildSkill(sourceName, files, sourcePath) {
     );
   }
 
+  const agents = parseAgents(fields.agents, sourcePath);
+
   const rewritten = files.slice();
   rewritten[index] = {
     path: 'SKILL.md',
-    content: withInstallNotice(rewriteFrontmatter(raw, { name, description })),
+    content: withInstallNotice(
+      rewriteFrontmatter(agents ? dropFrontmatterKey(raw, 'agents') : raw, { name, description })
+    ),
     mode: files[index].mode
   };
 
-  return { sourceName, name, description, files: rewritten };
+  return { sourceName, name, description, agents, files: rewritten };
+}
+
+/**
+ * `agents: claude, codex` scopes a skill to the agents that can actually run it
+ * — a skill built on one host's subagents is dead weight everywhere else.
+ * Ids and aliases both work and are resolved to ids here, so the installer
+ * compares them directly. Absent means every agent, which is the ordinary case.
+ */
+function parseAgents(value, sourcePath) {
+  if (value === undefined) return null;
+
+  const names = unquote(value)
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean);
+  if (!names.length) {
+    throw new SkillError(
+      `${sourcePath}: "agents" must name at least one agent, or be left out to install everywhere`
+    );
+  }
+
+  const ids = [];
+  for (const name of names) {
+    const adapter = getAdapter(name);
+    if (!adapter) {
+      throw new SkillError(
+        `${sourcePath}: unknown agent "${name}" in "agents" — a typo here would install the skill nowhere`
+      );
+    }
+    if (!ids.includes(adapter.id)) ids.push(adapter.id);
+  }
+  return ids;
+}
+
+/**
+ * Drop one key, and the folded lines that belong to it, from the frontmatter.
+ * `agents` tells this installer where to write; the agent reading the installed
+ * skill has no use for it.
+ */
+function dropFrontmatterKey(raw, key) {
+  const eol = eolOf(raw);
+  const match = raw.match(FRONTMATTER_RE);
+  const kept = [];
+  let dropping = false;
+
+  for (const line of match[1].split(/\r?\n/)) {
+    if (new RegExp(`^${key}\\s*:`).test(line)) {
+      dropping = true;
+      continue;
+    }
+    if (dropping && /^\s+\S/.test(line)) continue;
+    dropping = false;
+    kept.push(line);
+  }
+
+  return `---${eol}${kept.join(eol)}${eol}---${eol}${raw.slice(match[0].length)}`;
 }
 
 /**
