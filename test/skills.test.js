@@ -212,3 +212,37 @@ test('a source skill carrying the notice itself is rejected', () => {
     return true;
   });
 });
+
+test('an "agents" scope is read, normalized to adapter ids and kept out of the install', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'duo.md'), skillFile('duo', '\nagents: claude, codex'));
+
+  const [skill] = loadSkills(dir);
+  assert.deepEqual(skill.agents, ['claude-code', 'codex']);
+  assert.ok(
+    !/^agents:/m.test(skill.files[0].content),
+    'the scope is a build-time field — it must not reach the installed SKILL.md'
+  );
+});
+
+test('a skill without an "agents" scope installs everywhere', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'plain.md'), skillFile('plain'));
+  assert.equal(loadSkills(dir)[0].agents, null);
+});
+
+test('rejects an unknown agent in the scope', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'typo.md'), skillFile('typo', '\nagents: claude-kode'));
+  assert.throws(() => loadSkills(dir), (error) => {
+    assert.ok(error instanceof SkillError);
+    assert.match(error.message, /unknown agent "claude-kode"/);
+    return true;
+  });
+});
+
+test('rejects an empty "agents" scope', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'blank.md'), skillFile('blank', '\nagents:'));
+  assert.throws(() => loadSkills(dir), /"agents" must name at least one agent/);
+});

@@ -55,6 +55,20 @@ interface:
 
 No adapter reads that file: nested files are copied verbatim, so a per-agent file needs no code here (`test/install.test.js` pins the copy, executable bit included). Ship such files in the skill itself when other agents ignore them, and use `transform()` only when a file would confuse another agent.
 
+## Scoping a skill to some agents
+
+A skill built on something only one agent can do is dead weight in the others.
+`agents: claude-code` in its source frontmatter keeps it out of the rest; the
+README documents the key itself, under "What belongs in the frontmatter".
+
+What matters on this side of the fence: `sync()` applies the scope before it
+plans a location, so an out-of-scope agent has the skill missing from its
+want-list and the ordinary pruning path removes a copy an earlier release left
+there. Narrowing a scope needs no migration — a plain `install` is one.
+
+`transform()` is still the tool for a skill that needs *reshaping* per agent
+rather than excluding.
+
 ## Other artifact types
 
 Only Agent Skills are synced today. MCP servers, hooks, or native plugin manifests should be added as a separate artifact type on the same core, keeping both guarantees: never create an agent's config dir, and never touch a path that lacks our ownership marker.
