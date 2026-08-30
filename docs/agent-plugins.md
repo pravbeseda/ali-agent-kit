@@ -57,29 +57,15 @@ No adapter reads that file: nested files are copied verbatim, so a per-agent fil
 
 ## Scoping a skill to some agents
 
-A skill that is built on something only one agent can do is dead weight in the
-others. `agents:` in its source frontmatter says where it belongs:
+A skill built on something only one agent can do is dead weight in the others.
+`agents: claude-code` in its source frontmatter keeps it out of the rest; the
+README documents the key itself, under "What belongs in the frontmatter".
 
-```yaml
----
-name: review-pr-duo
-description: …
-agents: claude-code
----
-```
+What matters on this side of the fence: `sync()` applies the scope before it
+plans a location, so an out-of-scope agent has the skill missing from its
+want-list and the ordinary pruning path removes a copy an earlier release left
+there. Narrowing a scope needs no migration — a plain `install` is one.
 
-Ids and aliases both work, comma-separated (`agents: claude-code, codex`), and
-`src/skills.js` resolves them to ids when the skills are loaded. An unknown name
-fails `validate` — the alternative is a skill that silently installs nowhere.
-The key is stripped from the installed `SKILL.md`: it addresses this installer,
-not the agent reading the skill.
-
-The installer applies it in `sync()`, before it plans a location — so an agent
-out of scope has that skill missing from its want-list, and the ordinary pruning
-path removes a copy an earlier release put there. Narrowing a scope therefore
-needs no migration; a plain `install` is one.
-
-Leave the key out and the skill goes everywhere. That is the ordinary case, and
 `transform()` is still the tool for a skill that needs *reshaping* per agent
 rather than excluding.
 
