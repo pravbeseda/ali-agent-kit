@@ -90,12 +90,25 @@ For each open step, in order:
 
 ### 4.1 The review gate
 
-Dispatch **two subagents with a clean context, in parallel**, on a fast model — Claude Code: the `Agent` tool with `model: "fable"`; another host: its fast tier. They get the step's diff (`git show` of the step's commits), the step's own text from the plan file, and the reviewer prompt. Nothing else — no reasoning, no chat history. That blindness is the point: they judge what the code says, not what it meant.
+Dispatch **subagents with a clean context, in parallel**, on a fast model — Claude Code: the `Agent` tool with `model: "fable"`; another host: its fast tier. Each gets the step's diff (`git show` of the step's commits), the step's own text from the plan file, and its own brief. Nothing else — no reasoning, no chat history. That blindness is the point: they judge what the code says, not what it meant.
+
+**Two always run:**
 
 - **Spec reviewer** — does the diff do what this step says, all of it and only it? Its findings are: something the step asked for is missing, something outside the step arrived, the done-criterion is not actually met by what the test asserts.
 - **Quality reviewer** — [`references/reviewer-prompt.md`](references/reviewer-prompt.md), the bar `ali-review-branch` uses, unchanged.
 
-Both report `blocking` / `suggestion` findings anchored to `file:line`, or nothing.
+**Then add a lens for each trigger the diff fires, and only those:**
+
+| The diff… | Lens | It looks for |
+|---|---|---|
+| parses outside input, touches auth, permissions, secrets or a query built from data | security | the input that gets through, the value that leaks, the check that can be skipped |
+| changes a public API, a data schema, a storage or config format, or a stored value's meaning | compatibility | what breaks for data written or callers built before this change, and whether a migration exists |
+| is mostly test code — a test-only step, or a suite for behaviour nothing covered before | tests | a test green against unchanged code, a path the step claims covered and does not, a suite that pins the implementation instead of the behaviour |
+| adds a module, moves a responsibility, or introduces a seam | structure | the decision now edited in two places, the layer that gained a reason to change, the seam that leaks its other side |
+
+**A lens whose trigger did not fire is not dispatched.** An idle reviewer does not report nothing — it invents something, and a run that argues with speculation is exactly what the ledger is meant to prevent. The ordinary step fires none of them and is reviewed by the two. **Cap the gate at four subagents — the two, plus at most two lenses;** a step that fires three is doing too much and gets split rather than reviewed by a committee. Note the added lenses on the step's line in `## Steps`, so the report says which planes were actually checked.
+
+Every lens applies the same bar as the quality reviewer, narrowed to its own plane, and reports `blocking` / `suggestion` findings anchored to `file:line`, or nothing.
 
 **Cap the fix loop at two rounds.** Round one fixes what you accept, round two re-reviews only the fix diff and fixes what it breaks. If a `blocking` finding is still standing after round two, stop the loop and escalate it as a §5 question — a third round is where an agent starts rewriting working code to satisfy a reviewer it does not understand.
 
@@ -131,7 +144,7 @@ Everything not on that list you decide yourself: naming, file layout, which help
 ## 6. The final gate
 
 1. **The whole suite**, plus whatever the repository runs before a commit — lint, types, build. Read the output. A red suite ends the run at the user, not at a PR.
-2. **One final reviewer**, clean context, the strongest model available (Claude Code: `Agent` with `model: "opus"` or better), over the whole branch diff, with the same reviewer prompt. One fix wave, then re-review only the fixes. Its residual findings are ruled on exactly as in §4.2.
+2. **The final review**, over the whole branch diff, clean context: one reviewer on the strongest model available (Claude Code: `Agent` with `model: "opus"` or better) with the reviewer prompt, plus every lens of §4.1 whose trigger the **whole** diff fires — a schema change in step 2 and its consumers in step 5 only look wrong together. One fix wave, then re-review only the fixes. Its residual findings are ruled on exactly as in §4.2.
 3. **Open the pull request** — description via `ali-generate-pr-description` if it is installed, otherwise a plain one: goal, what changed, how it was verified. Push the branch; do not merge, and do not ask to.
 4. **File the `## Parked` items** as issues on the repository's tracker, each with its `file:line` and how to see it. A finding that stays in the plan file is lost.
 5. **Report**, in this order: what now works and how to see it; every line of `## Rulings` — the decisions taken without the user; the parked issues; anything in the plan that was not done and why.
