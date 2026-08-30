@@ -119,7 +119,7 @@ The spec reviewer is the only one a tier down: its question is bounded by the st
 
 **A lens whose trigger did not fire is not dispatched.** An idle reviewer does not report nothing — it invents something, and a run that argues with speculation is exactly what the ledger is meant to prevent. The ordinary step fires none of them and is reviewed by the two.
 
-**Every lens the diff fires is dispatched.** The step is written, verified and committed by the time the gate runs, so there is nothing left to split here and nothing to gain from reviewing it thinly — the place to make a step narrower is [§2](#2-phase-0--plan-the-only-interactive-phase), where it still can be. A step that fires both lenses was broader than it was planned to be: review it in full, then write that line into `## Rulings`, because it is the signal that the next plan should cut finer. Note the added lenses on the step's line in `## Steps`, so the report says which planes were actually checked.
+**Every lens the diff fires is dispatched.** The step is written, verified and committed by the time the gate runs, so there is nothing left to split here and nothing to gain from reviewing it thinly — the place to make a step narrower is [§2](#2-phase-0--plan-the-only-interactive-phase), where it still can be. Add to the step's line in `## Steps` any lens the gate dispatched that the line does not already name, appended rather than overwriting the estimate, so the line keeps both what set the implementer's tier and which planes were actually checked.
 
 Every lens applies the same bar as the quality reviewer, narrowed to its own plane, and reports `blocking` / `suggestion` findings anchored to `file:line`, or nothing.
 
