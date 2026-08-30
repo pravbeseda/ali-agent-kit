@@ -17,5 +17,9 @@ asking the user about a machine's finding that has only one sensible answer.
 - [ ] 2. `process-pr-comments`: a machine's finding whose options have one obviously right answer is decided without asking; behaviour changes and equal options still go to the user — files: `skills/process-pr-comments/SKILL.md` — done when: `npm run check` is green, step 3 names the rule with both exceptions, step 2's one-at-a-time rule accounts for it, and the close block reports what was decided unattended
 
 ## Rulings
+- Step 1, spec `suggestion`: the commit flips the step's checkbox in this plan
+  file, which the step's `files:` list does not name → dropped, because the skill
+  running this commits the step and the updated plan file together by rule; the
+  cost if wrong is a plan file that lags the code, which is worse.
 
 ## Parked
