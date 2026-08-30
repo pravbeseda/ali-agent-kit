@@ -65,6 +65,11 @@ PR's threads makes that second run a follow-up round with nothing new in it, whi
 `ali-review-pr` step 3 answers by publishing nothing at all. Both must have started
 before either can publish.
 
+**Background means the host's own background execution** — in Claude Code, the
+shell tool's `run_in_background` — and not waiting on it here. Run that command in
+the foreground and the Claude subagent is not dispatched until Codex has finished
+and published, which is exactly the order this rule exists to prevent.
+
 **Codex.** Write the prompt to a file exactly as `ali-review-pr` writes its own
 request bodies — its rule for that file, temp dir and literal absolute path alike,
 holds here unchanged — then:

@@ -147,9 +147,7 @@ function buildSkill(sourceName, files, sourcePath) {
   const rewritten = files.slice();
   rewritten[index] = {
     path: 'SKILL.md',
-    content: withInstallNotice(
-      rewriteFrontmatter(agents ? dropAgentsKey(raw) : raw, { name, description })
-    ),
+    content: withInstallNotice(rewriteFrontmatter(dropAgentsKey(raw), { name, description })),
     mode: files[index].mode
   };
 
