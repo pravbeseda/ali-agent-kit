@@ -70,7 +70,7 @@ learns anything about subagents. The new skill only dispatches.
       — done when: the skill loads under `npm run check` and a live run on a real PR
       produces two reviews and one comment pass
 
-- [ ] 3. **Documentation.** A section in `docs/agent-plugins.md` on scoping a skill
+- [x] 3. **Documentation.** A section in `docs/agent-plugins.md` on scoping a skill
       to named agents. The README skills row moved into step 2: `test/readme.test.js`
       fails without it, so the step could not end green otherwise.
       — done when: `npm run check` is green

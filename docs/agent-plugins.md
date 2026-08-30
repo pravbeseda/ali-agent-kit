@@ -55,6 +55,34 @@ interface:
 
 No adapter reads that file: nested files are copied verbatim, so a per-agent file needs no code here (`test/install.test.js` pins the copy, executable bit included). Ship such files in the skill itself when other agents ignore them, and use `transform()` only when a file would confuse another agent.
 
+## Scoping a skill to some agents
+
+A skill that is built on something only one agent can do is dead weight in the
+others. `agents:` in its source frontmatter says where it belongs:
+
+```yaml
+---
+name: review-pr-duo
+description: …
+agents: claude-code
+---
+```
+
+Ids and aliases both work, comma-separated (`agents: claude-code, codex`), and
+`src/skills.js` resolves them to ids when the skills are loaded. An unknown name
+fails `validate` — the alternative is a skill that silently installs nowhere.
+The key is stripped from the installed `SKILL.md`: it addresses this installer,
+not the agent reading the skill.
+
+The installer applies it in `sync()`, before it plans a location — so an agent
+out of scope has that skill missing from its want-list, and the ordinary pruning
+path removes a copy an earlier release put there. Narrowing a scope therefore
+needs no migration; a plain `install` is one.
+
+Leave the key out and the skill goes everywhere. That is the ordinary case, and
+`transform()` is still the tool for a skill that needs *reshaping* per agent
+rather than excluding.
+
 ## Other artifact types
 
 Only Agent Skills are synced today. MCP servers, hooks, or native plugin manifests should be added as a separate artifact type on the same core, keeping both guarantees: never create an agent's config dir, and never touch a path that lacks our ownership marker.
