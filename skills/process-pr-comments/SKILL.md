@@ -98,7 +98,7 @@ For each comment (or group of related ones):
    - "the type is incompatible" → read the type definition
    - "the file does not export X" → read the file
 3. Scrutinize bot comments (Copilot, CodeRabbit, …) especially hard — they are often wrong from missing context. **A comment is a machine's when its author's `__typename` is `Bot`, or when its body opens with 🤖** — and a person's otherwise. Do not look for a `[bot]` suffix on the login: GraphQL returns bot logins without it, so `github-actions` and `copilot-pull-request-reviewer` arrive bare and only `__typename` tells them apart from people. The 🤖 half is the other direction: `ali-review-pr` marks every finding it publishes that way, and its comments arrive under the login of whoever the token belongs to, so the author alone reads them as a person's. **The verdict is over the whole thread, not its opening comment: the thread is a machine's only while its root is a machine's and no later comment comes from a person other than the login of step 1**, because the moment someone joins a bot's thread it is a discussion a person is reading. That login is excluded because the replies this skill leaves go out under it, so an earlier pass's own reply would otherwise turn every thread it touched into a person's. The verdict carries into step 4, where it decides whether the reply is shown before it goes out.
-4. Check the last reply first: if the thread already agreed on an outcome and only the resolve click is missing, do not re-open the discussion. On a person's thread, say so and offer to just resolve it. On a machine's, that is the single right answer the rule below takes without asking — resolve it and say which reply settled it.
+4. Check the last reply first: if the thread already agreed on an outcome and only the resolve click is missing, do not re-open the discussion. On a person's thread, say so and offer to just resolve it. On a machine's, that is the single right answer the rule below takes without asking.
 
 ### Grounds for rejecting it
 
@@ -144,7 +144,7 @@ Wait for the user's decision. Do not move on until they answer.
 **Three things go to the user however obvious they look:**
 
 - **The decision changes what the software does for whoever uses or runs it** — an error message, a default, an empty state, a public contract, a stored format. This one is the reason the rule is narrow: a bot is a fine judge of code and no judge at all of what the product should do.
-- **Two or more options are genuinely worth the same**, so choosing between them is a preference rather than a finding.
+- **Two or more ways of acting on it are genuinely worth the same** — the finding holds and there is more than one equally good fix, so choosing between them is a preference rather than a finding. A bot's alternative that merely matches the code already written is not this case: the ground above settles that one for the incumbent.
 - **The thread is a person's.** Nothing here changes that; only machine threads are ever decided unattended.
 
 **Weighing it is the answer.** If deciding takes an argument, the option was not obvious, and it goes to the user in the block above.
