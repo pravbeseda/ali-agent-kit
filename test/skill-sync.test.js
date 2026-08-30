@@ -11,8 +11,13 @@ import { skillsSourceDir } from '../src/config.js';
 
 // Normalized to LF so the paragraph-boundary search below works on a CRLF
 // checkout too — the repo has no .gitattributes and supports CRLF sources.
-const read = (name) =>
-  readFileSync(join(skillsSourceDir, name, 'SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
+// A skill name means its SKILL.md; a path ending in .md is taken as it is,
+// relative to skills/ — that is how a bundled reference file is compared too.
+const read = (source) =>
+  readFileSync(
+    join(skillsSourceDir, source.endsWith('.md') ? source : join(source, 'SKILL.md')),
+    'utf8'
+  ).replace(/\r\n/g, '\n');
 
 /**
  * Slice from `startMarker` through the paragraph containing `endMarker`
@@ -70,6 +75,24 @@ test('review-pr and review-branch state the same bar for a finding', () => {
     'The bar section differs beyond the allowed channel wording. It is duplicated on ' +
       'purpose — apply the same edit to both skills/review-pr/SKILL.md and ' +
       'skills/review-branch/SKILL.md, or extend CHANNEL_VARIANTS for an intentional difference.'
+  );
+});
+
+test('autopilot hands its reviewers the same bar as review-branch', () => {
+  const bar = (source, name) =>
+    withoutChannelWording(
+      block(source, 'A review is worth running only if', 'Not looked for at all:'),
+      1,
+      name
+    );
+
+  assert.equal(
+    bar('autopilot/references/reviewer-prompt.md', 'autopilot'),
+    bar('review-branch', 'review-branch'),
+    'The bar autopilot gives its review subagents must stay the bar review-branch ' +
+      'applies — a run that reviews itself against a different standard produces work ' +
+      'that fails review the moment a human runs one. Apply the same edit to both ' +
+      'skills/autopilot/references/reviewer-prompt.md and skills/review-branch/SKILL.md.'
   );
 });
 
