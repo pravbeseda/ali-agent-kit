@@ -238,8 +238,9 @@ function inspect(target, skills, prune) {
 }
 
 /**
- * Install/update every skill into every detected agent and drop the ones that
- * were removed from the package. Same entry point for install and update.
+ * Install/update every skill into every detected agent that its `agents:` scope
+ * allows, and drop the ones that agent should no longer hold — removed from the
+ * package, or scoped away. Same entry point for install and update.
  */
 export function sync({
   skills = loadSkills(),

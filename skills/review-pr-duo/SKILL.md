@@ -38,17 +38,16 @@ number explicitly when the user named one. **No PR, no run** — stop, and follo
 `ali-review-pr` step 1's own rule about what to say.
 
 **Then settle the checkout question here, before anything is dispatched.**
-`ali-review-pr` step 1 stops and asks the user when the checkout is the PR's own
-branch and holds work the PR does not. Neither a subagent nor a `codex exec`
-process can hold that conversation: one would guess, the other would sit there.
-So apply that skill's rule against the output above, and where it says to ask,
-ask — in the shape it defines, with the ways forward it offers — exactly once.
+`ali-review-pr` step 1 stops and asks the user about a checkout that is not the
+commit under review. Neither a subagent nor a `codex exec` process can hold that
+conversation: one would guess, the other would sit there. So apply that skill's
+rule against the output above, and where it says to ask, ask — in the shape it
+defines, with the ways forward it offers — exactly once.
 
-**If the user chooses to stop and push first, the run ends here** — that is one of
-the two ways forward that question offers, and dispatching anyway would review the
-state they just said not to review. Otherwise both dispatch prompts below carry
-their answer verbatim: an answer settled here and not passed down leaves each
-reviewer facing the question it was told not to ask.
+**If the user's answer is to stop and push first, the run ends here**; dispatching
+anyway would review the state they just said not to review. Otherwise both dispatch
+prompts below carry their answer verbatim: an answer settled here and not passed
+down leaves each reviewer facing the question it was told not to ask.
 
 ## Step 2. Dispatch both reviewers
 
@@ -61,14 +60,14 @@ Both publish under the `gh` login of this machine, and each works in a context
 that has never seen this conversation.
 
 **Start the background Codex process first, then the Claude subagent — that order,
-and no work in between.** `ali-review-pr` reads the PR's existing 🤖 threads to
-decide which round it is in, and a review published before the other reviewer gets
-that far turns the second run into a follow-up round with nothing new to review,
-which by that skill's own rule publishes nothing at all. Both must have started
+and no work in between.** A review published before the other reviewer has read the
+PR's threads makes that second run a follow-up round with nothing new in it, which
+`ali-review-pr` step 3 answers by publishing nothing at all. Both must have started
 before either can publish.
 
-**Codex.** Write the prompt to a file with the file-creation tool, into a temp
-dir — never into the working tree, which may be the branch under review — then:
+**Codex.** Write the prompt to a file exactly as `ali-review-pr` writes its own
+request bodies — its rule for that file, temp dir and literal absolute path alike,
+holds here unchanged — then:
 
 ```sh
 codex exec - -s workspace-write -c sandbox_workspace_write.network_access=true < "{file}"
@@ -86,9 +85,7 @@ quoting and hands the rest of the sentence to the shell.
 path is the one thing still on that command line, and a branch name is the PR
 author's to choose: `pr-$(...)` is a legal ref, and a file named after it puts a
 command substitution back into the very command the file was meant to keep clean.
-Name it by the literal absolute path it was written to, in double quotes as above,
-and never `$TMPDIR` or `~` — the shell expands those in a different environment
-than the file-creation tool wrote in.
+Quote it as above.
 
 **The network flag is not optional.** Codex's `workspace-write` sandbox has no
 network, and `ali-review-pr` publishes with `gh api` — without the flag the run
@@ -112,12 +109,14 @@ half the findings. When both are in, print the two verdicts side by side, each
 labelled with the model that produced it, and nothing else: the findings are on
 the PR, not in this summary.
 
-**A verdict saying nothing was pushed since the last review is not agreement**, and
-which of its two causes this is depends on whether a 🤖 review of this same commit
-was already on the PR before this run started. If it was, the reviewer is right:
-this head has been reviewed and nothing has been pushed since. If it was not, that
-reviewer read the other one's comments as an earlier round of its own and reviewed
-nothing. Say which, rather than reporting either as a clean second opinion.
+**A verdict saying nothing was pushed since the last review is not always
+agreement.** When both reviewers ran, the other verdict says which of its two
+causes this is: both saying it means the head was already reviewed before this run
+and nothing has been pushed since — they are right and the run had nothing to add
+— while only one saying it means that one read the other's fresh comments as an
+earlier round of its own and reviewed nothing. When one reviewer ran alone there is
+no second review to have misread, so it is the first case. Say which, rather than
+reporting it as a second opinion.
 
 If one of them failed — a non-zero exit, a subagent that came back empty — say
 which one and what it said, and carry on with the other's findings.

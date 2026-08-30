@@ -134,7 +134,7 @@ function runSync() {
     console.log(`\n${c.yellow(`Finished with ${result.conflicts.length} conflict(s).`)}`);
     process.exit(2);
   }
-  console.log(`\n${c.green('Done.')} ${result.skills.length} skill(s).`);
+  console.log(`\n${c.green('Done.')} ${result.skills.length} skill(s) in the package.`);
 }
 
 function runUninstall() {

@@ -113,6 +113,13 @@ learns anything about subagents. The new skill only dispatches.
   and a quote in the user's scope.
 - Spec reviewer — the live-run half of the done-criterion is unevidenced in the
   diff. **True and open:** it is plan step 4, and nothing here claims otherwise.
+- Final gate, structure lens — duo's dependency on `ali-review-pr`'s round
+  detection is documented but not pinned by `test/skill-sync.test.js`. **Left
+  unpinned.** That test compares byte-identical blocks between skills, and what
+  duo now holds is a one-line reference, not a copied block; pinning it would mean
+  inventing a block to copy. Cost if this is wrong: change how `ali-review-pr`
+  decides which round it is in, and duo's dispatch-ordering rationale goes stale
+  with a green build.
 
 ## Parked
 
