@@ -70,6 +70,13 @@ shell tool's `run_in_background` — and not waiting on it here. Run that comman
 the foreground and the Claude subagent is not dispatched until Codex has finished
 and published, which is exactly the order this rule exists to prevent.
 
+**Both prompts ask for one more thing: a short plain-language paragraph saying
+what the PR does, for a reader who has not seen the diff.** Each reviewer has read
+the whole change and this skill deliberately has not, so a summary written here
+would be a guess. Step 3 uses it only when both reviewers cleared the PR and
+throws it away otherwise — a paragraph nobody reads is cheaper than dispatching a
+third context to get one.
+
 **Codex.** Write the prompt to a file exactly as `ali-review-pr` writes its own
 request bodies — its rule for that file, temp dir and literal absolute path alike,
 holds here unchanged — then:
@@ -80,7 +87,8 @@ codex exec - -s workspace-write -c sandbox_workspace_write.network_access=true <
 
 The prompt in that file: use the `$ali-review-pr` skill to review PR #{number},
 the user's own scope if they gave one, the checkout answer from step 1, and one
-line saying to ask nothing and to end with the verdict block.
+line saying to ask nothing and to end with the verdict block followed by that
+paragraph.
 
 **The prompt goes through a file, never on the command line.** The user's scope is
 free text, and one apostrophe in it — `the parser's error paths` — closes the
@@ -103,7 +111,8 @@ alone. One review is worth more than a stopped run.
 
 **Claude.** The `Agent` tool, `model: "opus"`, told to invoke the `ali-review-pr`
 skill on PR #{number}, carrying the same scope and the same checkout answer, to
-ask nothing, and to return the verdict block it ends with.
+ask nothing, and to return the verdict block it ends with together with that
+paragraph.
 
 Then say in one line which two reviewers are running, so the wait is not silent.
 
@@ -113,6 +122,15 @@ Do nothing while they work — no partial report, and above all no comment pass 
 half the findings. When both are in, print the two verdicts side by side, each
 labelled with the model that produced it, and nothing else: the findings are on
 the PR, not in this summary.
+
+**One exception, and only one: the all-clear.** Both verdicts say ready to merge
+and neither reviewer published a comment this run, so nothing is left for the
+comment pass and the next thing the user does is decide whether to merge. Print
+the plain-language paragraph after the verdicts, in the user's language: what the
+PR does, for somebody who has not read the diff. Where the two reviewers wrote it
+differently, print one and add only what the other names and it does not — two
+summaries of one change is the noise this exception is narrow to avoid. Publish
+nothing to the PR; its description already answers that question there.
 
 **A verdict saying nothing was pushed since the last review is not always
 agreement.** When both reviewers ran, the other verdict says which of its two
