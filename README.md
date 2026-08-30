@@ -30,9 +30,9 @@ npx ali-agent-kit@latest install
 
 Same command for both — `install` and `update` are aliases. Each run:
 
-1. writes every skill from the package into every **detected** agent,
+1. writes every skill from the package into every **detected** agent — bar the few that name the agents they belong to,
 2. replaces the previously installed copies **atomically** (staging dir + `rename`, rolled back on failure — an interrupted run never leaves a half-written skill),
-3. deletes the skills that were removed from the package,
+3. deletes the skills it installed that the package no longer sends to this agent,
 4. never touches skills it did not install (an ownership marker decides), and exits with code `2` if it had to leave any such path alone.
 
 Global install if you prefer a stable binary:
@@ -102,13 +102,18 @@ description: One line on what the skill does. Use when the user asks for ... —
 - frontmatter exists and has a non-empty `description` (that is what makes an agent trigger the skill);
 - the same skill is not defined twice (`foo.md` **and** `foo/`);
 - no symlinks and no `.ali-agent-kit.json` inside the source;
-- no managed-file notice in the source — install adds it.
+- no managed-file notice in the source — install adds it;
+- `agents`, when present, names agents this package knows — a typo there would install the skill nowhere.
 
 On install, the `SKILL.md` written to an agent gets that notice inserted under the frontmatter: the copy belongs to the package, and editing it in place loses the change on the next update. Sources in `skills/` stay free of it, so it is never duplicated.
 
 ### What belongs in the frontmatter
 
-`name` and `description`, and nothing else by default. `name` is rewritten with the `ali-` prefix on install; `description` is what an agent matches to decide whether to trigger the skill. Any other key is passed through to the installed copy untouched — the loader neither reads nor validates it — so an agent-specific key can be added when an agent documents one, and `allowed-tools` is the usual example.
+`name` and `description`, and nothing else by default. `name` is rewritten with the `ali-` prefix on install; `description` is what an agent matches to decide whether to trigger the skill.
+
+`agents` is the one further key this package reads: `agents: claude-code, codex` — ids or aliases from the table above — installs the skill into those agents only, for a skill built on something the others cannot do. It is validated when the skills are loaded, stripped from the installed copy, and a copy sitting somewhere now out of scope is removed on the next update. Leave it out and the skill goes everywhere, which is the ordinary case.
+
+Any other key is passed through to the installed copy untouched — the loader neither reads nor validates it — so an agent-specific key can be added when an agent documents one, and `allowed-tools` is the usual example.
 
 `user-invocable: true` used to sit in one skill and was removed. It is not what makes a skill available as `/ali-<name>`: in Claude Code the slash command comes from the skill being installed under that name, verified by invoking a skill whose frontmatter has only `name` and `description`. Four of the five skills never carried the field, so it cannot have been gating invocation for them either. Unverified for Copilot CLI and Codex CLI, where it was equally unverified while it was still there — if a slash command ever fails to appear in one of those, this is the first thing to test.
 

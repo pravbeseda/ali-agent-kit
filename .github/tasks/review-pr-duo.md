@@ -90,7 +90,14 @@ learns anything about subagents. The new skill only dispatches.
 
 ## Rulings
 
-_(reviewer findings not fixed, and why)_
+- Step 1 fired three review lenses (spec, quality, compatibility) rather than the
+  usual two. It changed a source format, a loader and a CLI message at once; the
+  next step of this size should be cut finer.
+- Spec reviewer, `src/skills.js:172` — rejecting an empty `agents:` value goes
+  beyond the step's wording. **Kept.** An empty value parses to `[]`, which is
+  truthy, so `appliesTo` would answer no for every agent and the skill would
+  install nowhere without a word. That silent no-install is the failure the step
+  exists to prevent. Cost if this is wrong: five lines of guard and one test.
 
 ## Parked
 

@@ -148,7 +148,7 @@ function buildSkill(sourceName, files, sourcePath) {
   rewritten[index] = {
     path: 'SKILL.md',
     content: withInstallNotice(
-      rewriteFrontmatter(agents ? dropFrontmatterKey(raw, 'agents') : raw, { name, description })
+      rewriteFrontmatter(agents ? dropAgentsKey(raw) : raw, { name, description })
     ),
     mode: files[index].mode
   };
@@ -189,18 +189,18 @@ function parseAgents(value, sourcePath) {
 }
 
 /**
- * Drop one key, and the folded lines that belong to it, from the frontmatter.
- * `agents` tells this installer where to write; the agent reading the installed
- * skill has no use for it.
+ * Drop `agents`, and the folded lines that belong to it, from the frontmatter.
+ * It tells this installer where to write; the agent reading the installed skill
+ * has no use for it.
  */
-function dropFrontmatterKey(raw, key) {
+function dropAgentsKey(raw) {
   const eol = eolOf(raw);
   const match = raw.match(FRONTMATTER_RE);
   const kept = [];
   let dropping = false;
 
   for (const line of match[1].split(/\r?\n/)) {
-    if (new RegExp(`^${key}\\s*:`).test(line)) {
+    if (/^agents\s*:/.test(line)) {
       dropping = true;
       continue;
     }

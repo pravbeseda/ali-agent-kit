@@ -26,7 +26,7 @@ Usage
 Options
   --agent <id[,id]>  limit to these agents (repeatable). Values: ${AGENT_NAMES}
   --dry-run          print what would change, write nothing
-  --no-prune         keep skills that were deleted from the package
+  --no-prune         keep installed skills this run would otherwise remove
   -h, --help         this text
   -v, --version      print version
 
@@ -123,7 +123,7 @@ function runSync() {
     }
     for (const name of agent.added) console.log(`  ${c.green('+')} ${name}`);
     for (const name of agent.updated) console.log(`  ${c.dim('~')} ${name}`);
-    for (const name of agent.removed) console.log(`  ${c.red('-')} ${name} ${c.dim('(removed from package)')}`);
+    for (const name of agent.removed) console.log(`  ${c.red('-')} ${name} ${c.dim('(no longer installed here)')}`);
     for (const conflict of agent.conflicts) {
       console.log(`  ${c.yellow('!')} ${conflict.path} ${c.dim(`${conflict.reason} — left untouched`)}`);
     }
