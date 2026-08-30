@@ -1,6 +1,7 @@
 ---
 name: autopilot
 description: Implement a feature end to end with almost no interruption — plan it, then run a step → independent review → fix loop, and stop only for a strategic choice. Manual only: it commits, pushes and opens a pull request on its own, so use it only when the user explicitly hands the work over with /ali-autopilot.
+agents: claude-code
 disable-model-invocation: true
 ---
 
@@ -44,7 +45,7 @@ A file that has steps but no done-criteria is a Mode B plan with a Mode A gap: k
 
 **A step is a vertical slice with a done-criterion.** Each one names the files it touches and the observable fact that ends it — a named test that goes green, a command whose output changes. "Refactor the service" is not a step; "extract `X` so `y.test.ts` passes unchanged against it" is. A step nobody can verify has no review gate either, which is where autonomous runs turn into a pile of patches.
 
-**Keep each step inside two of §4.1's lenses.** A step that would touch outside input, a stored format and a new module at once is three risks in one diff and gets split here, while splitting still costs nothing — at the gate the step is already committed and the only remaining choice is to review it in full.
+**Name on each step's line the §4.1 lenses it is expected to fire.** A step that would touch outside input and a stored format at once carries two risks in one diff; splitting it still costs nothing here, while at the gate the step is already committed and the only remaining choice is to review it in full. The lenses are not bookkeeping: their count is what picks the implementer's model in [§4](#4-the-step-loop).
 
 **Aim for three to seven steps.** More than that and the work is not one feature — say so, propose the split, and let the user pick which part this run takes. That is a §5 question.
 
@@ -57,7 +58,7 @@ Then pick the branch. Resolve the base branch first — the repository default, 
 - **A run being resumed** — Mode B, and the evidence for the plan's finished steps sits on the current branch rather than on the base — **continues on that branch.** Creating a new one off the base would throw the finished steps away.
 - **Anything else** branches off the base.
 
-Commit the plan file as the branch's first commit — newly written in Mode A, or extended with the `## Rulings` and `## Parked` sections in Mode B. The file is the run's memory: **conversation context does not survive compaction and a todo list does not either.** Keep the in-session todo list too if the host has one, but the file is the source of truth.
+Commit the plan file as the branch's first commit — newly written in Mode A, or extended with the `## Rulings` and `## Parked` sections in Mode B. The file is the run's memory: **conversation context does not survive compaction and a todo list does not either.** Keep the in-session todo list too, but the file is the source of truth.
 
 ```markdown
 # {Feature}
@@ -70,7 +71,7 @@ Commit the plan file as the branch's first commit — newly written in Mode A, o
 {From Phase 0, and from every escalation later.}
 
 ## Steps
-- [ ] 1. {what} — files: {paths} — done when: {the observable fact}
+- [ ] 1. {what} — files: {paths} — lenses: {the §4.1 lenses this step is expected to fire, or none} — done when: {the observable fact}
 - [ ] 2. …
 
 ## Rulings
@@ -86,8 +87,10 @@ Update this file as part of each step's commit. A run that is interrupted must b
 
 For each open step, in order:
 
-1. **Implement it.** Test-first where the seam already exists — watch the test fail, then make it pass. Write the smallest thing that meets the done-criterion and nothing the criterion did not ask for.
-2. **Verify.** Run the step's tests and read the output. Never write "done" or "passing" without having seen the output in this session; a claim about a command you did not run is the one failure that makes the whole run untrustworthy.
+1. **Delegate the implementation.** One `Agent` with a clean context, on the tier the step's lens count sets: `opus` for none or one, `fable` for two. Give it the step's text, the files it names, the done-criterion, the repository's CLAUDE.md / AGENTS.md and the command that runs the tests. Tell it to work test-first where the seam already exists — watch the test fail, then make it pass — to write the smallest thing that meets the done-criterion and nothing the criterion did not ask for, to commit nothing, and to return with the question rather than ask it whenever it meets one of [§5](#5-when-to-stop-for-the-user)'s.
+
+   **Routing down is safe only because the bar does not move.** Every reviewer that judges the code against that bar stays on `fable` whatever wrote it, so a weaker implementer costs a round of fixes, never a finding nobody made. Re-read the step against the lens table before dispatching and correct the estimate upward where Phase 0 missed a plane — it is free here, and after the gate the work is already written.
+2. **Verify it yourself.** Run the step's tests and read the output. Never write "done" or "passing" without having seen the output in this session; a claim about a command you did not run — the implementer's report included — is the one failure that makes the whole run untrustworthy.
 3. **Commit** the step and the updated plan file together.
 4. **Run the review gate** ([§4.1](#41-the-review-gate)).
 5. **Rule on every finding** ([§4.2](#42-answering-a-reviewer)).
@@ -96,25 +99,27 @@ For each open step, in order:
 
 ### 4.1 The review gate
 
-Dispatch **subagents with a clean context, in parallel**, on the strongest model available — Claude Code: the `Agent` tool with `model: "fable"`; another host: its most capable tier. Each gets the step's diff (`git show` of the step's commits), the step's own text from the plan file, and its own brief. Nothing else — no reasoning, no chat history. That blindness is the point: they judge what the code says, not what it meant.
+Dispatch **subagents with a clean context, in parallel** — the `Agent` tool, each on the tier named for it below. Each gets the step's diff (`git show` of the step's commits), the step's own text from the plan file, and its own brief. Nothing else — no reasoning, no chat history. That blindness is the point: they judge what the code says, not what it meant.
 
 **Two always run:**
 
-- **Spec reviewer** — does the diff do what this step says, all of it and only it? Its findings are: something the step asked for is missing, something outside the step arrived, the done-criterion is not actually met by what the test asserts.
-- **Quality reviewer** — [`references/reviewer-prompt.md`](references/reviewer-prompt.md), the bar `ali-review-branch` uses, unchanged.
+- **Spec reviewer**, `model: "opus"` — does the diff do what this step says, all of it and only it? Its findings are: something the step asked for is missing, something outside the step arrived, the done-criterion is not actually met by what the test asserts.
+- **Quality reviewer**, `model: "fable"` — [`references/reviewer-prompt.md`](references/reviewer-prompt.md), the bar `ali-review-branch` uses, unchanged.
 
-**Then add a lens for each trigger the diff fires, and only those:**
+The spec reviewer is the only one a tier down: its question is bounded by the step's own text. Everything that judges the code against a bar rather than against a sentence stays on `fable`.
+
+**Then add a lens for each trigger the diff fires, and only those** — on `fable`, like the quality reviewer:
 
 | The diff… | Lens | It looks for |
 |---|---|---|
 | parses outside input, touches auth, permissions, secrets or a query built from data | security | the input that gets through, the value that leaks, the check that can be skipped |
 | changes a public API, a data schema, a storage or config format, or a stored value's meaning | compatibility | what breaks for data written or callers built before this change, and whether a migration exists |
-| is mostly test code — a test-only step, or a suite for behaviour nothing covered before | tests | a test green against unchanged code, a path the step claims covered and does not, a suite that pins the implementation instead of the behaviour |
-| adds a module, moves a responsibility, or introduces a seam | structure | the decision now edited in two places, the layer that gained a reason to change, the seam that leaks its other side |
+
+**Structure and tests get no lens of their own.** The quality reviewer's bar already names both — one decision edited in two places, a seam broken, an assertion that cannot fail — and the spec reviewer already asks whether the done-criterion is met by what the test asserts. A second reviewer on a plane somebody is reading anyway buys a duplicate, not a check.
 
 **A lens whose trigger did not fire is not dispatched.** An idle reviewer does not report nothing — it invents something, and a run that argues with speculation is exactly what the ledger is meant to prevent. The ordinary step fires none of them and is reviewed by the two.
 
-**Every lens the diff fires is dispatched, however many that is.** The step is written, verified and committed by the time the gate runs, so there is nothing left to split here and nothing to gain from reviewing it thinly — the place that limit belongs is [§2](#2-phase-0--plan-the-only-interactive-phase), where a step still can be made smaller. A step that fires three or more lenses was broader than it was planned to be: review it in full, then write that line into `## Rulings`, because it is the signal that the next plan should cut finer. Note the added lenses on the step's line in `## Steps`, so the report says which planes were actually checked.
+**Every lens the diff fires is dispatched.** The step is written, verified and committed by the time the gate runs, so there is nothing left to split here and nothing to gain from reviewing it thinly — the place to make a step narrower is [§2](#2-phase-0--plan-the-only-interactive-phase), where it still can be. Add to the step's line in `## Steps` any lens the gate dispatched that the line does not already name, appended rather than overwriting the estimate, so the line keeps both what set the implementer's tier and which planes were actually checked.
 
 Every lens applies the same bar as the quality reviewer, narrowed to its own plane, and reports `blocking` / `suggestion` findings anchored to `file:line`, or nothing.
 
@@ -126,7 +131,7 @@ Every lens applies the same bar as the quality reviewer, narrowed to its own pla
 
 Every finding gets exactly one of three verdicts, and all three are written down:
 
-- **Fix** — the claim holds and the fix is smaller or clearer than what is there now.
+- **Fix** — the claim holds and the fix is smaller or clearer than what is there now. You apply it yourself: the implementer has returned, and re-dispatching it would hand a ruled finding to a context that never saw the ruling.
 - **Drop, with the reason in `## Rulings`.** Legitimate reasons, and only these: the claim is wrong against the code (say which line disproves it); it has no evidence — no input, path or line where today's code goes wrong; the fix would grow the code and the finding is not `blocking`; it is a `suggestion` about a matter of taste. The last two are where KISS and YAGNI actually get enforced — a guard for a case nobody can reach, an abstraction with one caller, a parameter no caller varies, an option the feature never asked for. Adding it "because a reviewer mentioned it" is exactly how a clean change turns into a patchwork.
 - **Escalate** — it matches [§5](#5-when-to-stop-for-the-user), or it is `blocking` and still open after the second round.
 
@@ -152,13 +157,9 @@ Everything not on that list you decide yourself: naming, file layout, which help
 ## 6. The final gate
 
 1. **The whole suite**, plus whatever the repository runs before a commit — lint, types, build. Read the output. A red suite ends the run at the user, not at a PR.
-2. **The final review**, over the whole branch diff, clean context: one reviewer on the same model as the step gates (Claude Code: `Agent` with `model: "fable"`) with the reviewer prompt, plus every lens of §4.1 whose trigger the **whole** diff fires. What makes this pass stronger is its scope, not its tier — it is the only reviewer that sees the steps together — a schema change in step 2 and its consumers in step 5 only look wrong together. One fix wave, then re-review only the fixes. Its residual findings are ruled on exactly as in §4.2.
+2. **The final review**, over the whole branch diff, clean context: one reviewer on the quality reviewer's tier (`Agent` with `model: "fable"`) with the reviewer prompt, plus every lens of §4.1 whose trigger the **whole** diff fires. What makes this pass stronger is its scope, not its tier — it is the only reviewer that sees the steps together — a schema change in step 2 and its consumers in step 5 only look wrong together. One fix wave, then re-review only the fixes. Its residual findings are ruled on exactly as in §4.2.
 3. **Open the pull request** — description via `ali-generate-pr-description` if it is installed, otherwise a plain one: goal, what changed, how it was verified. Push the branch; do not merge, and do not ask to.
 4. **File the `## Parked` items** as issues on the repository's tracker, each with its `file:line` and how to see it. A finding that stays in the plan file is lost.
 5. **Report**, in this order: what now works and how to see it; every line of `## Rulings` — the decisions taken without the user; the parked issues; anything in the plan that was not done and why.
 
 The rulings list is the whole point of the report. It is the only place the user finds out what was decided for them, and it is what they will read to decide whether the next run gets a longer leash.
-
-## When the host has no subagents
-
-Say so in one line, then run each gate yourself as a **separate pass that reads only the diff and the step text** — no reference to what you were thinking while writing it — and mark every verdict "self-review, no clean context". A gate done this way catches less; the user is entitled to know which kind they got.
