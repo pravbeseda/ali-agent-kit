@@ -98,7 +98,7 @@ For each comment (or group of related ones):
    - "the type is incompatible" → read the type definition
    - "the file does not export X" → read the file
 3. Scrutinize bot comments (Copilot, CodeRabbit, …) especially hard — they are often wrong from missing context. **A comment is a machine's when its author's `__typename` is `Bot`, or when its body opens with 🤖** — and a person's otherwise. Do not look for a `[bot]` suffix on the login: GraphQL returns bot logins without it, so `github-actions` and `copilot-pull-request-reviewer` arrive bare and only `__typename` tells them apart from people. The 🤖 half is the other direction: `ali-review-pr` marks every finding it publishes that way, and its comments arrive under the login of whoever the token belongs to, so the author alone reads them as a person's. **The verdict is over the whole thread, not its opening comment: the thread is a machine's only while its root is a machine's and no later comment comes from a person other than the login of step 1**, because the moment someone joins a bot's thread it is a discussion a person is reading. That login is excluded because the replies this skill leaves go out under it, so an earlier pass's own reply would otherwise turn every thread it touched into a person's. The verdict carries into step 4, where it decides whether the reply is shown before it goes out.
-4. Check the last reply first: if the thread already agreed on an outcome and only the resolve click is missing, do not re-open the discussion — say so and offer to just resolve it.
+4. Check the last reply first: if the thread already agreed on an outcome and only the resolve click is missing, do not re-open the discussion. On a person's thread, say so and offer to just resolve it. On a machine's, that is the single right answer the rule below takes without asking — resolve it and say which reply settled it.
 
 ### Grounds for rejecting it
 
@@ -139,7 +139,7 @@ Wait for the user's decision. Do not move on until they answer.
 
 ### The one case that does not wait
 
-**A machine's thread whose options have a single right answer is decided here, without asking.** Item 3 already settled that the thread is a machine's, and the assessment above already settled what the answer is — the claim is wrong against the code, or it is right and the fix is small and obvious. Presenting that is asking the user to confirm arithmetic, and a bot round is mostly such threads. Decide it, apply step 4, and say in two lines what you decided and on which ground — the same grounds as above — instead of the block. Then go straight to the next comment.
+**A machine's thread whose options have a single right answer is decided here, without asking.** Item 3 already settled that the thread is a machine's, and the assessment above already settled what the answer is — the thread settled it itself, the claim is wrong against the code, or it is right and the fix is small and obvious. Presenting that is asking the user to confirm arithmetic, and a bot round is mostly such threads. Decide it, apply step 4, and say in two lines what you decided and on which ground — one of the grounds for rejecting it above, or the failure the fix removes — instead of the block. Then go straight to the next comment.
 
 **Three things go to the user however obvious they look:**
 
@@ -151,7 +151,7 @@ Wait for the user's decision. Do not move on until they answer.
 
 ## Step 4. Apply and move on
 
-Once the user decides:
+Once the decision is made — the user's, or the pass's own on a machine's thread:
 
 1. **If the decision is to change the code** — make the change.
 2. **Decide whether a reply is needed at all.** If the last replies already state the outcome and only the resolve click is missing — the case step 3 checks for before presenting anything — post nothing: say in the chat which reply settled it and go straight to item 4. Repeating a decision the thread already holds is exactly the noise that check exists to avoid. **A rejection is the exception: it always gets a reply, naming the ground it fell under.** That reply is the ledger entry the next round reads; a point turned down in silence comes straight back.
