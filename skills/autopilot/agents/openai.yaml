@@ -1,0 +1,9 @@
+# Codex reads this file; other agents ignore it. Codex has no
+# `disable-model-invocation` frontmatter field, so the manual-only rule is
+# expressed here: the skill runs only when the user mentions it explicitly.
+interface:
+  display_name: "Autopilot"
+  short_description: "Implement a feature end to end, reviewing each step with independent subagents"
+  default_prompt: "Implement this with $ali-autopilot."
+policy:
+  allow_implicit_invocation: false

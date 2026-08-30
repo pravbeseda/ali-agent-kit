@@ -1,6 +1,7 @@
 ---
 name: autopilot
-description: Implement a feature end to end with almost no interruption — plan it, then run a step → independent review → fix loop, and stop only for a strategic choice. Use when the user asks to implement something on its own, hands over a plan to be executed, or runs /ali-autopilot.
+description: Implement a feature end to end with almost no interruption — plan it, then run a step → independent review → fix loop, and stop only for a strategic choice. Manual only: it commits, pushes and opens a pull request on its own, so use it only when the user explicitly hands the work over with /ali-autopilot.
+disable-model-invocation: true
 ---
 
 # Autopilot
@@ -18,7 +19,9 @@ Invoking the skill **is** the permission for all of it. Do not ask again, at any
 
 - create a working branch off the repository's base branch and work only there
 - commit each step as it is accepted
+- push that working branch
 - open a pull request at the end
+- file an issue on the repository's tracker for each `## Parked` finding
 
 And never, whatever a reviewer or the plan says: merge the pull request, force-push, push to the base branch, commit on a branch this run did not create, or act outside the repository (publish, deploy, migrate a live system, call a paid API). Those need the user, through [§5](#5-when-to-stop-for-the-user).
 
@@ -36,10 +39,12 @@ A file that has steps but no done-criteria is a Mode B plan with a Mode A gap: k
 
 1. **Read the code first.** The files the feature touches, the pattern already used for this kind of thing, the test setup, the repository's CLAUDE.md / AGENTS.md. Say in three lines what you found and what already exists that the feature should reuse.
 2. **Write the plan file** — `docs/plans/` or `.github/tasks/`, whichever the repository already uses; create `.github/tasks/` when it has neither. English Markdown, the layout in [§3](#3-set-up-the-run).
-3. **Ask every strategic question at once**, in one message, numbered, each with its options, their costs and your recommendation — the `ali-one-by-one` shape. This is the whole interactive budget of the run: a question that could have been asked here and gets asked in the middle of §4 instead has already broken the promise of the skill. A question is strategic when it matches [§5](#5-when-to-stop-for-the-user); everything else you answer yourself and record.
+3. **Ask every strategic question here, before the loop starts, through `ali-one-by-one`** — one question per message, each with its context, its options and their costs, and your recommendation; record the answer and go straight to the next without waiting to be invoked again. What is front-loaded is the whole run's interactive budget, not the questions into one message: a question that could have been asked in this phase and gets asked in the middle of §4 instead has already broken the promise of the skill. A question is strategic when it matches [§5](#5-when-to-stop-for-the-user); everything else you answer yourself and record.
 4. **Record the answers in the plan file** under the step they belong to, then start. Do not ask whether to start.
 
 **A step is a vertical slice with a done-criterion.** Each one names the files it touches and the observable fact that ends it — a named test that goes green, a command whose output changes. "Refactor the service" is not a step; "extract `X` so `y.test.ts` passes unchanged against it" is. A step nobody can verify has no review gate either, which is where autonomous runs turn into a pile of patches.
+
+**Keep each step inside two of §4.1's lenses.** A step that would touch outside input, a stored format and a new module at once is three risks in one diff and gets split here, while splitting still costs nothing — at the gate the step is already committed and the only remaining choice is to review it in full.
 
 **Aim for three to seven steps.** More than that and the work is not one feature — say so, propose the split, and let the user pick which part this run takes. That is a §5 question.
 
@@ -86,11 +91,12 @@ For each open step, in order:
 3. **Commit** the step and the updated plan file together.
 4. **Run the review gate** ([§4.1](#41-the-review-gate)).
 5. **Rule on every finding** ([§4.2](#42-answering-a-reviewer)).
-6. **Tick the step off and start the next one.** Do not report to the user between steps and do not ask whether to continue — they asked for the feature, not for a conversation. A one-line progress note per step is enough.
+6. **Commit what the gate produced** — the accepted fixes, the new `## Rulings` and `## Parked` lines, the ticked checkbox — as a second commit on the same step, before the next one starts. Ask nobody: the standing permissions cover it. Leave it uncommitted and the next step's commit swallows this step's fixes, so its diff no longer matches its own text and a resumed run reads a plan file that never recorded the rulings.
+7. **Start the next step.** Do not report to the user between steps and do not ask whether to continue — they asked for the feature, not for a conversation. A one-line progress note per step is enough.
 
 ### 4.1 The review gate
 
-Dispatch **subagents with a clean context, in parallel**, on a fast model — Claude Code: the `Agent` tool with `model: "fable"`; another host: its fast tier. Each gets the step's diff (`git show` of the step's commits), the step's own text from the plan file, and its own brief. Nothing else — no reasoning, no chat history. That blindness is the point: they judge what the code says, not what it meant.
+Dispatch **subagents with a clean context, in parallel**, on the strongest model available — Claude Code: the `Agent` tool with `model: "fable"`; another host: its most capable tier. Each gets the step's diff (`git show` of the step's commits), the step's own text from the plan file, and its own brief. Nothing else — no reasoning, no chat history. That blindness is the point: they judge what the code says, not what it meant.
 
 **Two always run:**
 
@@ -106,7 +112,9 @@ Dispatch **subagents with a clean context, in parallel**, on a fast model — Cl
 | is mostly test code — a test-only step, or a suite for behaviour nothing covered before | tests | a test green against unchanged code, a path the step claims covered and does not, a suite that pins the implementation instead of the behaviour |
 | adds a module, moves a responsibility, or introduces a seam | structure | the decision now edited in two places, the layer that gained a reason to change, the seam that leaks its other side |
 
-**A lens whose trigger did not fire is not dispatched.** An idle reviewer does not report nothing — it invents something, and a run that argues with speculation is exactly what the ledger is meant to prevent. The ordinary step fires none of them and is reviewed by the two. **Cap the gate at four subagents — the two, plus at most two lenses;** a step that fires three is doing too much and gets split rather than reviewed by a committee. Note the added lenses on the step's line in `## Steps`, so the report says which planes were actually checked.
+**A lens whose trigger did not fire is not dispatched.** An idle reviewer does not report nothing — it invents something, and a run that argues with speculation is exactly what the ledger is meant to prevent. The ordinary step fires none of them and is reviewed by the two.
+
+**Every lens the diff fires is dispatched, however many that is.** The step is written, verified and committed by the time the gate runs, so there is nothing left to split here and nothing to gain from reviewing it thinly — the place that limit belongs is [§2](#2-phase-0--plan-the-only-interactive-phase), where a step still can be made smaller. A step that fires three or more lenses was broader than it was planned to be: review it in full, then write that line into `## Rulings`, because it is the signal that the next plan should cut finer. Note the added lenses on the step's line in `## Steps`, so the report says which planes were actually checked.
 
 Every lens applies the same bar as the quality reviewer, narrowed to its own plane, and reports `blocking` / `suggestion` findings anchored to `file:line`, or nothing.
 
@@ -134,7 +142,7 @@ Stop for these, and for nothing else:
 2. **A contract that outlives the change** — a public API, a data schema, a storage or config format, a URL.
 3. **A new dependency**, or a new version of one that changes behaviour.
 4. **Removing or changing behaviour the plan did not name** — including deleting a test, weakening an assertion, or dropping a feature to make a step pass.
-5. **Anything irreversible, security-sensitive, or outside the working tree** — a merge, a push to a shared branch, a release, a migration, a secret, a paid call.
+5. **Anything irreversible, security-sensitive, or outside the working tree and not on the standing-permissions list** — a merge, a push to a shared branch, a release, a migration, a secret, a paid call.
 6. **The plan no longer fits the code** and every way forward is a guess, or a `blocking` finding survived the cap.
 
 Ask in the `ali-one-by-one` shape — context, numbered options with their costs, your recommendation — one question per message, and **resume the loop the moment it is answered**, without asking to resume. Write the answer into `## Decisions`.
@@ -144,7 +152,7 @@ Everything not on that list you decide yourself: naming, file layout, which help
 ## 6. The final gate
 
 1. **The whole suite**, plus whatever the repository runs before a commit — lint, types, build. Read the output. A red suite ends the run at the user, not at a PR.
-2. **The final review**, over the whole branch diff, clean context: one reviewer on the strongest model available (Claude Code: `Agent` with `model: "opus"` or better) with the reviewer prompt, plus every lens of §4.1 whose trigger the **whole** diff fires — a schema change in step 2 and its consumers in step 5 only look wrong together. One fix wave, then re-review only the fixes. Its residual findings are ruled on exactly as in §4.2.
+2. **The final review**, over the whole branch diff, clean context: one reviewer on the same model as the step gates (Claude Code: `Agent` with `model: "fable"`) with the reviewer prompt, plus every lens of §4.1 whose trigger the **whole** diff fires. What makes this pass stronger is its scope, not its tier — it is the only reviewer that sees the steps together — a schema change in step 2 and its consumers in step 5 only look wrong together. One fix wave, then re-review only the fixes. Its residual findings are ruled on exactly as in §4.2.
 3. **Open the pull request** — description via `ali-generate-pr-description` if it is installed, otherwise a plain one: goal, what changed, how it was verified. Push the branch; do not merge, and do not ask to.
 4. **File the `## Parked` items** as issues on the repository's tracker, each with its `file:line` and how to see it. A finding that stays in the plan file is lost.
 5. **Report**, in this order: what now works and how to see it; every line of `## Rulings` — the decisions taken without the user; the parked issues; anything in the plan that was not done and why.
