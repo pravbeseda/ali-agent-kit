@@ -124,7 +124,8 @@ the PR, not in this summary.
 **One exception, and only one: the all-clear.** Every verdict that came in says
 ready to merge and no reviewer published a comment this run — the state `ali-review-pr` writes
 its plain-language summary for, and the one where the verdicts alone say nothing
-about what is being merged. Print that summary after them, in the user's language.
+about what is being merged. Print that summary after them, in the user's language and to the chat only,
+never onto the PR, whose description already answers that question there.
 Where both reviewers returned one, print one and add only what the other names and
 it does not; two summaries of one change is the noise this exception is narrow to
 avoid. Where neither did — a round that verified nothing writes none — print
