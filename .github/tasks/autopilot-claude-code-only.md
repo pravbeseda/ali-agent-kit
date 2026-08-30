@@ -8,6 +8,9 @@ subagents with a clean context; Codex CLI and Copilot CLI have no subagent
 primitive, so on those hosts the skill degrades to self-review — on the one skill
 in the set that commits, pushes and opens a pull request unattended.
 
+A second pass then cuts what the run spends where the spend was duplicated: the
+reviewer tiers, the lens set, and the implementer's floor.
+
 ## Decisions
 
 - **Which hosts** → Claude Code only, expressed as `agents: claude-code`, the same
@@ -22,12 +25,32 @@ in the set that commits, pushes and opens a pull request unattended.
   context then holds the plan, the diffs and the rulings, not the reasoning behind
   every line, which is what a seven-step run runs out of first.
 - **Which model it gets** → the step's lens count, the estimate §2 already makes:
-  none `sonnet`, one `opus`, two `fable`. Rejected: a second complexity rubric
-  beside the lenses, which would be a vocabulary with nothing enforcing it.
-- **Why routing down is safe** → the gate does not move with it. Reviewers stay on
-  `fable` whatever wrote the code, so a weaker implementer costs a round of fixes,
-  never a finding nobody made. Reviewers are deliberately not routed: they are the
-  only predecessor to a pull request this skill opens unattended.
+  `opus` for none or one, `fable` for two. The floor stays at `opus` because the
+  lens count measures risk planes, not how hard the code is to write: an
+  under-powered implementer buys a round of the gate, which is more `fable` than
+  the tier ever saved. Rejected: a second complexity rubric beside the lenses,
+  which would be a vocabulary with nothing enforcing it.
+- **Why routing down is safe** → the bar does not move with it. Every reviewer that
+  judges the code against a bar stays on `fable` whatever wrote it, so a weaker
+  implementer costs a round of fixes, never a finding nobody made.
+- **Which reviewer is routed** → the spec reviewer alone, to `opus`. Its question
+  is bounded by the step's own text, and it is half the gate on the ordinary step,
+  which fires no lens. Quality and the lenses stay on `fable`: they are the only
+  predecessor to a pull request this skill opens unattended.
+- **Which lenses survive** → `security` and `compatibility`. `structure` and
+  `tests` are dropped as duplicates: the quality reviewer's bar already names one
+  decision edited in two places, a broken seam and an assertion that cannot fail,
+  and the spec reviewer already asks whether the done-criterion is met by what the
+  test asserts.
+- **The §2 lens ceiling** → removed, not tightened. With two lenses left, "inside
+  two" can never bind, and tightening it to one would cut plans finer and add
+  gates, which is the opposite of the goal. The `lenses:` line stays — the
+  implementer's tier is read off it.
+- **Rejected: a prebuilt context bundle for reviewers** →
+  `references/reviewer-prompt.md` tells every reviewer to read every changed file
+  in full, so the repeated reading is the gate rather than overhead. Moving it into
+  the dispatch prompt costs the same tokens and puts the file bodies in the
+  orchestrator's context, which is what §4's delegation exists to keep out.
 - **Who applies a fix** → the orchestrator, not the implementer, which has already
   returned. A ruling is context a fresh subagent would not have.
 
@@ -41,6 +64,10 @@ in the set that commits, pushes and opens a pull request unattended.
 - [x] 6. Carry the lens estimate on the step line — files: `skills/autopilot/SKILL.md` (§2, §3) — done when: the `## Steps` template has a `lenses:` field and §2 says the count picks the implementer's model.
 - [x] 7. Delegate the implementation to a routed subagent — files: `skills/autopilot/SKILL.md` (§4) — done when: step 1 dispatches an `Agent` on the tier the lens count sets, and step 2 names the implementer's report as a claim the orchestrator re-runs.
 - [x] 8. Keep the fixes with the orchestrator — files: `skills/autopilot/SKILL.md` (§4.2) — done when: the **Fix** verdict says who applies it and why not the implementer.
+- [x] 9. Raise the implementer floor to `opus` — files: `skills/autopilot/SKILL.md` (§4) — done when: `sonnet` appears nowhere in the file and `npm run check` passes.
+- [x] 10. Route the spec reviewer to `opus` — files: `skills/autopilot/SKILL.md` (§4.1, §6) — done when: each always-on reviewer carries its own `model:` and §6 no longer says "the same model as the step gates".
+- [x] 11. Drop the `structure` and `tests` lenses — files: `skills/autopilot/SKILL.md` (§4.1) — done when: the lens table has two rows and one line says why those two planes need no reviewer of their own.
+- [x] 12. Remove the dead lens ceiling — files: `skills/autopilot/SKILL.md` (§2, §4.1) — done when: `grep -n 'three or more' skills/autopilot/SKILL.md` is empty and §2 only asks for the lenses to be named.
 
 ## Rulings
 
