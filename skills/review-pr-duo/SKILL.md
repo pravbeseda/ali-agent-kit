@@ -1,6 +1,6 @@
 ---
 name: review-pr-duo
-description: Review a pull request twice at once — Claude Opus and Codex, each in its own clean context — then work through everything they posted. Use when the user asks for a second opinion on a PR, a double review, or runs /ali-review-pr-duo.
+description: Review a pull request twice at once — Claude and Codex, each in its own clean context — then work through everything they posted. Use when the user asks for a second opinion on a PR, a double review, or runs /ali-review-pr-duo.
 agents: claude-code
 disable-model-invocation: true
 ---
@@ -107,10 +107,25 @@ come from the user's `~/.codex/config.toml`; do not override them.
 **If `codex` is not on the PATH**, say so in one line and run the Claude side
 alone. One review is worth more than a stopped run.
 
-**Claude.** The `Agent` tool, `model: "opus"`, told to invoke the `ali-review-pr`
+**Claude.** The `Agent` tool, `model: "fable"`, told to invoke the `ali-review-pr`
 skill on PR #{number}, carrying the same scope and the same checkout answer, to
 ask nothing, and to return the verdict block it ends with together with that
 summary.
+
+**`opus` only once `fable`'s limit is spent.** A subagent that comes back saying
+the model's usage limit is reached has reviewed nothing, so dispatch that same
+review again with `model: "opus"`. That exhausted limit is the only failure this
+second dispatch answers — an empty return, or an error out of the skill itself, is
+a failed review that step 3 reports, not a reason to spend the other model on it.
+
+**That second dispatch starts late, so its prompt carries one line the first did
+not: review the head in full, whatever 🤖 threads are already on the PR.** The
+order rule above cannot hold for a dispatch that exists only once the first has
+come back, and by then Codex may well have published. Without the line the
+fallback reads those threads as its own last round, returns nothing pushed since
+it, and recovers no second opinion at all. A full round where a narrower one would
+have done costs a repeated finding, which `ali-process-pr-comments` turns down as
+a settled point; the review that never happened costs the second opinion itself.
 
 Then say in one line which two reviewers are running, so the wait is not silent.
 
