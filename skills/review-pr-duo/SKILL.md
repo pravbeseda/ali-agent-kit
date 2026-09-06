@@ -119,13 +119,13 @@ second dispatch answers — an empty return, or an error out of the skill itself
 a failed review that step 3 reports, not a reason to spend the other model on it.
 
 **That second dispatch starts late, so its prompt carries one line the first did
-not: the 🤖 threads already on this PR are the other reviewer's parallel review,
-not an earlier round of its own, and the head is to be reviewed whatever they
-say.** The order rule above cannot hold for a dispatch that exists only once the
-first has come back, and by then Codex may well have published — the longer
-`fable` ran before spending its limit, the likelier that is. Without the line the
+not: review the head in full, whatever 🤖 threads are already on the PR.** The
+order rule above cannot hold for a dispatch that exists only once the first has
+come back, and by then Codex may well have published. Without the line the
 fallback reads those threads as its own last round, returns nothing pushed since
-it, and recovers no second opinion at all.
+it, and recovers no second opinion at all. A full round where a narrower one would
+have done costs a repeated finding, which `ali-process-pr-comments` turns down as
+a settled point; the review that never happened costs the second opinion itself.
 
 Then say in one line which two reviewers are running, so the wait is not silent.
 
