@@ -7,7 +7,7 @@ description: Review a pull request and post new findings as inline comments. Use
 
 Answer one question about a pull request: **does this change leave the codebase healthier than it found it?** If it does, recommend the merge — a change does not have to be perfect to be ready. If it does not, publish the findings as inline comments on the exact line, through `gh api`, the way a human reviewer works: point at the problem or the doubt, do not fix the code and do not hand over a finished solution.
 
-> **Not `ali-process-pr-comments`:** that skill triages existing threads and resolves them. This one posts NEW comments on the PR diff.
+> **Not `ali-process-pr-comments`:** that skill triages existing threads and settles them. This one posts NEW comments on the PR diff.
 > **Not a summary review:** the findings are published together as one review, but each one is still its own inline comment anchored to a line. Do not collapse them into a single prose comment, and do not apply fixes.
 
 ## Step 1. PR context, then the local state only if it belongs to this PR
