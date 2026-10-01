@@ -168,8 +168,11 @@ test('a crashing script still has its copy removed', () => {
   assert.equal(status(root), '');
 });
 
-/** Start a hanging run, wait until the script is up, then deliver `signal`. */
-async function interrupt(signal, { group }) {
+/**
+ * Start a hanging run, wait until the script is up, call `during` while it
+ * runs, then deliver `signal`.
+ */
+async function interrupt(signal, { group, during = () => null }) {
   const skill = fakeSkill();
   const root = project();
   const report = join(tmp(), 'report.json');
@@ -187,6 +190,7 @@ async function interrupt(signal, { group }) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   const { pid } = JSON.parse(readFileSync(report, 'utf8'));
+  const meanwhile = during(skill, root);
 
   // A terminal's Ctrl-C reaches the whole process group; `kill <pid>` only the wrapper.
   process.kill(group ? -child.pid : child.pid, signal);
@@ -200,7 +204,7 @@ async function interrupt(signal, { group }) {
       return false;
     }
   })();
-  return { ...result, root, alive };
+  return { ...result, skill, root, pid, alive, meanwhile };
 }
 
 const posixOnly = { skip: platform() === 'win32' && 'POSIX signals' };
@@ -219,4 +223,37 @@ test('SIGTERM to the wrapper alone stops the script and removes the copy', posix
   assert.equal(r.code, 143);
   assert.equal(r.alive, false);
   assert.equal(status(r.root), '');
+});
+
+test('a hangup, as from a closed terminal, stops the script and removes the copy', posixOnly, async () => {
+  const r = await interrupt('SIGHUP', { group: false });
+
+  assert.equal(r.code, 129);
+  assert.equal(r.alive, false);
+  assert.equal(status(r.root), '');
+});
+
+test('a second run while the first is still going names the copy as ours', posixOnly, async () => {
+  const r = await interrupt('SIGTERM', { group: false, during: (skill, root) => run(skill, root, ['--dry-run']) });
+
+  assert.equal(r.meanwhile.code, 2);
+  assert.match(r.meanwhile.stderr, /left there by this skill/);
+  assert.equal(r.meanwhile.ran, null);
+  assert.equal(r.code, 143);
+  assert.equal(status(r.root), '');
+});
+
+test('a copy left by a killed run is named as ours and left in place', posixOnly, async () => {
+  const killed = await interrupt('SIGKILL', { group: false });
+  process.kill(killed.pid, 'SIGKILL');
+  assert.equal(existsSync(copied(killed.root)), true, 'SIGKILL is the one exit nothing can clean up after');
+  const leftover = readFileSync(copied(killed.root));
+
+  const r = run(killed.skill, killed.root, ['--dry-run']);
+
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /left there by this skill/);
+  assert.match(r.stderr, /delete it/);
+  assert.equal(r.ran, null);
+  assert.deepEqual(readFileSync(copied(killed.root)), leftover);
 });

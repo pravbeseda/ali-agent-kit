@@ -31,12 +31,18 @@ The wrapper exits with the script's code (1 = some run failed), 130 / 143 after 
 
 - not inside a git repository, or the repository has no `testing/Cypress/scripts/` — this is not a
   project the script serves; say so and stop;
-- `testing/Cypress/scripts/burn-changed-tests.mjs` already exists — the project has its own copy now
-  (or a file of that name). The wrapper never overwrites or deletes it. Tell the user, and offer to run
-  the project's copy directly: `cd testing/Cypress && node ./scripts/burn-changed-tests.mjs …`.
+- `testing/Cypress/scripts/burn-changed-tests.mjs` is **a copy left there by this skill** — every copy
+  opens with a comment saying so. Either another burn is still running in this checkout (wait for it,
+  or check for one of yours in the background), or a run was killed with no chance to clean up. Once
+  no burn is running, that file is safe to delete; say so and offer to.
+- `testing/Cypress/scripts/burn-changed-tests.mjs` **already exists and is not ours** — the project
+  has its own copy now (or a file of that name). The wrapper never overwrites or deletes it. Tell the
+  user, and offer to run the project's copy directly:
+  `cd testing/Cypress && node ./scripts/burn-changed-tests.mjs …`.
 
-The copy is removed even when the run is stopped, so nothing needs adding to `.gitignore` and nothing
-can be committed by accident. Do not delete it yourself.
+The copy is removed even when the run is stopped — Ctrl-C, SIGTERM, a closed terminal — so nothing
+needs adding to `.gitignore` and nothing can be committed by accident. Only `kill -9` leaves it behind,
+and the next run names it as above. Do not delete a copy while its run is going.
 
 ## How to use it in a session
 
