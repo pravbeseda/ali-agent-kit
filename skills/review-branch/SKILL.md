@@ -54,6 +54,7 @@ git diff "$(git merge-base FETCH_HEAD HEAD)" --name-status       # every changed
 git diff "$(git merge-base FETCH_HEAD HEAD)"                     # full diff
 git status --short                                               # what is committed and what is not
 git ls-files --others --exclude-standard --full-name -- :/       # untracked files, ignored ones left out
+git log --format='%s%n%n%b' "$(git merge-base FETCH_HEAD HEAD)"..HEAD   # the branch's description
 ```
 
 Diff from `FETCH_HEAD`, never from `origin/{base}` — that is precisely the ref that can be stale. The merge base is substituted inline rather than kept in a shell variable, for the same reason the environment variables are set in every block: a fresh shell per tool call would lose it.
@@ -69,6 +70,8 @@ A tracked file can of course be dirty for something other than the branch — a 
 Untracked files are the one gap, since no diff shows a file git does not know about. `git ls-files` needs both extra flags from a subdirectory: without `:/` it lists only what is under the current directory while every other command covers the repository, and `--full-name` prints repo-relative paths matching `git diff` instead of `../`-prefixed ones. Review the ones that are part of the work — a new source file, a new test, a new config — by reading them in full, and say in one line which untracked files you skipped as unrelated, so a forgotten `git add` surfaces instead of passing unnoticed.
 
 `git status --short` is only for telling committed work apart from work that is not committed yet. Use it to label findings, never as a second source of changes — and never as a source of paths either: it prints them relative to the current directory.
+
+The commit messages `git log` prints are the branch's own account of what it does — what step 2's claims check holds the code against, the way a review of a pull request holds it against the PR description.
 
 ## Step 2. The bar a finding has to clear
 
