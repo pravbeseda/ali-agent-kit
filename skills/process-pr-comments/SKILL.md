@@ -179,7 +179,7 @@ Once the decision is made — the user's, or the pass's own on a machine's threa
 4. **Resolve the thread, or leave it to the reviewer.** Which one depends on whose thread it is, as settled in step 3:
 
    - **Machine** — always resolve it, whether the comment was acted on or rejected, and whether or not a reply was needed.
-   - **Person** — resolve it only when the decision does exactly what the reviewer asked: their fix, in full, or an outcome the thread itself already agreed on. A rejection, a partial fix or a different fix leaves the thread open after the reply — closing it would declare the reviewer satisfied on their behalf, and the open thread is how they get to answer. Say which of the two it is in the item-3 preview, so the user approves that along with the text.
+   - **Person** — resolve it only when the decision does exactly what the reviewer asked — their fix, in full, or an outcome the thread itself already agreed on — or when the user explicitly chooses to. A rejection, a partial fix or a different fix leaves the thread open after the reply — closing it would declare the reviewer satisfied on their behalf, and the open thread is how they get to answer. Say which of the two it is in the item-3 preview, so the user approves that along with the text.
 
    ```sh
    gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "{thread_id}"}) { thread { isResolved } } }'
