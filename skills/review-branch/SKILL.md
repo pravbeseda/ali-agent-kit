@@ -54,6 +54,7 @@ git diff "$(git merge-base FETCH_HEAD HEAD)" --name-status       # every changed
 git diff "$(git merge-base FETCH_HEAD HEAD)"                     # full diff
 git status --short                                               # what is committed and what is not
 git ls-files --others --exclude-standard --full-name -- :/       # untracked files, ignored ones left out
+git log --format='%s%n%n%b' "$(git merge-base FETCH_HEAD HEAD)"..HEAD   # the branch's description
 ```
 
 Diff from `FETCH_HEAD`, never from `origin/{base}` — that is precisely the ref that can be stale. The merge base is substituted inline rather than kept in a shell variable, for the same reason the environment variables are set in every block: a fresh shell per tool call would lose it.
@@ -69,6 +70,8 @@ A tracked file can of course be dirty for something other than the branch — a 
 Untracked files are the one gap, since no diff shows a file git does not know about. `git ls-files` needs both extra flags from a subdirectory: without `:/` it lists only what is under the current directory while every other command covers the repository, and `--full-name` prints repo-relative paths matching `git diff` instead of `../`-prefixed ones. Review the ones that are part of the work — a new source file, a new test, a new config — by reading them in full, and say in one line which untracked files you skipped as unrelated, so a forgotten `git add` surfaces instead of passing unnoticed.
 
 `git status --short` is only for telling committed work apart from work that is not committed yet. Use it to label findings, never as a second source of changes — and never as a source of paths either: it prints them relative to the current directory.
+
+The commit messages `git log` prints are the branch's own account of what it does — what step 2's claims check holds the code against, the way a review of a pull request holds it against the PR description.
 
 ## Step 2. The bar a finding has to clear
 
@@ -93,10 +96,20 @@ A review is worth running only if it can make the change smaller, simpler or saf
 
 Look for both only in the tests this change adds or rewrites — an existing test is not this change's to prune. And do not mistake a working assertion for one of these: checking that the code under test called a mock with the right arguments is the test doing its job. Where a shallow assertion is the only thing standing in for a path nobody exercises, the untested path is its own finding and is judged by the bar above like any other.
 
+**Structure is read past the hunk.** A broken seam has no failing input and often no wrong line in the diff, so look for it on purpose:
+
+- **Ownership.** Does a module now encode another module's internal decision — how it stores, caches or retries its data, how it handles its errors, when it starts and stops? Would the next change inside that module force an edit here?
+- **Contracts.** Where a public or cross-module interface widened, does each new member mean the same whatever state the provider is in internally, does it match the style of the rest of the interface, and is every copy or declaration of the contract kept in step?
+- **Critical paths.** Against the code before the change: does something that was synchronous or independent now wait on I/O or on another module, and does a part of the result that does not need the new dependency wait for it anyway?
+- **Callees.** Follow each new call into another module far enough to see what it does, even where that code is outside the diff: global state mutated on every call, a remote request repeated by an unrelated reactive source.
+- **Claims.** Do the change's own description, comments and metrics say what the code actually does?
+
+Judge all of it against general clean-architecture principles and against the rules the repository documents for itself — CLAUDE.md, AGENTS.md, CONTRIBUTING, architecture docs — read before this pass, not only before ruling on a broken rule. Design documents the change itself adds or edits state the author's intent: they are under review, not the yardstick. A design decision is a valid subject for a finding whether it is documented or not, and "as designed" settles nothing.
+
 Two gates decide what survives:
 
-- **Evidence.** Name the file, the line, and either the input or path where the code goes wrong today, or the code that would disappear. A finding that can only be phrased as "what if, one day" has no evidence and is not raised as a finding — mention it in one line if it matters at all.
-- **Growth.** If acting on the finding would make the code bigger, it must be `blocking`, or it is dropped. Hardening against a case nobody can reach is the single change that most reliably leaves the work longer and more brittle than it was, and asking for it does more damage than the case ever would.
+- **Evidence.** Name the file, the line, and either the input or path where the code goes wrong today, or the code that would disappear. A finding that can only be phrased as "what if, one day" has no evidence and is not raised as a finding — mention it in one line if it matters at all. A structural finding has its evidence when it names both locations — the code that now holds the decision and the module the decision belongs to — and the concrete next change that would have to edit both. "One day" excludes speculative inputs and unreachable cases, not a seam that is already broken.
+- **Growth.** If acting on the finding would make the code bigger, it must be `blocking`, or it is dropped. Hardening against a case nobody can reach is the single change that most reliably leaves the work longer and more brittle than it was, and asking for it does more damage than the case ever would. Restoring a broken boundary often does add code, and a `blocking` structural finding passes this gate like any other blocking one.
 
 Not looked for at all: anything a linter or type checker catches, formatting, naming taste, and preferences with no consequence behind them.
 

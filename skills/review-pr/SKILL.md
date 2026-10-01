@@ -15,14 +15,14 @@ Answer one question about a pull request: **does this change leave the codebase 
 **Start with the PR itself.** Fetch in parallel:
 
 ```sh
-gh pr view --json number,headRefOid,headRefName --jq '{number: .number, sha: .headRefOid, branch: .headRefName}'
+gh pr view --json number,headRefOid,headRefName,body --jq '{number: .number, sha: .headRefOid, branch: .headRefName, description: .body}'
 gh repo view --json nameWithOwner --jq '.nameWithOwner'
 git rev-parse --abbrev-ref HEAD
 ```
 
 `gh pr view` without an argument resolves the PR of the current branch. Pass the number explicitly (`gh pr view {number} --json ...`) when the user named one. If the command fails because the branch has no open PR, **stop**: say there is no PR to review and ask for a number — do not review the branch instead, that is `ali-review-branch`.
 
-`headRefOid` — the SHA of the PR's latest commit — is required; without it GitHub rejects inline comments.
+`headRefOid` — the SHA of the PR's latest commit — is required; without it GitHub rejects inline comments. The description is what step 2 holds the code's claims against.
 
 Then read the diff, which is what the review is actually about:
 
@@ -105,7 +105,7 @@ query {
 
 Three things come out of it.
 
-**The decision ledger.** Every thread is a finding that has already been weighed, and a resolved one that ends in "no, we are not doing this" is a decision, not an oversight. Do not raise it again. The single exception is a finding whose worth has visibly risen since — the code around it changed, or the case it predicted became reachable — and then the comment opens by saying what changed. Re-litigating a settled point is what turns a review into a treadmill, and the author cannot tell a fresh finding from a repeat one as cheaply as you can.
+**The decision ledger.** Every thread is a finding that has already been weighed, and a resolved one that ends in "no, we are not doing this" is a decision, not an oversight. Do not raise it again. The single exception is a finding whose worth has visibly risen since — the code around it changed, or the case it predicted became reachable — and then the comment opens by saying what changed. Re-litigating a settled point is what turns a review into a treadmill, and the author cannot tell a fresh finding from a repeat one as cheaply as you can. A rejection settles the concern it was about, not the lines it sat on: a new finding on the same code about a different concern — latency where the thread was about a hang, coupling where it was about correctness — is not a repeat, and its comment names how it differs from the earlier thread.
 
 **The threads to audit.** A resolved thread that ends in a claimed change is the opposite case: nothing was settled there, something was promised. Collect every resolved thread whose opening comment starts with 🤖 and whose closing state says the code was changed — step 3 checks each against the code and reopens the ones the change did not cover. A 🤖 thread closed by a rejection stays in the ledger above and is not audited: there is no fix to compare it to. Keep the thread `id` and the `databaseId` of its opening comment for both operations. The tail counts back from the end of the whole thread, so `raised` and `outcome` meet while `outcome.totalCount` is at most one more than the number of comments `outcome` returned — with `last: 10`, anything up to 11. Above that the middle of the discussion is missing — read that thread in full with `node(id: "{thread_id}")` before ruling on it, because a partial fix is usually agreed in exactly that middle.
 
@@ -132,10 +132,20 @@ A review is worth running only if it can make the change smaller, simpler or saf
 
 Look for both only in the tests this change adds or rewrites — an existing test is not this change's to prune. And do not mistake a working assertion for one of these: checking that the code under test called a mock with the right arguments is the test doing its job. Where a shallow assertion is the only thing standing in for a path nobody exercises, the untested path is its own finding and is judged by the bar above like any other.
 
+**Structure is read past the hunk.** A broken seam has no failing input and often no wrong line in the diff, so look for it on purpose:
+
+- **Ownership.** Does a module now encode another module's internal decision — how it stores, caches or retries its data, how it handles its errors, when it starts and stops? Would the next change inside that module force an edit here?
+- **Contracts.** Where a public or cross-module interface widened, does each new member mean the same whatever state the provider is in internally, does it match the style of the rest of the interface, and is every copy or declaration of the contract kept in step?
+- **Critical paths.** Against the code before the change: does something that was synchronous or independent now wait on I/O or on another module, and does a part of the result that does not need the new dependency wait for it anyway?
+- **Callees.** Follow each new call into another module far enough to see what it does, even where that code is outside the diff: global state mutated on every call, a remote request repeated by an unrelated reactive source.
+- **Claims.** Do the change's own description, comments and metrics say what the code actually does?
+
+Judge all of it against general clean-architecture principles and against the rules the repository documents for itself — CLAUDE.md, AGENTS.md, CONTRIBUTING, architecture docs — read before this pass, not only before ruling on a broken rule. Design documents the change itself adds or edits state the author's intent: they are under review, not the yardstick. A design decision is a valid subject for a finding whether it is documented or not, and "as designed" settles nothing.
+
 Two gates decide what survives:
 
-- **Evidence.** Name the file, the line, and either the input or path where the code goes wrong today, or the code that would disappear. A finding that can only be phrased as "what if, one day" has no evidence and is not published — say it in the chat if it matters.
-- **Growth.** If acting on the finding would make the code bigger, it must be `blocking`, or it is dropped. Hardening against a case nobody can reach is the single change that most reliably leaves a PR longer and more brittle than it was, and asking for it does more damage than the case ever would.
+- **Evidence.** Name the file, the line, and either the input or path where the code goes wrong today, or the code that would disappear. A finding that can only be phrased as "what if, one day" has no evidence and is not published — say it in the chat if it matters. A structural finding has its evidence when it names both locations — the code that now holds the decision and the module the decision belongs to — and the concrete next change that would have to edit both. "One day" excludes speculative inputs and unreachable cases, not a seam that is already broken.
+- **Growth.** If acting on the finding would make the code bigger, it must be `blocking`, or it is dropped. Hardening against a case nobody can reach is the single change that most reliably leaves a PR longer and more brittle than it was, and asking for it does more damage than the case ever would. Restoring a broken boundary often does add code, and a `blocking` structural finding passes this gate like any other blocking one.
 
 Not looked for at all: anything a linter or type checker catches, formatting, naming taste, and preferences with no consequence behind them.
 
@@ -147,9 +157,9 @@ Not looked for at all: anything a linter or type checker catches, formatting, na
 
 A comment must read like a human reviewer who is unsure and asks, not like a linter report or a task description for a fix.
 
-## Step 3. A follow-up round reviews the fixes, nothing else
+## Step 3. A follow-up round reviews what changed since, nothing else
 
-When step 1 found earlier 🤖 threads, this round has one narrow job: read only what has changed since the commit they were written against.
+When step 1 found earlier 🤖 threads, this round reads only what has changed since the commit they were written against.
 
 ```sh
 gh api repos/{owner}/{repo}/compare/{reviewed_sha}...{sha} --jq '.files[] | {filename, patch}'
@@ -157,11 +167,13 @@ gh api repos/{owner}/{repo}/compare/{reviewed_sha}...{sha} --jq '.files[] | {fil
 
 If `reviewed_sha` equals `{sha}`, nothing has been pushed since the last review: there is no new code to verify, so publish no new finding and say so — but still run the audit below. A thread resolved as fixed with nothing pushed is exactly what it catches.
 
-Otherwise the round covers three things and stops:
+**Otherwise, tell a fix from new work before narrowing.** A change that answers an earlier thread is a fix. One that cannot be traced to any thread is new work, even when it is pushed among fixes: a new file, a new or changed public or exported contract, code moved between modules, a changed data flow. A redesign pushed after the last round was never in scope for that round, and the narrow lens below would be the only one that ever reads it. So new work gets a first-round review: read those files in full, the way step 1 says to read them, and apply all of step 2 to them, the structure pass included.
+
+Then the round covers three things and stops:
 
 1. **Each earlier finding: addressed or not addressed.** Attempted is not addressed. This is a report to the user in the chat, not new comments — those findings are already on the PR, and repeating them just doubles the thread. The audit below is the single exception: a thread closed on a fix that does not hold gets one comment, in the thread it already belongs to.
-2. **Defects the fixes introduced**, judged by the same bar as step 2. These are the only new inline comments a follow-up round may post.
-3. **Everything else is out of scope.** Whatever you notice in code this pass did not touch goes to the user in the chat and stays off the PR. It was in scope for round 1 and was not worth a comment then; it does not get to extend the review now.
+2. **Defects the fixes introduced, and findings in new work**, judged by the same bar as step 2. These are the only new inline comments a follow-up round may post.
+3. **Everything else is out of scope.** Whatever you notice in code that has not changed since `{reviewed_sha}` goes to the user in the chat and stays off the PR. It was in scope for the round that read it and was not worth a comment then; it does not get to extend the review now.
 
 **The same disagreement twice is not a defect.** If a finding lands on code that was written to satisfy the previous round's finding, and it is the same objection in new clothes, publish nothing there. Put it to the user as a design disagreement to settle in one decision. Each round objecting to the answer the last round forced is the loop this scope exists to break, and it never resolves by running one more round.
 
