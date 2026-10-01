@@ -1,13 +1,13 @@
 ---
 name: process-pr-comments
-description: Work through the existing unresolved review comments on a pull request one by one, resolving each thread. Use when the user asks to handle review feedback already posted on a PR, or runs /ali-process-pr-comments.
+description: Work through the existing unresolved review comments on a pull request one by one, answering each thread and resolving the settled ones. Use when the user asks to handle review feedback already posted on a PR, or runs /ali-process-pr-comments.
 ---
 
 # Process PR comments
 
 Assess the unresolved review comments on a pull request critically, and take the user through a decision on each one.
 
-> **Not `ali-review-pr`:** that skill writes NEW findings onto the PR diff. This one triages the threads that already exist and resolves them.
+> **Not `ali-review-pr`:** that skill writes NEW findings onto the PR diff. This one triages the threads that already exist and settles them.
 
 ## Step 1. Fetch the comments
 
@@ -98,7 +98,7 @@ For each comment (or group of related ones):
    - "the type is incompatible" → read the type definition
    - "the file does not export X" → read the file
 3. Scrutinize bot comments (Copilot, CodeRabbit, …) especially hard — they are often wrong from missing context. **A comment is a machine's when its author's `__typename` is `Bot`, or when its body opens with 🤖** — and a person's otherwise. Do not look for a `[bot]` suffix on the login: GraphQL returns bot logins without it, so `github-actions` and `copilot-pull-request-reviewer` arrive bare and only `__typename` tells them apart from people. The 🤖 half is the other direction: `ali-review-pr` marks every finding it publishes that way, and its comments arrive under the login of whoever the token belongs to, so the author alone reads them as a person's. **The verdict is over the whole thread, not its opening comment: the thread is a machine's only while its root is a machine's and no later comment comes from a person other than the login of step 1**, because the moment someone joins a bot's thread it is a discussion a person is reading. That login is excluded because the replies this skill leaves go out under it, so an earlier pass's own reply would otherwise turn every thread it touched into a person's. The verdict carries into step 4, where it decides whether the reply is shown before it goes out.
-4. Check the last reply first: if the thread already agreed on an outcome and only the resolve click is missing, do not re-open the discussion. On a person's thread, say so and offer to just resolve it. On a machine's, that is the single right answer the rule below takes without asking.
+4. Check the last reply first: if the thread already agreed on an outcome and only the resolve click is missing, do not re-open the discussion. On a person's thread, say so and offer to just resolve it. On a machine's, that is the single right answer the rule below takes without asking. **A person's thread whose last comment is a reply from the login of step 1 is waiting on its reviewer** — an earlier pass answered it and left it open on purpose (step 4). Do not present it again; list it in the close as still open.
 
 ### Grounds for rejecting it
 
@@ -176,7 +176,11 @@ Once the decision is made — the user's, or the pass's own on a machine's threa
    gh api --paginate repos/{owner}/{repo}/pulls/{number}/comments --jq '.[] | select(.in_reply_to_id == {root_databaseId}) | .body'
    ```
 
-4. **Resolve the thread either way** — whether the comment was acted on or rejected, and whether or not a reply was needed:
+4. **Resolve the thread, or leave it to the reviewer.** Which one depends on whose thread it is, as settled in step 3:
+
+   - **Machine** — always resolve it, whether the comment was acted on or rejected, and whether or not a reply was needed.
+   - **Person** — resolve it only when the decision does exactly what the reviewer asked: their fix, in full, or an outcome the thread itself already agreed on. A rejection, a partial fix or a different fix leaves the thread open after the reply — closing it would declare the reviewer satisfied on their behalf, and the open thread is how they get to answer. Say which of the two it is in the item-3 preview, so the user approves that along with the text.
+
    ```sh
    gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "{thread_id}"}) { thread { isResolved } } }'
    ```
@@ -186,7 +190,7 @@ Once the decision is made — the user's, or the pass's own on a machine's threa
 
 ## Step 5. Commit and push the fixes
 
-Once the last thread is resolved, the edits this pass made are still only in the working tree. Land them here, in one commit, and only when some decision actually changed the code — with nothing changed there is nothing to commit, so go straight to step 6.
+Once the last thread is done, the edits this pass made are still only in the working tree. Land them here, in one commit, and only when some decision actually changed the code — with nothing changed there is nothing to commit, so go straight to step 6.
 
 1. **Check the branch before touching anything.** If `git rev-parse --abbrev-ref HEAD` is the repository's default branch, stop the step and say so: this pass runs on a PR head branch, and a default branch there means something is wrong with the setup, not that a commit is due. The check belongs here rather than at the push, because a commit already made on the default branch has to be moved off it — which is the state this guard exists to prevent, not to report.
 2. Read what is there: `git status --short` and `git diff --stat`. If a file this pass edited also carries changes it did not make, say so and let the user decide what to do with them — do not split the file up on your own.
@@ -219,7 +223,7 @@ Once the last thread is resolved, the edits this pass made are still only in the
 
 ## Step 6. Close the pass
 
-When no unresolved thread is left, count the threads whose decision **changed the code** in this pass. That count, and nothing else, decides what comes next.
+When every unresolved thread has been taken through, count the threads whose decision **changed the code** in this pass. That count, and nothing else, decides what comes next.
 
 - **None did** — every comment was rejected, deferred or already settled. No code exists that nobody has looked at, so the pass is closed.
 - **Some did** — those edits are the only code on this PR that has not been reviewed. Hand them to `ali-review-pr`, which ends with the ready-to-merge verdict.
@@ -231,6 +235,7 @@ Print it as the last block of the pass, with the line on its own and nothing aft
 This pass: {N} threads — {C} changed the code, {U} left it as it was
 Decided without asking: {n} machine threads, or "none"
 Deferred, still open: {one line, or "none"}
+Waiting on the reviewer: {person threads answered and left open, or "none"}
 Pushed: {sha} → {branch}, or "nothing to commit"
 
 ## 🔁 NEXT: VERIFY THE FIXES
@@ -250,7 +255,7 @@ Rules for the close:
 - **The `Pushed:` line is always there and always factual.** It names the commit that carries this pass's fixes, or says nothing was committed — and if step 5 could not push, it says that instead of a SHA. It is what tells the user the PR on GitHub now holds what was just decided.
 - **Never recommend a fresh review of the whole PR.** Code this pass did not touch was reviewed already, and reviewing it again is precisely what turns a review into a loop. Only the edits made here are new.
 - Whether the PR is ready to merge is not this skill's call, and neither is "one more round" — verifying the fixes answers both, and `ali-review-pr` prints that verdict.
-- The count is of threads, not of assessments: when step 3 settled several at once, each still counts on its own, so `C + U == N` and the number matches what the PR shows as resolved.
+- The count is of threads, not of assessments: when step 3 settled several at once, each still counts on its own, so `C + U == N`. `N` includes the person threads left open for their reviewer, so it can exceed what the PR shows as resolved.
 - A rejected comment never argues for more review, however alarming its claim was: it says something about the reviewer, not about the code.
 
 ## Language
