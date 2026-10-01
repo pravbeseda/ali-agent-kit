@@ -71,7 +71,7 @@ the foreground and the Claude subagent is not dispatched until Codex has finishe
 and published, which is exactly the order this rule exists to prevent.
 
 **Both prompts ask for one more thing: the plain-language summary `ali-review-pr`
-already writes when a round publishes nothing.** That skill owns when the summary
+already writes on every round that read code.** That skill owns when the summary
 exists and what it says; the ask here is only to return it, so this run has it to
 print. A reviewer whose own rules produced none returns none.
 
@@ -133,19 +133,17 @@ Then say in one line which two reviewers are running, so the wait is not silent.
 
 Do nothing while they work — no partial report, and above all no comment pass on
 half the findings. When both are in, print the two verdicts side by side, each
-labelled with the model that produced it, and nothing else: the findings are on
-the PR, not in this summary.
+labelled with the model that produced it — the findings are on the PR, not here.
 
-**One exception, and only one: the all-clear.** Every verdict that came in says
-ready to merge and no reviewer published a comment this run — the state `ali-review-pr` writes
-its plain-language summary for, and the one where the verdicts alone say nothing
-about what is being merged. Print that summary after them, in the user's language and to the chat only,
-never onto the PR, whose description already answers that question there.
+**Then the plain-language summary, whatever the verdicts say.** When the reviewers
+disagree, what the change does is exactly the context the user needs to judge which
+of them is right; when both say ready, it is the only word on what is being merged.
+Print it after the verdicts, in the user's language and to the chat only, never
+onto the PR, whose description already answers that question there.
 Where both reviewers returned one, print one and add only what the other names and
-it does not; two summaries of one change is the noise this exception is narrow to
-avoid. Where neither did — a round that verified nothing writes none — print
-nothing, and go on to step 4 either way, which is where the threads this run did
-not touch are dealt with.
+it does not; two summaries of one change is noise. Where neither did — a round
+that verified nothing writes none — print nothing, and go on to step 4 either way,
+which is where the threads this run did not touch are dealt with.
 
 **A verdict saying nothing was pushed since the last review is not always
 agreement.** When both reviewers ran, the other verdict says which of its two
