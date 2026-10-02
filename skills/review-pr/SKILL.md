@@ -111,7 +111,7 @@ Three things come out of it.
 
 **Which round this is.** A thread whose opening comment starts with 🤖 is one of this skill's earlier findings. If any exists, this is a follow-up round and step 3 fixes its scope; the newest such thread carries `{reviewed_sha}` in its `originalCommit.oid` — the commit those findings were written against. If none exists, this is the first round and the whole diff is in scope. Both answers come from these threads and from nothing else: a finding posted on its own by the fallback in step 4 leaves a 🤖 thread but no review, so any second source would disagree with this one on exactly that path.
 
-**A full round, when the user asks for one.** If the user asks for a full or final pass — in any words, however this run was started, another skill's prompt included — this is a full round whatever threads exist: the whole diff is in scope at first-round depth, all of step 2 applies, the structure pass included, and step 3 narrows nothing. A follow-up round reads only what changed since `{reviewed_sha}`, so a bar raised after a round never reaches the code that round read; a full round is how the user gets it there before a merge. It still keeps the ledger above — reading the whole diff again is not a reason to raise a settled point — and it still runs step 3's audit. A question about whether the PR is ready to merge is not, on its own, a request for one.
+**A full round, when the user asks for one.** If the user asks for a full or final pass — in any words, however this run was started, another skill's prompt included — this is a full round whatever threads exist: the whole diff is in scope at first-round depth, all of step 2 applies, the structure pass included, and step 3 narrows nothing. A follow-up round reads only what changed since `{reviewed_sha}`, so a bar raised after a round never reaches the code that round read; a full round is how the user gets it there before a merge. It still keeps the ledger above — reading the whole diff again is not a reason to raise a settled point — and it still owes step 3's report on every earlier finding and runs its audit. A question about whether the PR is ready to merge is not, on its own, a request for one.
 
 ## Step 2. The bar a finding has to clear
 
@@ -165,7 +165,7 @@ A comment must read like a human reviewer who is unsure and asks, not like a lin
 
 When step 1 found earlier 🤖 threads, this round reads only what has changed since the commit they were written against.
 
-**A full round skips the narrowing.** It reads the whole diff even when `reviewed_sha` equals `{sha}`, so neither the compare below nor the three-item scope applies to it. The same-disagreement rule and the audit apply unchanged.
+**A full round skips the narrowing.** It reads the whole diff even when `reviewed_sha` equals `{sha}`, so the compare below does not apply to it, and of the three items only the first does — the report on every earlier finding. Items 2 and 3 confine new findings to the fixes and new work; a full round's may land anywhere in the diff. The same-disagreement rule and the audit apply unchanged.
 
 ```sh
 gh api repos/{owner}/{repo}/compare/{reviewed_sha}...{sha} --jq '.files[] | {filename, patch}'
@@ -260,8 +260,8 @@ A verdict says whether to merge, not what is being merged — and when findings 
 
 Two things bound that:
 
-- **In addition to whatever else the round prints, never instead of it.** A follow-up round still owes its addressed / not-addressed report on every earlier finding and whatever it ruled out of scope — the summary goes below those and above the block.
-- **A round that verified nothing writes no summary.** That is step 3's `reviewed_sha == sha` branch: nothing was pushed since the last review, so the round read no new code and says exactly that. Summarizing the whole PR there answers a question nobody asked and is the scope step 3 spent its own rule narrowing away from.
+- **In addition to whatever else the round prints, never instead of it.** A follow-up or full round still owes its addressed / not-addressed report on every earlier finding, and a follow-up round whatever it ruled out of scope — the summary goes below those and above the block.
+- **A round that verified nothing writes no summary.** That is step 3's `reviewed_sha == sha` branch of a follow-up round: nothing was pushed since the last review, so the round read no new code and says exactly that. A full round reads the whole diff whatever the SHAs say, so it always writes one. Summarizing the whole PR there answers a question nobody asked and is the scope step 3 spent its own rule narrowing away from.
 
 Plain language means the reader is not looking at the diff: what the change makes the code do differently, and what that means for whoever uses or runs it. Not which functions moved, not file names, not identifiers, not counts of lines. Three to five sentences, or the same as bullets. If the PR does something the description does not mention, that is the part worth writing down.
 
