@@ -82,8 +82,9 @@ running, and the round quietly ends with one review. Three checks, in this order
    ```
 
    A non-zero exit — a model the CLI refuses, an expired login — is the failure
-   the review itself would have hit: print its `ERROR:` line and run the Claude
-   side alone. On success keep the `model:` and `reasoning effort:` lines of its
+   the review itself would have hit: print the error it ended with in one line —
+   `ERROR:` from the API, `Error:` from the CLI itself — and run the Claude side
+   alone. On success keep the `model:` and `reasoning effort:` lines of its
    header; they are what Codex actually resolved, and the reviewers line below
    and step 3 name them.
 
