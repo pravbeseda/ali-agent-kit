@@ -85,7 +85,7 @@ A review is worth running only if it can make the change smaller, simpler or saf
 - fragility: the code works only while some unstated condition holds, and nothing here holds it
 - structure degraded: a responsibility placed where it does not belong, a seam broken, one decision now edited in two places
 - complexity this change's own goal does not justify — a branch, a parameter, a layer, an option or a guard that nothing in the work's purpose asks for
-- a rule the repository wrote down for itself is broken — read its CLAUDE.md / AGENTS.md before ruling on this one
+- a rule the repository wrote down for itself is broken — read its CLAUDE.md / AGENTS.md, and the documents they link to, before ruling on this one
 
 **`suggestion` — applying it removes code or removes a concept.** A guard for a case that cannot occur, an abstraction with one caller, a parameter no caller varies, a branch that cannot be taken, logic the branch already has elsewhere. A suggestion never holds the work back; it is the author's call.
 
@@ -102,9 +102,11 @@ Look for both only in the tests this change adds or rewrites — an existing tes
 - **Contracts.** Where a public or cross-module interface widened, does each new member mean the same whatever state the provider is in internally, does it match the style of the rest of the interface, and is every copy or declaration of the contract kept in step?
 - **Critical paths.** Against the code before the change: does something that was synchronous or independent now wait on I/O or on another module, and does a part of the result that does not need the new dependency wait for it anyway?
 - **Callees.** Follow each new call into another module far enough to see what it does, even where that code is outside the diff: global state mutated on every call, a remote request repeated by an unrelated reactive source.
+- **Callers.** Where the cost, timing, side effects or failure modes of an existing function changed — a synchronous read that now waits on I/O, a new remote request, a new way to fail — list its callers outside the diff and check each, hot paths first: loops, per-item and per-keystroke paths, background work. A finding names the caller and what it now does.
 - **Claims.** Do the change's own description, comments and metrics say what the code actually does?
+- **Purpose.** Read what the change says it is for — its own description, a linked ticket. Does any path in the code work against that purpose?
 
-Judge all of it against general clean-architecture principles and against the rules the repository documents for itself — CLAUDE.md, AGENTS.md, CONTRIBUTING, architecture docs — read before this pass, not only before ruling on a broken rule. Design documents the change itself adds or edits state the author's intent: they are under review, not the yardstick. A design decision is a valid subject for a finding whether it is documented or not, and "as designed" settles nothing.
+Judge all of it against general clean-architecture principles and against the rules the repository documents for itself — CLAUDE.md, AGENTS.md, CONTRIBUTING, architecture docs, and the documents those files link to, one level deep, a review checklist among them — read before this pass, not only before ruling on a broken rule. A rule written in a linked document counts the same as one written in AGENTS.md itself. Design documents the change itself adds or edits state the author's intent: they are under review, not the yardstick. A design decision is a valid subject for a finding whether it is documented or not, and "as designed" settles nothing.
 
 Two gates decide what survives:
 

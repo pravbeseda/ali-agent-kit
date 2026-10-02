@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: Review a pull request and post new findings as inline comments. Use when the user asks to review or comment on a PR, asks whether a PR is ready to merge, or runs /ali-review-pr.
+description: Review a pull request and post new findings as inline comments. Use when the user asks to review or comment on a PR, asks for a full or final review pass, asks whether a PR is ready to merge, or runs /ali-review-pr.
 ---
 
 # Review PR
@@ -111,6 +111,8 @@ Three things come out of it.
 
 **Which round this is.** A thread whose opening comment starts with 🤖 is one of this skill's earlier findings. If any exists, this is a follow-up round and step 3 fixes its scope; the newest such thread carries `{reviewed_sha}` in its `originalCommit.oid` — the commit those findings were written against. If none exists, this is the first round and the whole diff is in scope. Both answers come from these threads and from nothing else: a finding posted on its own by the fallback in step 4 leaves a 🤖 thread but no review, so any second source would disagree with this one on exactly that path.
 
+**A full round, when the user asks for one.** If the user asks for a full or final pass — in any words, however this run was started, another skill's prompt included — this is a full round whatever threads exist: the whole diff is in scope at first-round depth, all of step 2 applies, the structure pass included, and step 3 narrows nothing. A follow-up round reads only what changed since `{reviewed_sha}`, so a bar raised after a round never reaches the code that round read; a full round is how the user gets it there before a merge. It still keeps the ledger above — reading the whole diff again is not a reason to raise a settled point — and it still owes step 3's report on every earlier finding and runs its audit. A question about whether the PR is ready to merge is not, on its own, a request for one.
+
 ## Step 2. The bar a finding has to clear
 
 A review is worth running only if it can make the change smaller, simpler or safer. Exactly two kinds of finding do that, and nothing else gets published.
@@ -121,7 +123,7 @@ A review is worth running only if it can make the change smaller, simpler or saf
 - fragility: the code works only while some unstated condition holds, and nothing here holds it
 - structure degraded: a responsibility placed where it does not belong, a seam broken, one decision now edited in two places
 - complexity this change's own goal does not justify — a branch, a parameter, a layer, an option or a guard that nothing in the PR's purpose asks for
-- a rule the repository wrote down for itself is broken — read its CLAUDE.md / AGENTS.md before ruling on this one
+- a rule the repository wrote down for itself is broken — read its CLAUDE.md / AGENTS.md, and the documents they link to, before ruling on this one
 
 **`suggestion` — applying it removes code or removes a concept.** A guard for a case that cannot occur, an abstraction with one caller, a parameter no caller varies, a branch that cannot be taken, logic the diff already has elsewhere. A suggestion never holds up a merge; it is the author's call.
 
@@ -138,9 +140,11 @@ Look for both only in the tests this change adds or rewrites — an existing tes
 - **Contracts.** Where a public or cross-module interface widened, does each new member mean the same whatever state the provider is in internally, does it match the style of the rest of the interface, and is every copy or declaration of the contract kept in step?
 - **Critical paths.** Against the code before the change: does something that was synchronous or independent now wait on I/O or on another module, and does a part of the result that does not need the new dependency wait for it anyway?
 - **Callees.** Follow each new call into another module far enough to see what it does, even where that code is outside the diff: global state mutated on every call, a remote request repeated by an unrelated reactive source.
+- **Callers.** Where the cost, timing, side effects or failure modes of an existing function changed — a synchronous read that now waits on I/O, a new remote request, a new way to fail — list its callers outside the diff and check each, hot paths first: loops, per-item and per-keystroke paths, background work. A finding names the caller and what it now does.
 - **Claims.** Do the change's own description, comments and metrics say what the code actually does?
+- **Purpose.** Read what the change says it is for — its own description, a linked ticket. Does any path in the code work against that purpose?
 
-Judge all of it against general clean-architecture principles and against the rules the repository documents for itself — CLAUDE.md, AGENTS.md, CONTRIBUTING, architecture docs — read before this pass, not only before ruling on a broken rule. Design documents the change itself adds or edits state the author's intent: they are under review, not the yardstick. A design decision is a valid subject for a finding whether it is documented or not, and "as designed" settles nothing.
+Judge all of it against general clean-architecture principles and against the rules the repository documents for itself — CLAUDE.md, AGENTS.md, CONTRIBUTING, architecture docs, and the documents those files link to, one level deep, a review checklist among them — read before this pass, not only before ruling on a broken rule. A rule written in a linked document counts the same as one written in AGENTS.md itself. Design documents the change itself adds or edits state the author's intent: they are under review, not the yardstick. A design decision is a valid subject for a finding whether it is documented or not, and "as designed" settles nothing.
 
 Two gates decide what survives:
 
@@ -160,6 +164,8 @@ A comment must read like a human reviewer who is unsure and asks, not like a lin
 ## Step 3. A follow-up round reviews what changed since, nothing else
 
 When step 1 found earlier 🤖 threads, this round reads only what has changed since the commit they were written against.
+
+**A full round skips the narrowing.** It reads the whole diff even when `reviewed_sha` equals `{sha}`, so the compare below does not apply to it, and of the three items only the first does — the report on every earlier finding. Items 2 and 3 confine new findings to the fixes and new work; a full round's may land anywhere in the diff. The same-disagreement rule and the audit apply unchanged.
 
 ```sh
 gh api repos/{owner}/{repo}/compare/{reviewed_sha}...{sha} --jq '.files[] | {filename, patch}'
@@ -254,8 +260,8 @@ A verdict says whether to merge, not what is being merged — and when findings 
 
 Two things bound that:
 
-- **In addition to whatever else the round prints, never instead of it.** A follow-up round still owes its addressed / not-addressed report on every earlier finding and whatever it ruled out of scope — the summary goes below those and above the block.
-- **A round that verified nothing writes no summary.** That is step 3's `reviewed_sha == sha` branch: nothing was pushed since the last review, so the round read no new code and says exactly that. Summarizing the whole PR there answers a question nobody asked and is the scope step 3 spent its own rule narrowing away from.
+- **In addition to whatever else the round prints, never instead of it.** A follow-up or full round still owes its addressed / not-addressed report on every earlier finding, and a follow-up round whatever it ruled out of scope — the summary goes below those and above the block.
+- **A round that verified nothing writes no summary.** That is step 3's `reviewed_sha == sha` branch of a follow-up round: nothing was pushed since the last review, so the round read no new code and says exactly that. A full round reads the whole diff whatever the SHAs say, so it always writes one. Summarizing the whole PR there answers a question nobody asked and is the scope step 3 spent its own rule narrowing away from.
 
 Plain language means the reader is not looking at the diff: what the change makes the code do differently, and what that means for whoever uses or runs it. Not which functions moved, not file names, not identifiers, not counts of lines. Three to five sentences, or the same as bullets. If the PR does something the description does not mention, that is the part worth writing down.
 
@@ -263,7 +269,7 @@ It goes to the chat only, in the language of the discussion — never to the PR.
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{First round | Follow-up round} — {b} blocking, {s} suggestions, {x} dropped below the bar, {r} threads reopened
+{First round | Follow-up round | Full round} — {b} blocking, {s} suggestions, {x} dropped below the bar, {r} threads reopened
 Recheck: {one line per changed file, or "clean"}
 
 ## ✅ VERDICT: READY TO MERGE
@@ -285,7 +291,7 @@ Rules for the verdict:
 - Exactly one of the two lines, never both, never a hedged "maybe one more round".
 - **Ready means the change leaves the codebase better than it found it — not that it is perfect.** There is no perfect code, only better code, and holding a PR for the difference costs more than it buys. Open `suggestion` threads never block a merge.
 - A round that found only suggestions is a ready verdict. So is a round that found nothing.
-- Never recommend "another full review". After the author acts, what is unreviewed is the fix, and that is step 3.
+- Never recommend "another full review" on your own. After the author acts, what is unreviewed is the fix, and that is step 3; a full round is the user's to ask for.
 - Report a 422, a dropped finding or a one-at-a-time fallback only if it actually happened. Silence is the normal case.
 - If step 1 asked about a diverging checkout and the user chose to go on, add one line above the verdict saying the review covers the pushed state only, and name what was left out — the dirty paths, or the local SHA. A merge verdict is worth less to a reader who cannot tell it was given without the newest local work.
 
@@ -296,6 +302,6 @@ Rules for the verdict:
 
 ## Extra context
 
-If the user passed anything along with the invocation — a PR number, an area to focus on, a specific worry — treat it as the scope of the review. It arrives below; an empty line there means no arguments were given, not that something went missing.
+If the user passed anything along with the invocation — a PR number, an area to focus on, a specific worry — treat it as the scope of the review. A request for a full or final pass is the exception: it picks the round, as step 1 says, and narrows nothing. It arrives below; an empty line there means no arguments were given, not that something went missing.
 
 $ARGUMENTS
