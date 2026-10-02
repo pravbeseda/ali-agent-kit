@@ -107,6 +107,11 @@ already writes on every round that read code.** That skill owns when the summary
 exists and what it says; the ask here is only to return it, so this run has it to
 print. A reviewer whose own rules produced none returns none.
 
+**A full round the user asked for goes to both as a line of its own.** If the user
+asked for a full or final pass, both prompts say to run a full round, in those
+words, besides passing the scope on — a request left inside free text is one a
+reviewer can take for an area to focus on.
+
 **Codex.** Write the prompt to a file exactly as `ali-review-pr` writes its own
 request bodies — its rule for that file, temp dir and literal absolute path alike,
 holds here unchanged — then:
@@ -147,7 +152,7 @@ second dispatch answers — an empty return, or an error out of the skill itself
 a failed review that step 3 reports, not a reason to spend the other model on it.
 
 **That second dispatch starts late, so its prompt carries one line the first did
-not: review the head in full, whatever 🤖 threads are already on the PR.** The
+not: run a full round, whatever 🤖 threads are already on the PR.** The
 order rule above cannot hold for a dispatch that exists only once the first has
 come back, and by then Codex may well have published. Without the line the
 fallback reads those threads as its own last round, returns nothing pushed since
@@ -165,6 +170,10 @@ Do nothing while they work — no partial report, and above all no comment pass 
 half the findings. When both are in, print the two verdicts side by side, each
 labelled with the model that produced it — Codex's being the one its preflight
 reported — the findings are on the PR, not here.
+
+**When the user asked for a full round, say above the verdicts that it was one.**
+Each verdict's header names the round its reviewer ran; if one names another round,
+say which reviewer it was, since its findings cover less than was asked.
 
 **Then the plain-language summary, whatever the verdicts say.** When the reviewers
 disagree, what the change does is exactly the context the user needs to judge which
@@ -206,7 +215,8 @@ configured by the user, if one is defined.
 ## Extra context
 
 If the user passed anything along with the invocation — a PR number, an area to
-focus on — treat it as the scope and pass it to both reviewers unchanged. It
+focus on — treat it as the scope and pass it to both reviewers unchanged. A
+request for a full or final pass also goes to both as step 2's full-round line. It
 arrives below; an empty line there means no arguments were given.
 
 $ARGUMENTS
