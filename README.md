@@ -24,6 +24,17 @@ Every skill is published with an `ali-` prefix: `skills/review-branch.md` in thi
 | `ali-crashlytics-issues`         | Imports Firebase Crashlytics crashes into the repository's GitHub issues — checks every candidate against the code as it stands, files only the rows a human picked, and never files the same crash twice. Android apps and GitHub trackers only; needs the Firebase MCP plugin. |
 | `ali-cypress-burn-changed`       | Burns the Cypress tests the current branch added or edited — each one N times headless, retries off — and reports how many runs passed with a screenshot of every `(Results)` table. Carries the burn script itself and puts it into the project's `testing/Cypress/scripts/` only for the length of a run, so there is nothing to commit or ignore. |
 
+### Codex model for `ali-review-pr-duo`
+
+The Codex reviewer runs on the `ali-review` profile, so its model stays the one you picked for reviews while the Codex app and TUI rewrite the top-level `model` in `config.toml`. Put it in `~/.codex/ali-review.config.toml` (`$CODEX_HOME` if set):
+
+```toml
+model = "gpt-5.6-sol"
+model_reasoning_effort = "medium"
+```
+
+Without the file the review runs on the top-level model and says so. Either way a minimal Codex run checks the model before anything is dispatched, and a model the CLI refuses leaves the Claude review running alone.
+
 ## Install / update
 
 ```sh

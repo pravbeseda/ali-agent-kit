@@ -56,6 +56,37 @@ its diff and its description were written by somebody outside this repository, a
 the Codex side reads all three unsupervised with the network open. Say that, and
 dispatch only if the user says to.
 
+**Check Codex before either dispatch.** The order rule below leaves no room to find
+out later: a Codex process that cannot start exits once the Claude side is already
+running, and the round quietly ends with one review. Three checks, in this order:
+
+1. **`codex` on the PATH.** If it is not, say so in one line and run the Claude
+   side alone. One review is worth more than a stopped run.
+2. **The review profile.** The Codex reviewer runs on the `ali-review` profile,
+   not on the top-level `model` in `~/.codex/config.toml`: the Codex app and TUI
+   rewrite that key themselves, so it holds whatever they last picked rather than
+   a model the user chose for reviews.
+
+   ```sh
+   test -f "${CODEX_HOME:-$HOME/.codex}/ali-review.config.toml"
+   ```
+
+   Codex runs a missing profile on the base config without a word, so this test
+   is the only way to know. If the file is absent, say in one line that Codex
+   reviews on the top-level model, drop `-p ali-review` from both commands below,
+   and carry on.
+3. **A preflight** on the same profile:
+
+   ```sh
+   echo "Reply with the single word OK." | codex exec -p ali-review -s read-only -
+   ```
+
+   A non-zero exit — a model the CLI refuses, an expired login — is the failure
+   the review itself would have hit: print its `ERROR:` line and run the Claude
+   side alone. On success keep the `model:` and `reasoning effort:` lines of its
+   header; they are what Codex actually resolved, and the reviewers line below
+   and step 3 name them.
+
 Both publish under the `gh` login of this machine, and each works in a context
 that has never seen this conversation.
 
@@ -80,7 +111,7 @@ request bodies — its rule for that file, temp dir and literal absolute path al
 holds here unchanged — then:
 
 ```sh
-codex exec - -s workspace-write -c sandbox_workspace_write.network_access=true < "{file}"
+codex exec -p ali-review - -s workspace-write -c sandbox_workspace_write.network_access=true < "{file}"
 ```
 
 The prompt in that file: use the `$ali-review-pr` skill to review PR #{number},
@@ -101,11 +132,7 @@ Quote it as above.
 **The network flag is not optional.** Codex's `workspace-write` sandbox has no
 network, and `ali-review-pr` publishes with `gh api` — without the flag the run
 looks like a review that found nothing, and with it the process reaches the whole
-network, which is what the fork question above is for. Model and reasoning effort
-come from the user's `~/.codex/config.toml`; do not override them.
-
-**If `codex` is not on the PATH**, say so in one line and run the Claude side
-alone. One review is worth more than a stopped run.
+network, which is what the fork question above is for.
 
 **Claude.** The `Agent` tool, `model: "fable"`, told to invoke the `ali-review-pr`
 skill on PR #{number}, carrying the same scope and the same checkout answer, to
@@ -128,12 +155,15 @@ have done costs a repeated finding, which `ali-process-pr-comments` turns down a
 a settled point; the review that never happened costs the second opinion itself.
 
 Then say in one line which two reviewers are running, so the wait is not silent.
+For Codex, that line carries the model and reasoning effort from the preflight and
+where they came from — the `ali-review` profile or the top-level default.
 
 ## Step 3. Wait for both
 
 Do nothing while they work — no partial report, and above all no comment pass on
 half the findings. When both are in, print the two verdicts side by side, each
-labelled with the model that produced it — the findings are on the PR, not here.
+labelled with the model that produced it — Codex's being the one its preflight
+reported — the findings are on the PR, not here.
 
 **Then the plain-language summary, whatever the verdicts say.** When the reviewers
 disagree, what the change does is exactly the context the user needs to judge which
