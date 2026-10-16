@@ -42,6 +42,12 @@ another finding sits in goes before it, so the second is not fixed twice. One li
 
 {One line per finding of the previous audit that the code no longer has, with its old ID — or "No previous audit."}
 
+## Shortcuts
+
+- `path:line` — limit: {the limit it names} · upgrade: {the trigger, or `no-trigger`}{ · crossed: {finding ID}}
+
+{{n} markers, {m} with no trigger — or "No shortcut markers."}
+
 ## Not included
 
 {"{n} more suggestions in {lens} below the cap of 10" per capped lens — or "Nothing."}

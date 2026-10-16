@@ -40,6 +40,14 @@ Uncommitted changes are audited as they stand on disk; the report names them. A 
 git ls-files -- {scope} | wc -l
 ```
 
+Collect the deliberate shortcuts — comments of the form `shortcut: {the limit}, {when to upgrade}`, or `ponytail:` in older code — so a deferral cannot quietly become permanent:
+
+```sh
+git grep -nE '(#|//|/[*]|^[[:space:]]*[*]|--|;|<!--)[[:space:]]*(shortcut|ponytail):' -- {scope} ':!docs/audit'
+```
+
+An exit code of `1` with no output means there are none. The prefixes cover line comments, block comments and their continuation lines in the common syntaxes; add the repository's own when it uses another (`%`, `'`, `REM`), and say so in the map. The prefix keeps prose that only mentions the convention out; drop any hit that is not a deferral, like a note about a keyboard shortcut.
+
 Write the map down as one block — it is the only picture of the repository the subagents get:
 
 - what the repository is and does, in three sentences, and who runs it — one person, a team, a service under load
@@ -48,6 +56,7 @@ Write the map down as one block — it is the only picture of the repository the
 - **the risk areas**: outside input, auth, secrets, data writes, money, state shared between processes, public contracts — with their paths
 - the rules the repository writes down for itself, with their source
 - the plans and design documents, with their paths
+- the shortcut markers: `path:line`, the limit each names and the trigger to revisit it
 
 ## Step 2. Collect — one finder per lens
 
@@ -71,6 +80,7 @@ Wait for all of them. Then take the verdicts as given: `confirmed` and `plausibl
 4. **Work out the fix order.** Start from the ranking and move a finding earlier when its fix moves or rewrites code another finding sits in: restructuring a module goes before deduplicating or trimming inside it, or that work is done twice. Fill `Depends on` from the findings' `touches`.
 5. **Assign IDs** per lens in that order: `SEC`, `ARCH`, `COR`, `DUP`, `LEAN`, `DOC`.
 6. **Hold it against the last audit.** A finding the newest earlier audit also reported is `carried from {its date}`, with its old ID — or `tracked in #{n}` when an open issue now holds it, with the old ID after it. A finding of that audit the code no longer has goes under `Closed since the last audit` — after checking the code, not because no finder mentioned it; one the finders simply did not reach this time goes under `Not checked` instead.
+7. **Build the shortcut ledger** from the map's markers: one row each with its limit and trigger, `no-trigger` on a marker that names no trigger — those are the ones that rot — and the finding's ID on a marker a finder reported as already past its limit.
 
 ## Step 5. Write the folder
 
