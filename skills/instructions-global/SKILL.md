@@ -195,7 +195,9 @@ after every change to the v-next).
 ## Step 3 — Approval
 
 Ask exactly one question with the explicit list of files from `plan.json`:
-"Apply to these N files? [list]". Subsets are fine (`apply.js --only <paths>`).
+"Apply to these N files? [list]". Subsets are fine (`apply.js --only <paths>`),
+except that rendered targets need the master, and the master and a staged
+`config.json` go together or not at all.
 Nothing outside `~/.agent-instructions/` is written before a yes. If the user
 declines the VS Code edits, print the manual instructions instead (which keys,
 which values, which file).

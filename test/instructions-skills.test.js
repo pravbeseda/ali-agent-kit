@@ -198,6 +198,13 @@ test('global: the run\'s Ponytail skip list is applied and rolled back with the 
   const plan = JSON.parse(readFileSync(join(store, 'runs', runId, 'plan.json'), 'utf8'));
   assert.ok(plan.actions.some((a) => a.action === 'write' && a.path === configPath));
   assert.equal(readFileSync(configPath, 'utf8'), before, 'render writes only into the run dir');
+  const masterPath = join(store, 'global.md');
+  for (const only of [masterPath, configPath]) {
+    const split = runScript(G, 'apply.js', ['--run', runId, '--only', only, '--dry-run'], { home });
+    assert.equal(split.code, 1, `--only ${only} alone`);
+    assert.match(split.stderr, /config\.json/);
+  }
+  assert.equal(runScript(G, 'apply.js', ['--run', runId, '--only', `${masterPath},${configPath}`, '--dry-run'], { home }).code, 0);
 
   assert.equal(runScript(G, 'apply.js', ['--run', runId], { home }).code, 0);
   const applied = JSON.parse(readFileSync(configPath, 'utf8'));

@@ -49,6 +49,11 @@ async function main(flags) {
     if (masterInPlan && !masterChosen && chosen.some((a) => GLOBAL_TARGETS[a.target])) {
       throw new UsageError('--only: the plan changes the master, so a subset with a rendered target must include it (or select only the master and run --sync-only later)');
     }
+    // config.json carries the run's Ponytail skip list, which the master's block was rendered with.
+    const configInPlan = plan.actions.some((a) => a.target === 'config.json');
+    if (masterInPlan && configInPlan && masterChosen !== chosen.some((a) => a.target === 'config.json')) {
+      throw new UsageError('--only: the master and config.json carry the same Ponytail skip list — select both or neither');
+    }
     plan.actions = chosen;
   }
   const { config } = loadConfig(env);
