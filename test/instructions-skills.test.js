@@ -180,6 +180,33 @@ test('global: ponytail block — ask once, insert before Karpathy, skip a rule, 
   assert.equal(readFileSync(v5, 'utf8'), readFileSync(v2, 'utf8'));
 });
 
+test('global: the run\'s Ponytail skip list is applied and rolled back with the rest of the run', () => {
+  const root = tmp();
+  const home = homeBloated(root);
+  const store = join(home, '.agent-instructions');
+  mkdirSync(store, { recursive: true });
+  const configPath = join(store, 'config.json');
+  const before = JSON.stringify({ retention: 5, ponytail: { enabled: true, skip: [] } });
+  writeFileSync(configPath, before);
+  const runId = runScript(G, 'inventory.js', ['--new-run'], { home }).json.runId;
+  const v1 = join(root, 'v1.md');
+  writeFileSync(v1, '# Global\n\n## Workflow\n- Never push to main.\n');
+
+  assert.equal(runScript(G, 'render.js', ['--run', runId, '--master-from', v1, '--ponytail-skip', 'no-such-rule'], { home }).code, 1);
+  const ren = runScript(G, 'render.js', ['--run', runId, '--master-from', v1, '--ponytail-skip', 'never-cut'], { home });
+  assert.equal(ren.code, 0, ren.stderr);
+  const plan = JSON.parse(readFileSync(join(store, 'runs', runId, 'plan.json'), 'utf8'));
+  assert.ok(plan.actions.some((a) => a.action === 'write' && a.path === configPath));
+  assert.equal(readFileSync(configPath, 'utf8'), before, 'render writes only into the run dir');
+
+  assert.equal(runScript(G, 'apply.js', ['--run', runId], { home }).code, 0);
+  const applied = JSON.parse(readFileSync(configPath, 'utf8'));
+  assert.deepEqual(applied.ponytail, { enabled: true, skip: ['never-cut'] });
+  assert.equal(applied.retention, 5);
+  assert.equal(runScript(G, 'restore.js', ['--run', runId], { home }).code, 0);
+  assert.equal(readFileSync(configPath, 'utf8'), before);
+});
+
 test('dupes: exact, near, secrets, non-English lines normalise', async () => {
   const { ruleLines, findDuplicates, findSecrets } = await lib('dupes.js');
   const text = ['# H', '- Never push to main.', 'Do not push to main.', '```', 'Never push to main.', '```', 'Prefer pnpm over npm.', '- prefer PNPM over npm', 'OpenAI key: sk-abcdefghijklmnopqrstuvwxyz123456', '\u041e\u0442\u0432\u0435\u0447\u0430\u0439 \u043a\u0440\u0430\u0442\u043a\u043e.'].join('\n');

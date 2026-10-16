@@ -14,6 +14,7 @@ import { renderGlobal, GLOBAL_TARGETS, stripRenderedHead } from './lib/render.js
 import { parseGeneratedMarker } from './lib/markers.js';
 import { unifiedDiff, diffStats } from './lib/diff.js';
 import { settingsFiles, readSettings } from './lib/vscode.js';
+import { readRules } from './lib/ponytail.js';
 
 const HELP = `usage: node render.js --run <run-id> [options]
 
@@ -29,6 +30,8 @@ and writes runs/<id>/plan.json for apply.js.
   --archive <p,q>          files to move into ~/.agent-instructions/archive/<run-id>/ (legacy channels, memory)
   --parked <file>          new full content of ~/.agent-instructions/parked.md (MOVE targets with no project on this machine)
   --memory-edits <json>    { "<memory file>": "<proposal file>" } — rewritten auto-memory files (frontmatter kept)
+  --ponytail-skip <ids>    the run's Ponytail skip list (--ponytail-skip= for none), staged as a
+                           config.json write so apply backs it up and restore rolls it back
   --json`;
 
 const VSCODE_TARGET = { 'chat.useClaudeMdFile': false };
@@ -115,6 +118,17 @@ async function main(flags) {
     rows.push({ ...row(name, path, before, after), status: before ? 'overwrite' : 'create' });
   };
   if (flags.parked) stageWrite('parked.md', store.parked, flags.parked);
+  if (flags['ponytail-skip']) {
+    const ids = readRules().rules.map((r) => r.id);
+    const unknown = flags['ponytail-skip'].filter((id) => !ids.includes(id));
+    if (unknown.length) throw new UsageError(`--ponytail-skip: unknown rule id ${unknown.join(', ')}; ids: ${ids.join(', ')}`);
+    const user = readJson(store.config, {});
+    if (JSON.stringify(user.ponytail?.skip ?? []) !== JSON.stringify(flags['ponytail-skip'])) {
+      const staged = join(dir, 'input', 'config.json');
+      writeJson(staged, { ...user, ponytail: { ...user.ponytail, skip: flags['ponytail-skip'] } });
+      stageWrite('config.json', store.config, staged);
+    }
+  }
   if (flags['memory-edits']) {
     const projects = join(agentDirs(env).claude, 'projects');
     for (const [target, from] of Object.entries(readJson(flags['memory-edits']))) {
@@ -175,7 +189,7 @@ function render(r) {
 
 if (isMain(import.meta.url)) {
   run({
-    spec: { run: 'string', 'master-from': 'string', targets: 'list', vscode: 'bool', 'vscode-settings': 'list', archive: 'list', parked: 'string', 'memory-edits': 'string' },
+    spec: { run: 'string', 'master-from': 'string', targets: 'list', vscode: 'bool', 'vscode-settings': 'list', archive: 'list', parked: 'string', 'memory-edits': 'string', 'ponytail-skip': 'list' },
     help: HELP,
     main,
     render

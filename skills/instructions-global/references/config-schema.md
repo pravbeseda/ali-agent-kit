@@ -42,7 +42,7 @@ the user asks for a change — never silently.
 | `karpathy.source` | upstream URL of the SKILL.md whose body is the block |
 | `karpathy.pin` | a ref (commit sha or date) — when set, upstream changes are reported but no update is proposed |
 | `ponytail.enabled` | `null`: the next full run asks once and records the answer; `true`: the Ponytail rules block is inserted and kept current; `false`: the block is removed from the master. Set by `ponytail.js enable` / `disable` |
-| `ponytail.skip` | ids of curated rules left out of the block on this machine, because the user's own line already says them or the user chose their own line over them. Recorded by `ponytail.js skip` / `unskip` once a run that changed it is applied; `--skip` overrides it for one run without writing |
+| `ponytail.skip` | ids of curated rules left out of the block on this machine, because the user's own line already says them or the user chose their own line over them. Written by the run that changed it (`render.js --ponytail-skip`), so apply backs it up and restore rolls it back; `ponytail.js skip` / `unskip` set it by hand; `--skip` overrides it for one run without writing |
 | `disabled_surfaces` | surface ids to skip: `claude`, `codex`, `copilot-cli`, `jetbrains`, `vscode` |
 | `git_emails` | the user's other commit emails (`git config user.email` of the repo always counts as the user); the gate does not count them as "other authors" |
 | `git_logins` | the user's GitHub logins; a remote owned by one of them is personal, `<login>@users.noreply.github.com` is the user |

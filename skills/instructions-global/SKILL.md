@@ -137,7 +137,9 @@ rewritten memory files, `parked.md`); `render.js` writes its output under
      evidence "user chose ponytail rule <id> (run <id>)");
    - a skipped rule whose covering user line is gone → unskip it.
    Pass that list to `status` and `put` as `--skip <ids>` (`--skip=` for
-   none); `config.json` changes only in Step 4, after approval. Never edit
+   none), and to `render.js` as `--ponytail-skip <ids>` when it differs from
+   `ponytail.skip`: the config write then goes through the plan, backed up
+   and rolled back with the rest of the run. Never edit
    inside the markers. With `--sync-only`, copy the master to
    `runs/<id>/input/global.md`, put there and render with `--master-from`.
 5. **Write the master v-next** to `runs/<id>/input/global.md`, laid out per the
@@ -150,16 +152,17 @@ rewritten memory files, `parked.md`); `render.js` writes its output under
    then append `### Local additions` (an H3 under the block's H2, so the block
    stays the last section) with the deltas. Once the machine has decided, run
    `node scripts/ponytail.js put --master runs/<id>/input/global.md --out runs/<id>/input/global.md --skip <ids>`
-   (the block lands right before the Karpathy section). `karpathy.js status`
-   and `ponytail.js status` with `--master <v-next>` must say `current` (or
-   `off`) afterwards.
+   (the block lands right before the Karpathy section). `karpathy.js status
+   --master <v-next>` and `ponytail.js status --master <v-next> --skip <ids>`
+   (the same list) must say `current` (or `off`) afterwards.
 6. **Render** to every detected target and build the plan:
 
    ```sh
    node scripts/render.js --run <id> --master-from runs/<id>/input/global.md \
      --vscode \
      --archive <legacy copilot file>,<VS Code profile *.instructions.md>,<superseded memory files> \
-     [--parked runs/<id>/input/parked.md] [--memory-edits runs/<id>/input/memory-edits.json]
+     [--parked runs/<id>/input/parked.md] [--memory-edits runs/<id>/input/memory-edits.json] \
+     [--ponytail-skip <ids>]
    ```
 
    `render.js` writes `proposal/*`, `diff/*.diff` and `plan.json` — the whole
@@ -210,9 +213,6 @@ the run (exit 3): report what was applied, offer the rollback command — run it
 only if the user decides so. Retention keeps the last 10 runs; the size is
 printed. `--migrate-and-disable`: after apply, propose the settings edit
 `autoMemoryEnabled: false` in `~/.claude/settings.json` as its own approval.
-Once the master is applied, record the run's Ponytail skip list with
-`ponytail.js skip <id>` / `unskip <id>` for each id that differs from
-`ponytail.skip`; a declined proposal leaves the config as it was.
 
 ## Step 5 — Verify
 
