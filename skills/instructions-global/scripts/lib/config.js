@@ -20,6 +20,7 @@ export const DEFAULT_CONFIG = {
   },
   retention: 10,
   karpathy: { enabled: true, source: KARPATHY_SOURCE, pin: null },
+  ponytail: { enabled: null, skip: [] },
   disabled_surfaces: [],
   git_emails: [],
   git_logins: [],

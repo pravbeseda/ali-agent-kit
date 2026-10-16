@@ -1,8 +1,8 @@
 ---
 name: instructions-global
-description: Audit, tidy and sync the user-level ("global") AI-agent instruction files and Claude Code auto memory on this machine — one master file rendered to Claude Code, Codex and GitHub Copilot, Karpathy guidelines block kept current, drift detected. Manual only, use it only when the user explicitly asks to audit, tidy or sync their global agent instructions, or runs /ali-instructions-global.
+description: Audit, tidy and sync the user-level ("global") AI-agent instruction files and Claude Code auto memory on this machine — one master file rendered to Claude Code, Codex and GitHub Copilot, Karpathy guidelines block kept current, optional Ponytail rules per machine, drift detected. Manual only, use it only when the user explicitly asks to audit, tidy or sync their global agent instructions, or runs /ali-instructions-global.
 disable-model-invocation: true
-argument-hint: "[--status|--sync-only|--migrate-and-disable]"
+argument-hint: "[--status|--sync-only|--migrate-and-disable] [--ponytail on|off]"
 ---
 
 # instructions-global
@@ -29,9 +29,14 @@ mode", "just sync"). Default when nothing is said: full run.
 | Mode | Does | Writes |
 |---|---|---|
 | default | inventory → proposal → approval → apply → verify → report | after approval only |
-| `--status` | inventory, drift, Karpathy state, duplicate hints; no proposal, no `report.js` | only the run dir under `~/.agent-instructions/runs/` (`inventory.json`) |
+| `--status` | inventory, drift, Karpathy and Ponytail state, duplicate hints; no proposal, no `report.js` | only the run dir under `~/.agent-instructions/runs/` (`inventory.json`) |
 | `--sync-only` | re-render the master to every target (after the user hand-edited the master) | after approval only |
 | `--migrate-and-disable` | like default, plus: migrate everything usable out of auto memory, archive the rest, turn auto memory off (`autoMemoryEnabled: false` in `~/.claude/settings.json`) | after approval only |
+
+`--ponytail on|off` (or the user saying so) combines with any mode except
+`--status`: record it first (`ponytail.js enable` / `disable`), then run the
+mode; with `--sync-only` the master is re-rendered with the block put or
+removed (Step 2, item 4).
 
 Config: `~/.agent-instructions/config.json` (`references/config-schema.md`).
 Scripts live in `scripts/` next to this file; run them with `node`; every one
@@ -58,6 +63,7 @@ Then, still read-only:
 
 ```sh
 node scripts/karpathy.js status            # fetches upstream (6 s timeout, fine in every mode; --offline when there is no network), else snapshot — says which
+node scripts/ponytail.js status            # the optional Ponytail rules block for this machine's config
 node scripts/drift.js --diff               # on a first run every target is "never-applied": expected, not a problem
 node scripts/dupes.js <the master and every existing target file, plus the legacy files the inventory warns about>
 ```
@@ -66,10 +72,10 @@ node scripts/dupes.js <the master and every existing target file, plus the legac
 the location of a secret, never echo the value. Contradictions between lines
 are yours to spot while reading; no script finds them.
 
-Show the inventory table to the user. In `--status` mode: add the drift and
-Karpathy state and the duplicate hints, print the diagnostics checklist as the
-*target* state ("what each surface should show once the run is applied"), and
-stop — no proposal, no `report.js`.
+Show the inventory table to the user. In `--status` mode: add the drift,
+Karpathy and Ponytail state and the duplicate hints, print the diagnostics
+checklist as the *target* state ("what each surface should show once the run
+is applied"), and stop — no proposal, no `report.js`.
 
 Re-run semantics: `drift.js` classifies each target — `unchanged`,
 `master-moved` (re-render), `hand-edited` (offer: merge the edit into the
@@ -113,22 +119,50 @@ rewritten memory files, `parked.md`); `render.js` writes its output under
    the "Local additions" subsection right after the block, phrased as deltas.
    Never edit inside the markers. If a karpathy skill is installed in any agent,
    warn: the block and the skill double each other — the user picks one.
-4. **Write the master v-next** to `runs/<id>/input/global.md`, laid out per the
+4. **Ponytail rules block** (optional, per machine). `ponytail.js status`
+   says: `undecided` → ask once, among the proposal's decisions: "Turn the
+   Ponytail rules on for this machine?" with the rules from the status output
+   (`--ponytail on` turns them on later); record the answer with
+   `ponytail.js enable` or `disable` — the answer is the approval for that
+   config write. `off` / `current` → nothing; `absent` / `stale` / `remove` →
+   put; `local-edit` → FLAG batch `PONYTAIL`: move the hand edit into the
+   user's own rules or drop it, then put; `broken` → repair by hand. When the
+   block is on, compare each rule with the user's own lines outside the
+   managed blocks and settle the skip list for this run, starting from
+   `ponytail.skip`:
+   - a user line that already says the rule → skip it (routine, reported; the
+     user's line stays `KEEP`, so turning the block off later loses nothing);
+   - a user line that contradicts the rule → FLAG batch `PONYTAIL`: keep mine
+     (skip it) or take the rule (the user's line becomes `DROP:STALE`,
+     evidence "user chose ponytail rule <id> (run <id>)");
+   - a skipped rule whose covering user line is gone → unskip it.
+   Pass that list to `status` and `put` as `--skip <ids>` (`--skip=` for
+   none), and to `render.js` as `--ponytail-skip <ids>` when it differs from
+   `ponytail.skip`: the config write then goes through the plan, backed up
+   and rolled back with the rest of the run. Never edit
+   inside the markers. With `--sync-only`, copy the master to
+   `runs/<id>/input/global.md`, put there and render with `--master-from`.
+5. **Write the master v-next** to `runs/<id>/input/global.md`, laid out per the
    section template (Communication, Workflow, Code, Environment & tools, Safety,
-   Karpathy guidelines + Local additions; an existing sane structure is kept).
+   Ponytail rules when on, Karpathy guidelines + Local additions; an existing
+   sane structure is kept).
    One rule per line, imperative, English. Order of operations for the block:
    write the v-next without it, run
    `node scripts/karpathy.js put --master runs/<id>/input/global.noblock.md --out runs/<id>/input/global.md`,
    then append `### Local additions` (an H3 under the block's H2, so the block
-   stays the last section) with the deltas. `karpathy.js status --master <v-next>`
-   must say `current` afterwards.
-5. **Render** to every detected target and build the plan:
+   stays the last section) with the deltas. Once the machine has decided, run
+   `node scripts/ponytail.js put --master runs/<id>/input/global.md --out runs/<id>/input/global.md --skip <ids>`
+   (the block lands right before the Karpathy section). `karpathy.js status
+   --master <v-next>` and `ponytail.js status --master <v-next> --skip <ids>`
+   (the same list) must say `current` (or `off`) afterwards.
+6. **Render** to every detected target and build the plan:
 
    ```sh
    node scripts/render.js --run <id> --master-from runs/<id>/input/global.md \
      --vscode \
      --archive <legacy copilot file>,<VS Code profile *.instructions.md>,<superseded memory files> \
-     [--parked runs/<id>/input/parked.md] [--memory-edits runs/<id>/input/memory-edits.json]
+     [--parked runs/<id>/input/parked.md] [--memory-edits runs/<id>/input/memory-edits.json] \
+     [--ponytail-skip <ids>]
    ```
 
    `render.js` writes `proposal/*`, `diff/*.diff` and `plan.json` — the whole
@@ -144,9 +178,9 @@ rewritten memory files, `parked.md`); `render.js` writes its output under
    rewritten versions. Codex `AGENTS.override.md` present → ask where to write
    before rendering. Symlink at a target → say so; `apply.js` needs
    `--replace-symlinks`.
-6. **Show the proposal**: the file table, label counts, the FLAG batches as
+7. **Show the proposal**: the file table, label counts, the FLAG batches as
    questions (they block the next step), REWORDs as before → after, the
-   Karpathy state, threshold warnings (`master_lines`, Codex budget) —
+   Karpathy and Ponytail state (rules skipped and why), threshold warnings (`master_lines`, Codex budget) —
    `node scripts/report.js --run <id>` prints the tables from `plan.json` and
    `labels.json`
    — warnings and questions, never automatic cutting. Diff inline when ≤ 80
@@ -161,7 +195,9 @@ after every change to the v-next).
 ## Step 3 — Approval
 
 Ask exactly one question with the explicit list of files from `plan.json`:
-"Apply to these N files? [list]". Subsets are fine (`apply.js --only <paths>`).
+"Apply to these N files? [list]". Subsets are fine (`apply.js --only <paths>`),
+except that rendered targets need the master, and the master and a staged
+`config.json` go together or not at all.
 Nothing outside `~/.agent-instructions/` is written before a yes. If the user
 declines the VS Code edits, print the manual instructions instead (which keys,
 which values, which file).

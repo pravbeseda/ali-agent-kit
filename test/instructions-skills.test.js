@@ -82,6 +82,138 @@ test('markers: only-blocks, generated marker, karpathy fences', async () => {
   assert.equal((replaced.match(/karpathy-guidelines: begin/g) || []).length, 1);
 });
 
+test('markers: a named block goes before another block, or last when that one is absent', async () => {
+  const m = await lib('markers.js');
+  const header = { source: 'u', ref: 'r', hash: 'd'.repeat(64) };
+  const withKarpathy = m.putKarpathyBlock('# master\n\n## Code\n- x\n', { ...header, body: '## Karpathy' });
+  const both = m.putBlock(withKarpathy, 'ponytail-rules', { ...header, body: '## Ponytail rules' }, { before: 'karpathy-guidelines' });
+  assert.ok(both.indexOf('ponytail-rules: begin') < both.indexOf('karpathy-guidelines: begin'));
+  assert.ok(both.indexOf('## Code') < both.indexOf('ponytail-rules: begin'));
+  assert.equal(m.findBlock(both, 'ponytail-rules').body, '## Ponytail rules');
+  assert.equal(m.removeBlock(both, 'ponytail-rules'), withKarpathy);
+  const alone = m.putBlock('# master\n', 'ponytail-rules', { ...header, body: 'p' }, { before: 'karpathy-guidelines' });
+  assert.match(alone, /^# master\n\n<!-- ponytail-rules: begin [^\n]*-->\np\n<!-- ponytail-rules: end -->\n$/);
+});
+
+test('ponytail: curated rules have unique ids, a pinned upstream ref, and render without skipped rules', async () => {
+  const p = await lib('ponytail.js');
+  const curated = p.readRules(join(G, 'references', 'ponytail-rules.md'));
+  assert.match(curated.source, /^https:\/\/raw\.githubusercontent\.com\/DietrichGebert\/ponytail\//);
+  assert.match(curated.ref, /^[0-9a-f]{40}$/);
+  const ids = curated.rules.map((r) => r.id);
+  assert.ok(ids.length >= 3);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.ok(curated.rules.every((r) => !/§|Karpathy/.test(r.text)), 'rules stand alone, with or without the Karpathy block');
+  const full = p.renderBody(curated);
+  assert.match(full, /^## Ponytail rules\n/);
+  for (const rule of curated.rules) assert.ok(full.includes(rule.text));
+  const [first, ...rest] = curated.rules;
+  const skipped = p.renderBody(curated, { skip: [first.id] });
+  assert.ok(!skipped.includes(first.text));
+  assert.ok(rest.every((r) => skipped.includes(r.text)));
+
+  const m = await lib('markers.js');
+  const hash = m.contentHash(full);
+  const master = m.putBlock('# m\n', 'ponytail-rules', { source: curated.source, ref: 'old-ref', hash, body: full });
+  assert.equal(p.classify(master, full, true, 'old-ref').state, 'current');
+  assert.equal(p.classify(master, full, true, curated.ref).state, 'stale', 'a re-curation that only moves the ref still updates the block');
+});
+
+test('global: ponytail block — ask once, insert before Karpathy, skip a rule, flag a hand edit, remove when off', () => {
+  const root = tmp();
+  const home = homeBloated(root);
+  const store = join(home, '.agent-instructions');
+  mkdirSync(store, { recursive: true });
+  writeFileSync(join(store, 'config.json'), JSON.stringify({ retention: 5 }));
+
+  const undecided = runScript(G, 'ponytail.js', ['status', '--offline'], { home });
+  assert.equal(undecided.code, 0, undecided.stderr);
+  assert.equal(undecided.json.state, 'undecided');
+  assert.match(undecided.json.proposal, /ask/);
+  const inv = runScript(G, 'inventory.js', [], { home });
+  assert.equal(inv.json.ponytail.state, 'undecided');
+
+  const v1 = join(root, 'v1.md');
+  writeFileSync(v1, '# Global\n\n## Workflow\n- Never push to main.\n');
+  const v2 = join(root, 'v2.md');
+  assert.equal(runScript(G, 'karpathy.js', ['put', '--master', v1, '--out', v2, '--offline'], { home }).code, 0);
+  const refused = runScript(G, 'ponytail.js', ['put', '--master', v2, '--out', join(root, 'never.md')], { home });
+  assert.equal(refused.code, 1, 'put refuses while the machine has not decided');
+  assert.ok(!existsSync(join(root, 'never.md')));
+
+  assert.equal(runScript(G, 'ponytail.js', ['enable'], { home }).code, 0);
+  const config = JSON.parse(readFileSync(join(store, 'config.json'), 'utf8'));
+  assert.equal(config.ponytail.enabled, true);
+  assert.equal(config.retention, 5, 'other keys are kept');
+
+  const v3 = join(root, 'v3.md');
+  const put = runScript(G, 'ponytail.js', ['put', '--master', v2, '--out', v3], { home });
+  assert.equal(put.code, 0, put.stderr);
+  const withBlock = readFileSync(v3, 'utf8');
+  assert.ok(withBlock.indexOf('ponytail-rules: begin') < withBlock.indexOf('karpathy-guidelines: begin'));
+  assert.equal(runScript(G, 'ponytail.js', ['status', '--master', v3, '--offline'], { home }).json.state, 'current');
+
+  const [first] = undecided.json.rules;
+  const proposed = join(root, 'proposed.md');
+  assert.equal(runScript(G, 'ponytail.js', ['put', '--master', v3, '--out', proposed, '--skip', first.id], { home }).code, 0);
+  assert.ok(!readFileSync(proposed, 'utf8').includes(first.text), '--skip renders without the rule for this run');
+  assert.equal(runScript(G, 'ponytail.js', ['status', '--master', proposed, '--offline', '--skip', first.id], { home }).json.state, 'current');
+  assert.deepEqual(JSON.parse(readFileSync(join(store, 'config.json'), 'utf8')).ponytail.skip, [], '--skip writes nothing before approval');
+  assert.equal(runScript(G, 'ponytail.js', ['put', '--master', v3, '--out', proposed, '--skip', 'no-such-rule'], { home }).code, 1);
+  assert.equal(runScript(G, 'ponytail.js', ['skip', 'no-such-rule'], { home }).code, 1);
+  assert.equal(runScript(G, 'ponytail.js', ['skip', first.id], { home }).code, 0);
+  assert.equal(runScript(G, 'ponytail.js', ['status', '--master', v3, '--offline'], { home }).json.state, 'stale');
+  const v4 = join(root, 'v4.md');
+  assert.equal(runScript(G, 'ponytail.js', ['put', '--master', v3, '--out', v4], { home }).code, 0);
+  assert.ok(!readFileSync(v4, 'utf8').includes(first.text));
+  assert.equal((readFileSync(v4, 'utf8').match(/ponytail-rules: begin/g) || []).length, 1);
+
+  const edited = join(root, 'edited.md');
+  writeFileSync(edited, readFileSync(v4, 'utf8').replace('## Ponytail rules', '## Ponytail rules\n\n- my own line'));
+  assert.equal(runScript(G, 'ponytail.js', ['status', '--master', edited, '--offline'], { home }).json.state, 'local-edit');
+
+  assert.equal(runScript(G, 'ponytail.js', ['disable'], { home }).code, 0);
+  const off = runScript(G, 'ponytail.js', ['status', '--master', v4, '--offline'], { home });
+  assert.equal(off.json.state, 'remove');
+  const v5 = join(root, 'v5.md');
+  assert.equal(runScript(G, 'ponytail.js', ['put', '--master', v4, '--out', v5], { home }).code, 0);
+  assert.equal(readFileSync(v5, 'utf8'), readFileSync(v2, 'utf8'));
+});
+
+test('global: the run\'s Ponytail skip list is applied and rolled back with the rest of the run', () => {
+  const root = tmp();
+  const home = homeBloated(root);
+  const store = join(home, '.agent-instructions');
+  mkdirSync(store, { recursive: true });
+  const configPath = join(store, 'config.json');
+  const before = JSON.stringify({ retention: 5, ponytail: { enabled: true, skip: [] } });
+  writeFileSync(configPath, before);
+  const runId = runScript(G, 'inventory.js', ['--new-run'], { home }).json.runId;
+  const v1 = join(root, 'v1.md');
+  writeFileSync(v1, '# Global\n\n## Workflow\n- Never push to main.\n');
+
+  assert.equal(runScript(G, 'render.js', ['--run', runId, '--master-from', v1, '--ponytail-skip', 'no-such-rule'], { home }).code, 1);
+  const ren = runScript(G, 'render.js', ['--run', runId, '--master-from', v1, '--ponytail-skip', 'never-cut'], { home });
+  assert.equal(ren.code, 0, ren.stderr);
+  const plan = JSON.parse(readFileSync(join(store, 'runs', runId, 'plan.json'), 'utf8'));
+  assert.ok(plan.actions.some((a) => a.action === 'write' && a.path === configPath));
+  assert.equal(readFileSync(configPath, 'utf8'), before, 'render writes only into the run dir');
+  const masterPath = join(store, 'global.md');
+  for (const only of [masterPath, configPath]) {
+    const split = runScript(G, 'apply.js', ['--run', runId, '--only', only, '--dry-run'], { home });
+    assert.equal(split.code, 1, `--only ${only} alone`);
+    assert.match(split.stderr, /config\.json/);
+  }
+  assert.equal(runScript(G, 'apply.js', ['--run', runId, '--only', `${masterPath},${configPath}`, '--dry-run'], { home }).code, 0);
+
+  assert.equal(runScript(G, 'apply.js', ['--run', runId], { home }).code, 0);
+  const applied = JSON.parse(readFileSync(configPath, 'utf8'));
+  assert.deepEqual(applied.ponytail, { enabled: true, skip: ['never-cut'] });
+  assert.equal(applied.retention, 5);
+  assert.equal(runScript(G, 'restore.js', ['--run', runId], { home }).code, 0);
+  assert.equal(readFileSync(configPath, 'utf8'), before);
+});
+
 test('dupes: exact, near, secrets, non-English lines normalise', async () => {
   const { ruleLines, findDuplicates, findSecrets } = await lib('dupes.js');
   const text = ['# H', '- Never push to main.', 'Do not push to main.', '```', 'Never push to main.', '```', 'Prefer pnpm over npm.', '- prefer PNPM over npm', 'OpenAI key: sk-abcdefghijklmnopqrstuvwxyz123456', '\u041e\u0442\u0432\u0435\u0447\u0430\u0439 \u043a\u0440\u0430\u0442\u043a\u043e.'].join('\n');

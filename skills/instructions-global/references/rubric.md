@@ -27,6 +27,9 @@ labels are yours, and the FLAG batches are the user's.
   the section, it is **not** a DROP: keep the delta in "Local additions" right
   after the block, phrased as a delta ("In addition to §2: …") — label it
   `REWORD` with `after` = the delta line and `to` = "Local additions".
+  A line covered by a rule of the Ponytail block is **not** a DROP either: it
+  stays `KEEP` and the block's rule is skipped (`--skip`, recorded after approval), so
+  turning the block off never loses the user's line.
 - `VAGUE` — changes no behaviour and carries no specifics ("write good code",
   "be careful", "follow best practices").
 - `STALE` — evidence required: the path does not exist on this machine, the tool
@@ -107,7 +110,8 @@ Batch names (use these; add a new one only when none fits): `DEFAULT` (drop as
 default behaviour?), `CONFLICT` (two lines contradict), `STALE` (looks
 outdated, no hard evidence), `OVERRIDE` (Codex `AGENTS.override.md` content),
 `PERSONAL` (personal line in a shared repository), `KARPATHY` (block edited by
-hand / upstream moved), `SCOPE` (unclear whether global or project).
+hand / upstream moved), `PONYTAIL` (a user line contradicts a Ponytail rule, or
+the block was edited by hand), `SCOPE` (unclear whether global or project).
 
 ## Section templates
 
@@ -115,7 +119,7 @@ Headings only; an existing sane structure is preserved. The template guides
 where new lines go and the "where is this already said?" check.
 
 - Master: Communication · Workflow · Code · Environment & tools · Safety ·
-  Karpathy guidelines (+ Local additions).
+  Ponytail rules (when on) · Karpathy guidelines (+ Local additions).
 - Project canon (`AGENTS.md`): About · Commands · Conventions · Architecture
   notes · Safety.
 

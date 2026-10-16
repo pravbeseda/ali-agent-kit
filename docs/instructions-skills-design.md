@@ -102,3 +102,25 @@ project full run on `repo-mixed` with `--copilot-copy`) needed no hand edits of
 the in-text FLAG marker, the delta label and the memory-index rules to the
 rubric. `test/fixtures/instructions/scenarios.md`
 lists the scenarios and their expected outcomes for the next hand run.
+
+## 6. Ponytail rules block (2026-10-16)
+
+An optional second managed block, added after the brief. Decisions:
+
+- **Curated, not verbatim.** Upstream ponytail (`AGENTS.md`, MIT) restates
+  most of Karpathy §2–§3 and asks for "one small test or an assert", which
+  contradicts test-first rules. The block is rendered from
+  `references/ponytail-rules.md`: only what Karpathy does not say, phrased to
+  stand alone, each rule with a stable id. The file pins the upstream ref it
+  was curated from; `ponytail.js status` reports an upstream move to the
+  maintainer and changes nothing on the machine.
+- **Per machine, asked once.** `ponytail.enabled` is `null` until the first
+  full run asks; `false` removes the block (unlike `karpathy.enabled: false`,
+  which only stops updates), so turning it off is a real deactivation.
+- **Own section.** `## Ponytail rules` between `ponytail-rules` markers, right
+  before the Karpathy block (last when there is none); the two blocks never
+  depend on each other.
+- **The user's lines win.** A user line that says or contradicts a rule is
+  never dropped in favour of the block (the block can be turned off later);
+  the rule is skipped instead (`ponytail.skip`), or, on a contradiction, the
+  user decides (FLAG batch `PONYTAIL`).
