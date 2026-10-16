@@ -43,10 +43,10 @@ git ls-files -- {scope} | wc -l
 Collect the deliberate shortcuts — comments of the form `shortcut: {the limit}, {when to upgrade}`, or `ponytail:` in older code — so a deferral cannot quietly become permanent:
 
 ```sh
-git grep -nE '(#|//|/[*]|--|<!--) ?(shortcut|ponytail):' -- {scope} ':!docs/audit'
+git grep -nE '(#|//|/[*]|^[[:space:]]*[*]|--|;|<!--)[[:space:]]*(shortcut|ponytail):' -- {scope} ':!docs/audit'
 ```
 
-An exit code of `1` with no output means there are none. The comment prefix keeps prose that only mentions the convention out; drop any hit that is not a deferral, like a note about a keyboard shortcut.
+An exit code of `1` with no output means there are none. The prefixes cover line comments, block comments and their continuation lines in the common syntaxes; add the repository's own when it uses another (`%`, `'`, `REM`), and say so in the map. The prefix keeps prose that only mentions the convention out; drop any hit that is not a deferral, like a note about a keyboard shortcut.
 
 Write the map down as one block — it is the only picture of the repository the subagents get:
 

@@ -44,7 +44,7 @@ another finding sits in goes before it, so the second is not fixed twice. One li
 
 ## Shortcuts
 
-- `path:line` — {what was simplified} · limit: {the limit it names} · upgrade: {the trigger, or `no-trigger`}{ · crossed: {finding ID}}
+- `path:line` — limit: {the limit it names} · upgrade: {the trigger, or `no-trigger`}{ · crossed: {finding ID}}
 
 {{n} markers, {m} with no trigger — or "No shortcut markers."}
 
