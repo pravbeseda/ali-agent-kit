@@ -82,12 +82,13 @@ A review is worth running only if it can make the change smaller, simpler or saf
 **`blocking` — the change leaves the codebase worse than it found it.** One of:
 
 - a wrong result, a crash or a lost error on an input you can name
+- a security hole or lost data on a path you can name — outside input reaching a query, a shell command or a file path unchecked, a secret logged or committed, randomness too weak for what it guards, writes that can land half-done or out of order
 - fragility: the code works only while some unstated condition holds, and nothing here holds it
 - structure degraded: a responsibility placed where it does not belong, a seam broken, one decision now edited in two places
 - complexity this change's own goal does not justify — a branch, a parameter, a layer, an option or a guard that nothing in the work's purpose asks for
 - a rule the repository wrote down for itself is broken — read its CLAUDE.md / AGENTS.md, and the documents they link to, before ruling on this one
 
-**`suggestion` — applying it removes code or removes a concept.** A guard for a case that cannot occur, an abstraction with one caller, a parameter no caller varies, a branch that cannot be taken, logic the branch already has elsewhere. A suggestion never holds the work back; it is the author's call.
+**`suggestion` — applying it removes code or removes a concept.** A guard for a case that cannot occur, an abstraction with one caller, a parameter no caller varies, a branch that cannot be taken, logic the branch already has elsewhere, logic the repository, the standard library or the platform already provides — name where. A suggestion never holds the work back; it is the author's call.
 
 **Assertions in a new test that cannot fail.** Two shapes, and both are `suggestion`:
 
@@ -102,7 +103,7 @@ Look for both only in the tests this change adds or rewrites — an existing tes
 - **Contracts.** Where a public or cross-module interface widened, does each new member mean the same whatever state the provider is in internally, does it match the style of the rest of the interface, and is every copy or declaration of the contract kept in step?
 - **Critical paths.** Against the code before the change: does something that was synchronous or independent now wait on I/O or on another module, and does a part of the result that does not need the new dependency wait for it anyway?
 - **Callees.** Follow each new call into another module far enough to see what it does, even where that code is outside the diff: global state mutated on every call, a remote request repeated by an unrelated reactive source.
-- **Callers.** Where the cost, timing, side effects or failure modes of an existing function changed — a synchronous read that now waits on I/O, a new remote request, a new way to fail — list its callers outside the diff and check each, hot paths first: loops, per-item and per-keystroke paths, background work. A finding names the caller and what it now does.
+- **Callers.** Where the result, signature, cost, timing, side effects or failure modes of an existing function changed — a return value that now means something else, a synchronous read that now waits on I/O, a new remote request, a new way to fail — list its callers outside the diff and check each, hot paths first: loops, per-item and per-keystroke paths, background work. A finding names the caller and what it now does. The reverse is a finding too: a fix made in one caller while the shared function it works around stays broken for the others.
 - **Claims.** Do the change's own description, comments and metrics say what the code actually does?
 - **Purpose.** Read what the change says it is for — its own description, a linked ticket. Does any path in the code work against that purpose?
 
@@ -139,6 +140,7 @@ End every run with one verdict, once every finding has been applied or skipped, 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {b} blocking, {s} suggestions, {x} dropped below the bar
 Recheck: {one line per changed file, or "clean"}
+Not checked: {one line, only when something that matters could not be verified}
 
 ## ✅ VERDICT: READY FOR A PR
 {one or two sentences: what the change does for the codebase, and
@@ -160,6 +162,7 @@ Rules for the verdict:
 - **Ready means the change leaves the codebase better than it found it — not that it is perfect.** Open suggestions never hold the work back.
 - A pass that found only suggestions is a ready verdict. So is a pass that found nothing.
 - A blocking finding the user skipped is still blocking. Fixing one during the walkthrough clears it.
+- **Name what the pass could not check.** A caller in another repository, a path only a running service exercises — when something the verdict leans on went unverified, the `Not checked:` line says so, in both verdicts. When everything that mattered was read, leave the line out; it is not a place for routine disclaimers.
 - Say in one line what is still uncommitted or untracked, so nothing is left behind when the PR is opened. It does not change the verdict.
 
 ## Language
