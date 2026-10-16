@@ -9,8 +9,11 @@ Curation: only what the Karpathy block does not already say, phrased to stand
 alone (no section references), so the block reads the same with or without
 Karpathy. Left out on purpose: the "lazy senior developer" persona and the
 minimal-change ladder (Karpathy §2 and §3 cover them), the comment rule (most
-users already have one), and "one small test or an assert" (it contradicts
-test-first rules).
+users already have one), "one small test or an assert" (it contradicts
+test-first rules), "code you move or merge keeps its error handling and
+validation" (never-cut below holds the part that matters, and Karpathy §3
+forbids the unasked refactor that would drop the rest), and "between options
+of equal size, take the one correct on edge cases" (it changes no behaviour).
 
 An id is stable once released: `ponytail.skip` in a machine's config names
 rules by id. Reword a rule under its id; give a new rule a new id; drop an id
