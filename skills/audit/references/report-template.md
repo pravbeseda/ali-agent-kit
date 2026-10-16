@@ -1,6 +1,6 @@
 # Report template
 
-The layout of `docs/audit/{date}/`, written in [step 5](../SKILL.md#step-5-write-the-folder). English, whatever the language of the chat. Write a lens file only when the lens has findings; `README.md` names the lenses that came back clean.
+The layout of `docs/audit/{date}/`, written in [step 5](../SKILL.md#step-5-write-the-folder). English, whatever the language of the chat. Write `README.md` always, a lens file only when the lens has findings, and `rejected.md` only when something was rejected; `README.md` names the lenses that came back clean.
 
 ## `README.md`
 
@@ -20,18 +20,18 @@ No identifiers, no file names, no counts of lines.}
 1. {An action, not a finding: "Close the unchecked file path in the export command (SEC-1, SEC-2) — S, security.md"}
 2. …
 
-{Two to five options, blocking security first, then blocking architecture, then the rest by the fix order below.
+{Up to five options — or `Nothing to fix.` and one line on what was checked — blocking security first, then blocking architecture, then the rest by the fix order below.
 Each names the findings it covers, the effort and the file to open.}
 
 ## Findings
 
-| ID | Lens | Label | Finding | Effort | Depends on | Status |
-|----|------|-------|---------|--------|------------|--------|
-| SEC-1 | security | blocking | {title} | S | — | new |
-| ARCH-2 | architecture | blocking | {title} | L | — | open since {date} (was ARCH-1) |
-| DUP-1 | duplication | suggestion | {title} | M | ARCH-2 | tracked in #{n} |
+| ID | Lens | Label | Finding | Effort | Depends on | Status | Verified |
+|----|------|-------|---------|--------|------------|--------|----------|
+| SEC-1 | security | blocking | {title} | S | — | new | confirmed |
+| ARCH-2 | architecture | blocking | {title} | L | — | carried from {date} (was ARCH-1) | confirmed |
+| DUP-1 | duplication | suggestion | {title} | M | ARCH-2 | tracked in #{n} | plausible |
 
-{Ordered by importance. Status is one of: new · open since {date} · tracked in #{n} · plausible: {what would prove it}.}
+{Ordered by importance. Status is the finder's ledger line — new · carried from {date} (was {old ID}) · tracked in #{n} · re-raised: {what changed}. Verified is the verifier's verdict — confirmed · plausible, with what would prove it under Not checked.}
 
 ## Fix order
 
@@ -50,12 +50,12 @@ Clean lenses: {the lenses that found nothing, or "none"}.
 
 ## Not checked
 
-{The parts of the scope no finder reached, and the plausible findings' open questions — or "Nothing that matters."}
+{The parts of the scope no finder reached, every failed lens, and the plausible findings' open questions — or "Nothing that matters."}
 
 ## Method
 
-Six finders (security, architecture, correctness, duplication, lean, docs) and one verifier per lens, each in a
-clean context, on {model}. Ledger: {the earlier audits read, the open issues read}. {n} findings raised, {c} confirmed,
+{n} finders ({the lenses that ran; a failed one is named under Not checked}) and one verifier per lens with findings,
+each in a clean context, on {model}. Ledger: {the earlier audits read, the open issues read}. {n} findings raised, {c} confirmed,
 {p} plausible, {r} rejected (see rejected.md).
 ```
 

@@ -20,7 +20,6 @@ An audit is worth running only if acting on what it reports makes the code small
 - a security hole or lost data on a path you can name
 - fragility: the code works only while some unstated condition holds, and nothing here holds it
 - structure degraded: a responsibility placed where it does not belong, a seam broken, one decision edited in two places
-- complexity nothing in the code's purpose asks for — a layer, an option, a parameter or a guard nothing uses
 - a rule the repository wrote down for itself is broken — its CLAUDE.md / AGENTS.md and the documents they link to
 - a document that tells its reader to do something the code no longer does
 
@@ -62,7 +61,7 @@ Every finding in this shape, `blocking` first, and nothing else — no summary, 
 - ledger: new | carried from {date} | tracked in #{n} | re-raised: {what changed}
 ```
 
-Then one line `Not read:` naming the parts of the scope your lens did not reach, or `Not read: nothing`.
+Then one line `Not read:` naming the parts of the scope your lens did not reach, or `Not read: nothing`, and — only when the evidence gate turned something away that still matters — one line `Noticed:` saying what.
 
 ## Lenses
 
@@ -80,7 +79,7 @@ A wrong result or a crash on an input you can name — empty, zero, the last ite
 
 ### duplication
 
-Near-copies that have to change together. Two helpers doing the same job — keep one, name the path. Logic the repository, the standard library or the platform already provides — name where. Findings here are `suggestion` unless the copies already disagree, which makes it a `correctness` or `architecture` defect and theirs to report.
+Near-copies that have to change together. Two helpers doing the same job — keep one, name the path. Logic the repository, the standard library or the platform already provides — name where. Findings here are `suggestion` unless the copies already disagree: report that as `blocking`, since the copies now give different answers, and the merge step files it under correctness or architecture.
 
 ### lean
 

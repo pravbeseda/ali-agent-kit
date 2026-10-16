@@ -67,18 +67,18 @@ Wait for all of them. Then take the verdicts as given: `confirmed` and `plausibl
 
 ## Step 4. Merge and rank
 
-1. **Deduplicate across lenses.** One defect reported by two lenses stays in the lens that comes first in the order below, and the other copy is dropped. A duplication finding whose copies already disagree belongs to correctness or architecture.
+1. **Deduplicate across lenses.** One defect reported by two lenses stays in the lens that comes first in the order below, and the other copy is dropped. A duplication finding whose copies already disagree moves to correctness — or to architecture when the copies are declarations of one contract — and stays `blocking`.
 2. **Apply the cap.** Every `blocking` finding stays. Suggestions: at most ten per lens, ranked by how much code or how many concepts acting on them removes; count the rest for `Not included`.
 3. **Rank by importance.** `blocking` before `suggestion`; within each, by lens — security, architecture, correctness, duplication, lean, docs — and then by what the problem costs if left.
 4. **Work out the fix order.** Start from the ranking and move a finding earlier when its fix moves or rewrites code another finding sits in: restructuring a module goes before deduplicating or trimming inside it, or that work is done twice. Fill `Depends on` from the findings' `touches`.
 5. **Assign IDs** per lens in that order: `SEC`, `ARCH`, `COR`, `DUP`, `LEAN`, `DOC`.
-6. **Hold it against the last audit.** A finding the newest earlier audit also reported is `open since {its date}`, with its old ID. A finding of that audit the code no longer has goes under `Closed since the last audit` — after checking the code, not because no finder mentioned it; one the finders simply did not reach this time goes under `Not checked` instead.
+6. **Hold it against the last audit.** A finding the newest earlier audit also reported is `carried from {its date}`, with its old ID, whatever the finder marked it. A finding of that audit the code no longer has goes under `Closed since the last audit` — after checking the code, not because no finder mentioned it; one the finders simply did not reach this time goes under `Not checked` instead.
 
 ## Step 5. Write the folder
 
-Write `README.md`, one file per lens with findings, and `rejected.md`, in the layout of [`references/report-template.md`](references/report-template.md). English, whatever the chat language. Write nothing outside the folder.
+Write `README.md` always, one file per lens with findings, and `rejected.md` when the verifiers rejected anything, in the layout of [`references/report-template.md`](references/report-template.md). English, whatever the chat language. Write nothing outside the folder.
 
-**The state of the project comes first and in plain words.** It is the part the owner reads when they will read nothing else: what the repository is, how healthy it is, where the risk concentrates. **What to do first** follows it: two to five actions, blocking security and blocking architecture first, each naming the findings it covers and the file to open.
+**The state of the project comes first and in plain words.** It is the part the owner reads when they will read nothing else: what the repository is, how healthy it is, where the risk concentrates. **What to do first** follows it: up to five actions, blocking security and blocking architecture first, each naming the findings it covers and the file to open. An audit with no surviving finding still writes its README — the next audit needs the record that this date came back clean — and says `Nothing to fix.` there, with one line on what was checked.
 
 `Not checked` is never empty by accident: it holds every part of the scope no finder reached, every failed lens and every `plausible` finding's open question. When it truly has nothing, it says so.
 
@@ -87,11 +87,17 @@ Write `README.md`, one file per lens with findings, and `rejected.md`, in the la
 Print to the chat, in the user's language:
 
 1. **The state of the project** — the same plain-language paragraph as the README, translated.
-2. **What to do first** — the same options, numbered, so the answer can be one digit.
+2. **What to do first** — the same options, numbered.
 3. One line of counts: raised, confirmed, plausible, rejected, and per label.
-4. Any verdict you disagree with, and why, in one line each.
+4. Any verdict you disagree with, and why, in one line each, and the finders' `Noticed:` lines — these stay in the chat, never in the report.
 
-Then ask once whether to commit the folder on a new branch and open a pull request. This is the only question of the run. On yes:
+Then the hand-over, which depends on where the audit ran:
+
+```sh
+gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'
+```
+
+**On the base branch**, ask once whether to commit the folder on a new branch and open a pull request. This is the only question of the run. On yes — uncommitted changes elsewhere in the tree stay where they are, since the commit names only the folder:
 
 ```sh
 git switch -c audit/{date}
@@ -100,7 +106,9 @@ git commit docs/audit/{date} -m "docs: add codebase audit {date}"
 git push -u origin audit/{date}
 ```
 
-and open the pull request with the README's state of the project and its first actions as the body. If the checkout was not on the base branch, branch off the base instead — `git switch -c audit/{date} origin/{base}` carries the untracked folder across — so the pull request holds the audit and nothing else. On no — a team repository whose owners do not want it, say — the folder stays in the working tree, untracked, and the run ends there.
+and open the pull request with the README's state of the project and its first actions as the body. On no — a team repository whose owners do not want it, say — the folder stays in the working tree, untracked, and the run ends there.
+
+**On any other branch**, ask nothing: a branch cut from here would carry this branch's unmerged commits into the audit's pull request. Leave the folder untracked and say in one line that it can be committed from the base branch later.
 
 The audit fixes nothing and files no issues. The findings are the owner's to take, one by one.
 
