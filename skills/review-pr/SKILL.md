@@ -120,12 +120,13 @@ A review is worth running only if it can make the change smaller, simpler or saf
 **`blocking` — the change leaves the codebase worse than it found it.** One of:
 
 - a wrong result, a crash or a lost error on an input you can name
+- a security hole or lost data on a path you can name — outside input reaching a query, a shell command or a file path unchecked, a secret logged or committed, randomness too weak for what it guards, writes that can land half-done or out of order
 - fragility: the code works only while some unstated condition holds, and nothing here holds it
 - structure degraded: a responsibility placed where it does not belong, a seam broken, one decision now edited in two places
 - complexity this change's own goal does not justify — a branch, a parameter, a layer, an option or a guard that nothing in the PR's purpose asks for
 - a rule the repository wrote down for itself is broken — read its CLAUDE.md / AGENTS.md, and the documents they link to, before ruling on this one
 
-**`suggestion` — applying it removes code or removes a concept.** A guard for a case that cannot occur, an abstraction with one caller, a parameter no caller varies, a branch that cannot be taken, logic the diff already has elsewhere. A suggestion never holds up a merge; it is the author's call.
+**`suggestion` — applying it removes code or removes a concept.** A guard for a case that cannot occur, an abstraction with one caller, a parameter no caller varies, a branch that cannot be taken, logic the diff already has elsewhere, logic the repository, the standard library or the platform already provides — name where — or a new dependency taken on for a few lines. A suggestion never holds up a merge; it is the author's call.
 
 **Assertions in a new test that cannot fail.** Two shapes, and both are `suggestion`:
 
@@ -140,7 +141,7 @@ Look for both only in the tests this change adds or rewrites — an existing tes
 - **Contracts.** Where a public or cross-module interface widened, does each new member mean the same whatever state the provider is in internally, does it match the style of the rest of the interface, and is every copy or declaration of the contract kept in step?
 - **Critical paths.** Against the code before the change: does something that was synchronous or independent now wait on I/O or on another module, and does a part of the result that does not need the new dependency wait for it anyway?
 - **Callees.** Follow each new call into another module far enough to see what it does, even where that code is outside the diff: global state mutated on every call, a remote request repeated by an unrelated reactive source.
-- **Callers.** Where the cost, timing, side effects or failure modes of an existing function changed — a synchronous read that now waits on I/O, a new remote request, a new way to fail — list its callers outside the diff and check each, hot paths first: loops, per-item and per-keystroke paths, background work. A finding names the caller and what it now does.
+- **Callers.** Where the result, signature, cost, timing, side effects or failure modes of an existing function changed — a return value that now means something else, a synchronous read that now waits on I/O, a new remote request, a new way to fail — list its callers outside the diff and check each, hot paths first: loops, per-item and per-keystroke paths, background work. A finding names the caller and what it now does. The reverse is a finding too: a fix made in one caller while the shared function it works around stays broken for the others.
 - **Claims.** Do the change's own description, comments and metrics say what the code actually does?
 - **Purpose.** Read what the change says it is for — its own description, a linked ticket. Does any path in the code work against that purpose?
 
@@ -271,6 +272,7 @@ It goes to the chat only, in the language of the discussion — never to the PR.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {First round | Follow-up round | Full round} — {b} blocking, {s} suggestions, {x} dropped below the bar, {r} threads reopened
 Recheck: {one line per changed file, or "clean"}
+Not checked: {one line, only when something that matters could not be verified}
 
 ## ✅ VERDICT: READY TO MERGE
 {one or two sentences: what the change does for the codebase, and
@@ -292,6 +294,7 @@ Rules for the verdict:
 - **Ready means the change leaves the codebase better than it found it — not that it is perfect.** There is no perfect code, only better code, and holding a PR for the difference costs more than it buys. Open `suggestion` threads never block a merge.
 - A round that found only suggestions is a ready verdict. So is a round that found nothing.
 - Never recommend "another full review" on your own. After the author acts, what is unreviewed is the fix, and that is step 3; a full round is the user's to ask for.
+- **Name what the round could not check.** A caller in another repository, a path only a running service exercises, a file the API would not serve — when something the verdict leans on went unverified, the `Not checked:` line says so, in both verdicts. When everything that mattered was read, leave the line out; it is not a place for routine disclaimers.
 - Report a 422, a dropped finding or a one-at-a-time fallback only if it actually happened. Silence is the normal case.
 - If step 1 asked about a diverging checkout and the user chose to go on, add one line above the verdict saying the review covers the pushed state only, and name what was left out — the dirty paths, or the local SHA. A merge verdict is worth less to a reader who cannot tell it was given without the newest local work.
 
