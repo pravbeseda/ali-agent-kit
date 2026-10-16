@@ -12,6 +12,7 @@ import { detectSurfaces, findKarpathySkills } from './lib/surfaces.js';
 import { listMemoryDirs } from './lib/memory.js';
 import { settingsFiles, readSettings, codeVersion, loadDefaults, effectiveSettings } from './lib/vscode.js';
 import { classify, readSnapshot, renderBlockBody } from './lib/karpathy.js';
+import * as ponytailRules from './lib/ponytail.js';
 import { selfCheck } from './lib/selfcheck.js';
 
 const HELP = `usage: node inventory.js [--new-run] [--json]
@@ -19,7 +20,8 @@ const HELP = `usage: node inventory.js [--new-run] [--json]
 Read-only. Detects surfaces, measures every candidate file (bytes, lines,
 ~tokens = chars/4, sha256, symlink, BOM/EOL, marker), reads VS Code settings,
 lists auto-memory dirs, checks the Karpathy block against the bundled snapshot
-(the karpathy.js script does the network fetch), and looks for doubling risks.
+(the karpathy.js script does the network fetch) and the Ponytail rules block
+against this machine's config, and looks for doubling risks.
 
   --new-run   create ~/.agent-instructions/runs/<run-id>/ and save inventory.json there
   --json      machine-readable output`;
@@ -43,6 +45,13 @@ export async function inventory({ env = process.env, newRun = false } = {}) {
       ? classify(masterText, renderBlockBody(snapshot.body, { source: config.karpathy.source })).state
       : 'no snapshot',
     installedAsSkill: findKarpathySkills(env)
+  };
+
+  const curated = ponytailRules.readRules();
+  const ponytail = {
+    enabled: config.ponytail.enabled,
+    skip: config.ponytail.skip,
+    state: ponytailRules.classify(masterText, ponytailRules.renderBody(curated, { skip: config.ponytail.skip }), config.ponytail.enabled).state
   };
 
   const version = codeVersion();
@@ -94,6 +103,7 @@ export async function inventory({ env = process.env, newRun = false } = {}) {
     vscode: { version, settingsFiles: vscode, defaultsSource: defaults.source },
     memory,
     karpathy,
+    ponytail,
     env: env_,
     warnings,
     config
@@ -126,6 +136,7 @@ function render(r) {
   lines.push(table([['surface', 'surface'], ['detected', 'detected'], ['file', 'file'], ['exists', 'exists'], ['bytes', 'bytes'], ['lines', 'lines'], ['tokens', '~tokens (chars/4)'], ['marker', 'marker'], ['symlink', 'symlink']], rows));
   lines.push('');
   lines.push(`Karpathy: enabled=${r.karpathy.enabled} state vs snapshot=${r.karpathy.againstSnapshot} snapshot ref=${r.karpathy.snapshot?.ref ?? '-'} pin=${r.karpathy.pin ?? '-'}`);
+  lines.push(`Ponytail rules: enabled=${r.ponytail.enabled} state=${r.ponytail.state} skip=${r.ponytail.skip.join(',') || '-'}`);
   lines.push(`VS Code CLI: ${r.vscode.version ? `${r.vscode.version.binary} ${r.vscode.version.version}` : 'not on PATH'}`);
   for (const f of r.vscode.settingsFiles) {
     lines.push(`  ${tildify(f.path)} [${f.flavour}/${f.profile}] ${f.exists ? '' : '(absent)'}${f.error ? ` ERROR ${f.error}` : ''}`);

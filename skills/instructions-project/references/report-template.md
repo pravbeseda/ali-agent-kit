@@ -42,9 +42,11 @@ Sections, in order — paste the `report.js` tables where they belong:
 3. **Labels** — counts, then every label with its reason:
    REWORD as before → after; MERGE with the surviving line; MOVE as from → to;
    DROP grouped by code with evidence; FLAG grouped by batch with the question.
-4. **Karpathy block** — state (absent / current / upstream-ahead / local-edit /
-   both), ref before → after, the diff when an update was proposed, doubling
-   warnings (installed as a skill).
+4. **Managed blocks** — Karpathy: state (absent / current / upstream-ahead /
+   local-edit / both), ref before → after, the diff when an update was
+   proposed, doubling warnings (installed as a skill). Ponytail rules:
+   `enabled` for this machine, state, rules skipped and why, and an upstream
+   move past the curated ref when one was reported.
 5. **Sync status per surface** — channel, written / skipped and why, legacy
    channels retired.
 6. **VS Code** — every settings.json found, effective values of the six keys

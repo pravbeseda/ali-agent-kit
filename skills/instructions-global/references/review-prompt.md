@@ -44,7 +44,10 @@ By design of the tool that made the change (do not report these as unexplained,
 do report them when they look broken or partial): every generated file starts
 with an HTML marker naming its source and a sha256; a "Karpathy Guidelines"
 section between `<!-- karpathy-guidelines: begin ... -->` / `end` markers is a
-managed block copied from a public source and may appear in every file; VS Code
+managed block copied from a public source and may appear in every file; a
+"Ponytail rules" section between `<!-- ponytail-rules: begin ... -->` / `end`
+markers is a managed block too, rendered from rules curated by the tool, and
+may appear, change or disappear in every file; VS Code
 settings may gain `chat.useClaudeMdFile: false` and
 `chat.instructionsFilesLocations["~/.copilot/instructions"] = true` (VS Code
 accepts `~` there); legacy files may have been moved into an archive directory

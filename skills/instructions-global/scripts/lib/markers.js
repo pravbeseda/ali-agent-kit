@@ -1,7 +1,7 @@
 // Shared between ali-instructions-global and ali-instructions-project.
 // Every file these skills generate carries an HTML-comment marker; this module
 // builds and parses them, strips `<!-- only: agent -->` blocks and handles the
-// Karpathy block fences.
+// fences of the managed blocks (Karpathy guidelines, Ponytail rules).
 
 import { sha256 } from './fsx.js';
 
@@ -44,53 +44,50 @@ export function contentHash(text) {
   return sha256(text.replace(/\r\n?/g, '\n').replace(/\s+$/, '') + '\n');
 }
 
-// --- Karpathy block -------------------------------------------------------
+// --- Managed blocks -----------------------------------------------------
+// A block is fenced by `<!-- <name>: begin source=… ref=… sha256=… -->` and
+// `<!-- <name>: end -->`; the hash is that of the body as it was written.
 
-export const KARPATHY_BEGIN_RE =
-  /<!--\s*karpathy-guidelines: begin source=(\S+) ref=(\S+) sha256=([0-9a-f]{64})\s*-->/;
-export const KARPATHY_END = '<!-- karpathy-guidelines: end -->';
+export const KARPATHY = 'karpathy-guidelines';
+export const PONYTAIL = 'ponytail-rules';
 
-export function karpathyBegin({ source, ref, hash }) {
-  return `<!-- karpathy-guidelines: begin source=${source} ref=${ref} sha256=${hash} -->`;
-}
+const beginRe = (name) => new RegExp(`<!--\\s*${name}: begin source=(\\S+) ref=(\\S+) sha256=([0-9a-f]{64})\\s*-->`);
+const endMarker = (name) => `<!-- ${name}: end -->`;
 
-/** Locate the block: {start, end, header:{source,ref,hash}, body} or null. */
-export function findKarpathyBlock(text) {
-  const begin = KARPATHY_BEGIN_RE.exec(text);
+/** Locate the block: {start, end, header:{source,ref,hash}, body, bodyHash} or null. */
+export function findBlock(text, name) {
+  const begin = beginRe(name).exec(text);
   if (!begin) return null;
-  const endIdx = text.indexOf(KARPATHY_END, begin.index);
-  if (endIdx === -1) return { start: begin.index, end: -1, header: headerOf(begin), body: null, broken: true };
-  const bodyStart = begin.index + begin[0].length;
-  const body = text.slice(bodyStart, endIdx).replace(/^\r?\n/, '').replace(/\s+$/, '');
-  return {
-    start: begin.index,
-    end: endIdx + KARPATHY_END.length,
-    header: headerOf(begin),
-    body,
-    bodyHash: contentHash(body)
-  };
+  const header = { source: begin[1], ref: begin[2], hash: begin[3] };
+  const endIdx = text.indexOf(endMarker(name), begin.index);
+  if (endIdx === -1) return { start: begin.index, end: -1, header, body: null, broken: true };
+  const body = text.slice(begin.index + begin[0].length, endIdx).replace(/^\r?\n/, '').replace(/\s+$/, '');
+  return { start: begin.index, end: endIdx + endMarker(name).length, header, body, bodyHash: contentHash(body) };
 }
 
-function headerOf(m) {
-  return { source: m[1], ref: m[2], hash: m[3] };
-}
-
-/** Text with the block replaced (or appended when absent). */
-export function putKarpathyBlock(text, { source, ref, hash, body }) {
-  const block = `${karpathyBegin({ source, ref, hash })}\n${body.trim()}\n${KARPATHY_END}`;
-  const found = findKarpathyBlock(text);
-  if (found && !found.broken) {
-    return text.slice(0, found.start) + block + text.slice(found.end);
-  }
+/**
+ * Text with the block replaced; when absent, inserted right before the block
+ * named `before` if that one is present, else appended.
+ */
+export function putBlock(text, name, { source, ref, hash, body }, { before } = {}) {
+  const block = `<!-- ${name}: begin source=${source} ref=${ref} sha256=${hash} -->\n${body.trim()}\n${endMarker(name)}`;
+  const found = findBlock(text, name);
+  if (found && !found.broken) return text.slice(0, found.start) + block + text.slice(found.end);
+  const next = before ? findBlock(text, before) : null;
+  if (next) return `${text.slice(0, next.start)}${block}\n\n${text.slice(next.start)}`;
   const base = text.replace(/\s+$/, '');
   return `${base}${base ? '\n\n' : ''}${block}\n`;
 }
 
 /** Text without the block (and without the blank lines that surrounded it). */
-export function removeKarpathyBlock(text) {
-  const found = findKarpathyBlock(text);
+export function removeBlock(text, name) {
+  const found = findBlock(text, name);
   if (!found || found.broken) return text;
   const rest = text.slice(found.end).replace(/^\s+/, '');
   const head = text.slice(0, found.start).replace(/\s+$/, '');
   return `${head}${rest ? `\n\n${rest}` : ''}`.replace(/\s+$/, '') + '\n';
 }
+
+export const findKarpathyBlock = (text) => findBlock(text, KARPATHY);
+export const putKarpathyBlock = (text, block) => putBlock(text, KARPATHY, block);
+export const removeKarpathyBlock = (text) => removeBlock(text, KARPATHY);
