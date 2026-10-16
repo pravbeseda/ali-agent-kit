@@ -21,7 +21,7 @@ Then give each finding exactly one verdict:
 - `plausible` — the code reads as the finding says, but proving it takes something you cannot do here: running the service, a production input, a second repository. Say what that is.
 - `rejected` — and the ground: unreachable, factually wrong, growth gate, already rejected, duplicate of {title}, or no consequence.
 
-You may correct a finding's label, location or effort, and you say so. You add no finding of your own: what you notice outside the findings goes on one `Noticed:` line at the end, unlabelled, and nobody acts on it this run.
+You may correct a finding's label, location or effort, and you say so. You add no finding of your own: what you notice outside the findings goes on one `Noticed:` line at the end, unlabelled; it is shown to the owner in the chat and goes into no report.
 
 Return every finding in its original shape, with two lines added under it:
 

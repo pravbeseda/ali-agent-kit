@@ -7,12 +7,12 @@ disable-model-invocation: true
 
 # Audit
 
-Answer one question about a codebase as it stands: **what in it is wrong now, and what should be fixed first?** There is no change under review. Six finders read the code through one lens each, six verifiers try to disprove what they found, and the survivors land in `docs/audit/{date}/` as a plan of work the owner can pick up: a plain-language state of the project, the first things to do, and one file per lens.
+Answer one question about a codebase as it stands: **what in it is wrong now, and what should be fixed first?** There is no change under review. Six finders read the code through one lens each, one verifier per lens tries to disprove what it found, and the survivors land in `docs/audit/{date}/` as a plan of work the owner can pick up: a plain-language state of the project, the first things to do, and one file per lens.
 
 > **Not `ali-review-branch` / `ali-review-pr`:** those judge a change against the code before it. This one judges the code itself, so its definition of a finding is its own — but what survives one, the evidence and growth gates, is theirs word for word.
 > **Not a fixer.** The audit writes into its own folder and nowhere else. Fixing is a separate step the owner takes, finding by finding, in whatever way they choose.
 
-It runs on Claude Code subagents — about twelve per run, all on one tier — so it starts when the user asks for it and never on its own.
+It runs on Claude Code subagents — up to twelve per run, all on one tier — so it starts when the user asks for it and never on its own.
 
 ## Step 1. Scope, ledger and map
 
@@ -59,9 +59,7 @@ Wait for all six. Do nothing with partial results.
 
 ## Step 3. Verify — one verifier per lens
 
-Dispatch **six verifiers in parallel, in one message**, on the same tier: each gets [`references/verifier-prompt.md`](references/verifier-prompt.md) from its `---` line on, the findings of one lens exactly as its finder returned them, the map and the ledger. Never the finder's reasoning, never this conversation — a verifier that sees why a finding was raised confirms it.
-
-A lens that returned no findings gets no verifier.
+Dispatch **one verifier per lens that returned findings, in parallel, in one message**, on the same tier: each gets [`references/verifier-prompt.md`](references/verifier-prompt.md) from its `---` line on, the findings of one lens exactly as its finder returned them, the map and the ledger. Never the finder's reasoning, never this conversation — a verifier that sees why a finding was raised confirms it.
 
 Wait for all of them. Then take the verdicts as given: `confirmed` and `plausible` findings go on, `rejected` ones go to `rejected.md` with their ground. Do not overrule a verifier either way; where you think one is wrong, say so in the chat at the end.
 
@@ -72,7 +70,7 @@ Wait for all of them. Then take the verdicts as given: `confirmed` and `plausibl
 3. **Rank by importance.** `blocking` before `suggestion`; within each, by lens — security, architecture, correctness, duplication, lean, docs — and then by what the problem costs if left.
 4. **Work out the fix order.** Start from the ranking and move a finding earlier when its fix moves or rewrites code another finding sits in: restructuring a module goes before deduplicating or trimming inside it, or that work is done twice. Fill `Depends on` from the findings' `touches`.
 5. **Assign IDs** per lens in that order: `SEC`, `ARCH`, `COR`, `DUP`, `LEAN`, `DOC`.
-6. **Hold it against the last audit.** A finding the newest earlier audit also reported is `carried from {its date}`, with its old ID, whatever the finder marked it. A finding of that audit the code no longer has goes under `Closed since the last audit` — after checking the code, not because no finder mentioned it; one the finders simply did not reach this time goes under `Not checked` instead.
+6. **Hold it against the last audit.** A finding the newest earlier audit also reported is `carried from {its date}`, with its old ID — or `tracked in #{n}` when an open issue now holds it, with the old ID after it. A finding of that audit the code no longer has goes under `Closed since the last audit` — after checking the code, not because no finder mentioned it; one the finders simply did not reach this time goes under `Not checked` instead.
 
 ## Step 5. Write the folder
 
@@ -89,7 +87,7 @@ Print to the chat, in the user's language:
 1. **The state of the project** — the same plain-language paragraph as the README, translated.
 2. **What to do first** — the same options, numbered.
 3. One line of counts: raised, confirmed, plausible, rejected, and per label.
-4. Any verdict you disagree with, and why, in one line each, and the finders' `Noticed:` lines — these stay in the chat, never in the report.
+4. Any verdict you disagree with, and why, in one line each, and the `Noticed:` lines of finders and verifiers — these stay in the chat, never in the report.
 
 Then the hand-over, which depends on where the audit ran:
 

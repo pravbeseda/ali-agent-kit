@@ -56,7 +56,7 @@ Clean lenses: {the lenses that found nothing, or "none"}.
 
 {n} finders ({the lenses that ran; a failed one is named under Not checked}) and one verifier per lens with findings,
 each in a clean context, on {model}. Ledger: {the earlier audits read, the open issues read}. {n} findings raised, {c} confirmed,
-{p} plausible, {r} rejected (see rejected.md).
+{p} plausible, {r} rejected{ (see rejected.md) when r > 0}.
 ```
 
 ## `{lens}.md`
