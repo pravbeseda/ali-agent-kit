@@ -26,6 +26,8 @@ commands
 
 options
   --master <path>   master file to inspect (default ~/.agent-instructions/global.md)
+  --skip <ids>      status / put: the rules to skip in this run instead of ponytail.skip
+                    (comma-separated; --skip= for none); config.json is not touched
   --offline         do not check upstream
   --timeout <ms>    upstream check timeout (default 6000)
   --json`;
@@ -36,7 +38,7 @@ const PROPOSALS = {
   remove: 'ponytail.enabled=false: remove the block from the master',
   absent: 'insert the block before the Karpathy section (or last when there is none)',
   current: null,
-  stale: 'the curated rules or ponytail.skip changed: update the block',
+  stale: 'the curated rules, their ref or ponytail.skip changed: update the block',
   'local-edit': 'FLAG: block edited by hand — move the edit into the user\'s own rules (outside the markers) or drop it, then update the block',
   broken: 'begin marker without end marker — repair by hand before continuing'
 };
@@ -80,11 +82,14 @@ async function main(flags, positional) {
   }
 
   const { config } = loadConfig();
-  const { enabled, skip } = config.ponytail;
+  const { enabled } = config.ponytail;
+  const unknown = (flags.skip ?? []).filter((s) => !ids.includes(s));
+  if (unknown.length) throw new UsageError(`unknown rule id ${unknown.join(', ')}; ids: ${ids.join(', ')}`);
+  const skip = flags.skip ?? config.ponytail.skip;
   const masterPath = flags.master ?? storePaths().master;
   const masterText = existsSync(masterPath) ? readText(masterPath).text : '';
   const rendered = renderBody(curated, { skip });
-  const { state, block } = classify(masterText, rendered, enabled);
+  const { state, block } = classify(masterText, rendered, enabled, curated.ref);
   const result = {
     master: masterPath,
     masterExists: existsSync(masterPath),
@@ -135,5 +140,5 @@ function render(r) {
 }
 
 if (isMain(import.meta.url)) {
-  run({ spec: { master: 'string', out: 'string', offline: 'bool', timeout: 'string' }, help: HELP, main, render });
+  run({ spec: { master: 'string', out: 'string', skip: 'list', offline: 'bool', timeout: 'string' }, help: HELP, main, render });
 }

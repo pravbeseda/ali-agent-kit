@@ -41,16 +41,18 @@ export function renderBody({ rules }, { skip = [] } = {}) {
 }
 
 /**
- * State of the block in `masterText` for this machine's `enabled` setting:
+ * State of the block in `masterText` against the rendered body and the curated
+ * `ref`, for this machine's `enabled` setting:
  *   undecided (enabled is null) | off | remove (enabled is false)
  *   absent | current | stale | local-edit | broken (enabled is true)
  */
-export function classify(masterText, rendered, enabled) {
+export function classify(masterText, rendered, enabled, ref) {
   const found = findBlock(masterText ?? '', PONYTAIL);
   if (enabled === null || enabled === undefined) return { state: 'undecided', block: found };
   if (found?.broken) return { state: 'broken', block: found };
   if (enabled === false) return { state: found ? 'remove' : 'off', block: found };
   if (!found) return { state: 'absent', block: null };
   if (found.bodyHash !== found.header.hash) return { state: 'local-edit', block: found };
-  return { state: found.header.hash === contentHash(rendered) ? 'current' : 'stale', block: found };
+  const fresh = found.header.hash === contentHash(rendered) && found.header.ref === ref;
+  return { state: fresh ? 'current' : 'stale', block: found };
 }

@@ -28,7 +28,7 @@ labels are yours, and the FLAG batches are the user's.
   after the block, phrased as a delta ("In addition to §2: …") — label it
   `REWORD` with `after` = the delta line and `to` = "Local additions".
   A line covered by a rule of the Ponytail block is **not** a DROP either: it
-  stays `KEEP` and the block's rule is skipped (`ponytail.js skip <id>`), so
+  stays `KEEP` and the block's rule is skipped (`--skip`, recorded after approval), so
   turning the block off never loses the user's line.
 - `VAGUE` — changes no behaviour and carries no specifics ("write good code",
   "be careful", "follow best practices").

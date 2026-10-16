@@ -51,7 +51,7 @@ export async function inventory({ env = process.env, newRun = false } = {}) {
   const ponytail = {
     enabled: config.ponytail.enabled,
     skip: config.ponytail.skip,
-    state: ponytailRules.classify(masterText, ponytailRules.renderBody(curated, { skip: config.ponytail.skip }), config.ponytail.enabled).state
+    state: ponytailRules.classify(masterText, ponytailRules.renderBody(curated, { skip: config.ponytail.skip }), config.ponytail.enabled, curated.ref).state
   };
 
   const version = codeVersion();

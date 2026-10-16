@@ -111,6 +111,12 @@ test('ponytail: curated rules have unique ids, a pinned upstream ref, and render
   const skipped = p.renderBody(curated, { skip: [first.id] });
   assert.ok(!skipped.includes(first.text));
   assert.ok(rest.every((r) => skipped.includes(r.text)));
+
+  const m = await lib('markers.js');
+  const hash = m.contentHash(full);
+  const master = m.putBlock('# m\n', 'ponytail-rules', { source: curated.source, ref: 'old-ref', hash, body: full });
+  assert.equal(p.classify(master, full, true, 'old-ref').state, 'current');
+  assert.equal(p.classify(master, full, true, curated.ref).state, 'stale', 'a re-curation that only moves the ref still updates the block');
 });
 
 test('global: ponytail block — ask once, insert before Karpathy, skip a rule, flag a hand edit, remove when off', () => {
@@ -148,6 +154,12 @@ test('global: ponytail block — ask once, insert before Karpathy, skip a rule, 
   assert.equal(runScript(G, 'ponytail.js', ['status', '--master', v3, '--offline'], { home }).json.state, 'current');
 
   const [first] = undecided.json.rules;
+  const proposed = join(root, 'proposed.md');
+  assert.equal(runScript(G, 'ponytail.js', ['put', '--master', v3, '--out', proposed, '--skip', first.id], { home }).code, 0);
+  assert.ok(!readFileSync(proposed, 'utf8').includes(first.text), '--skip renders without the rule for this run');
+  assert.equal(runScript(G, 'ponytail.js', ['status', '--master', proposed, '--offline', '--skip', first.id], { home }).json.state, 'current');
+  assert.deepEqual(JSON.parse(readFileSync(join(store, 'config.json'), 'utf8')).ponytail.skip, [], '--skip writes nothing before approval');
+  assert.equal(runScript(G, 'ponytail.js', ['put', '--master', v3, '--out', proposed, '--skip', 'no-such-rule'], { home }).code, 1);
   assert.equal(runScript(G, 'ponytail.js', ['skip', 'no-such-rule'], { home }).code, 1);
   assert.equal(runScript(G, 'ponytail.js', ['skip', first.id], { home }).code, 0);
   assert.equal(runScript(G, 'ponytail.js', ['status', '--master', v3, '--offline'], { home }).json.state, 'stale');
