@@ -126,7 +126,7 @@ A review is worth running only if it can make the change smaller, simpler or saf
 - complexity this change's own goal does not justify — a branch, a parameter, a layer, an option or a guard that nothing in the PR's purpose asks for
 - a rule the repository wrote down for itself is broken — read its CLAUDE.md / AGENTS.md, and the documents they link to, before ruling on this one
 
-**`suggestion` — applying it removes code or removes a concept.** A guard for a case that cannot occur, an abstraction with one caller, a parameter no caller varies, a branch that cannot be taken, logic the diff already has elsewhere, logic the repository, the standard library or the platform already provides — name where — or a new dependency taken on for a few lines. A suggestion never holds up a merge; it is the author's call.
+**`suggestion` — applying it removes code or removes a concept.** A guard for a case that cannot occur, an abstraction with one caller, a parameter no caller varies, a branch that cannot be taken, logic the diff already has elsewhere, logic the repository, the standard library or the platform already provides — name where. A suggestion never holds up a merge; it is the author's call.
 
 **Assertions in a new test that cannot fail.** Two shapes, and both are `suggestion`:
 
