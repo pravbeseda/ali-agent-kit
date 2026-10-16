@@ -25,7 +25,7 @@ An audit is worth running only if acting on what it reports makes the code small
 
 **`suggestion` — applying it removes code or removes a concept.** A guard for a case that cannot occur, an abstraction with one implementation, a parameter no caller varies, a branch that cannot be taken, code nothing calls, logic the repository, the standard library or the platform already provides — name where — or a document nothing needs any more. A suggestion is never urgent; it is the owner's call.
 
-A shortcut marked with a `shortcut:` comment that names its limit is a decision, not fragility, unless the code already crosses that limit.
+A shortcut marked with a `shortcut:` comment that names its limit is a decision, not fragility, unless the code already crosses that limit. The map lists every marker; one in your lens whose limit the code has crossed is a finding, and its `where` names the marker.
 
 Two gates decide what survives:
 
