@@ -96,6 +96,23 @@ test('autopilot hands its reviewers the same bar as review-branch', () => {
   );
 });
 
+test('audit hands its finders the same gates as review-branch', () => {
+  // An audit has no change to judge, so its definition of a finding is its own;
+  // what survives a finding — the two gates and what is never looked for — is not.
+  for (const [start, end] of [
+    ['Two gates decide what survives:', '- **Growth.**'],
+    ['Not looked for at all:', 'Not looked for at all:']
+  ]) {
+    assert.equal(
+      block('audit/references/finder-prompt.md', start, end),
+      block('review-branch', start, end),
+      `The "${start}" block of the audit finder prompt must stay review-branch's, word for ` +
+        'word — apply the same edit to skills/audit/references/finder-prompt.md and ' +
+        'skills/review-branch/SKILL.md.'
+    );
+  }
+});
+
 test('review-pr and process-pr-comments give the same literal-path rule', () => {
   const marker = '**Name the file by the literal absolute path';
 
