@@ -20,7 +20,7 @@ gh project list --owner @me --limit 1000 --format json --jq '.projects[] | selec
 gh project field-list {number} --owner @me --format json
 ```
 
-Keep the project number and id and the ids of the `Status` field and its `In progress`, `In review`, `Ready` and `Inbox` options. No `project` scope on `gh` → stop and tell the user to run `gh auth refresh -h github.com -s project` in their own terminal. No `Work` project, a `Status` field without those three options, or a `Priority` field without `P0`–`P3` → stop, name what is missing and point at [Task queue setup](https://github.com/pravbeseda/ali-agent-kit#task-queue-setup).
+Keep the project number and id and the ids of the `Status` field and its `In progress`, `In review`, `Ready` and `Inbox` options. No `project` scope on `gh` → stop and tell the user to run `gh auth refresh -h github.com -s project` in their own terminal. No `Work` project, a `Status` field without those four options, or a `Priority` field without `P0`–`P3` → stop, name what is missing and point at [Task queue setup](https://github.com/pravbeseda/ali-agent-kit#task-queue-setup).
 
 ## 2. Pick the item
 
@@ -69,17 +69,17 @@ There is no lock behind this — two agents started in the same repository at th
 ```sh
 git status --porcelain
 git rev-parse --abbrev-ref HEAD
+git fetch origin {base}
 ```
 
-- **Clean tree on the base branch** → `git pull --ff-only`, then create the working branch here.
-- **Anything else** — uncommitted changes, or another task's branch checked out — → this checkout belongs to other work. Leave it untouched and create a worktree next to it:
+Either way the branch starts from `origin/{base}`, not from the local `{base}`: commits on the local base branch that were never pushed belong to other work and stay out of this task.
+
+- **Clean tree on the base branch** → create the working branch here: `git switch --no-track -c {branch} origin/{base}`.
+- **Anything else** — uncommitted changes, or another task's branch checked out — → this checkout belongs to other work. Leave it untouched and create a worktree next to it, then work in that directory from here on and tell the user its path:
 
   ```sh
-  git fetch origin {base}
   git worktree add --no-track -b {branch} ../{name}-{N} origin/{base}
   ```
-
-  Work in that directory from here on and tell the user its path. In Claude Code, prefer the built-in worktree tool when it is available.
 
 Name the branch the way the repository already names them (look at `AGENTS.md`, `CONTRIBUTING.md` or recent branches); with no convention, `{N}-{short-slug}`.
 

@@ -56,7 +56,7 @@ query($login: String!, $number: Int!, $cursor: String) {
       content { ... on Issue { number title state url body repository { nameWithOwner }
         parent { number repository { nameWithOwner } }
         subIssuesSummary { total completed }
-        blockedBy(first: 20) { nodes { number state repository { nameWithOwner } } } } } } } } } }' \
+        blockedBy(first: 100) { nodes { number state repository { nameWithOwner } } } } } } } } } }' \
   -F login={login} -F number={number}
 ```
 
