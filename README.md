@@ -44,7 +44,7 @@ Without the file the review runs on the top-level model and says so. Either way 
 
 ```sh
 gh auth refresh -h github.com -s project
-gh project create --owner @me --title Work
+gh project create --owner @me --title Work --format json --jq '{number, id}'
 gh project field-create {number} --owner @me --name Priority --data-type SINGLE_SELECT --single-select-options "P0,P1,P2,P3"
 gh project field-create {number} --owner @me --name Kind --data-type SINGLE_SELECT --single-select-options "bug,feature,chore"
 gh project field-create {number} --owner @me --name Size --data-type SINGLE_SELECT --single-select-options "S,M,L"
