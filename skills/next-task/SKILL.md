@@ -72,6 +72,15 @@ There is no lock behind this — two agents started in the same repository at th
 
 ## 4. Set up where the work happens
 
+**A task taken from `In progress` may already have its place.** An earlier session that ended without a PR left its branch, and maybe a worktree, behind. Look first:
+
+```sh
+git worktree list
+git branch --all --list '*{N}*'
+```
+
+One branch or worktree that plainly belongs to this issue → continue there and say so; several candidates → ask the user which one. Only with nothing found does the issue get a new branch below.
+
 ```sh
 git status --porcelain
 git rev-parse --abbrev-ref HEAD
@@ -91,7 +100,7 @@ Name the branch the way the repository already names them (look at `AGENTS.md`, 
 
 ## 5. Brief, then work
 
-Before touching code, show in a few lines: the issue's number, title and link; its parent epic and that epic's plan file, if the epic body or the repository's plan folder names one; what it was blocked by and that those are closed; where the work happens. Read the plan file when there is one — it carries the reasons the issue does not.
+Before touching code, show in a few lines: the issue's number, title and link; its parent epic and that epic's plan file, if the epic body or the repository's plan folder names one; where the work happens. Read the plan file when there is one — it carries the reasons the issue does not.
 
 Then do the task the way the user and the repository normally work.
 
