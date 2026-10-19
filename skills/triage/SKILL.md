@@ -15,7 +15,7 @@ One GitHub Project, `Work`, owned by the authenticated user, holds the open issu
 
 ```sh
 gh api user --jq .login
-gh project list --owner @me --format json --jq '.projects[] | select(.title == "Work") | {number, id}'
+gh project list --owner @me --limit 1000 --format json --jq '.projects[] | select(.title == "Work") | {number, id}'
 gh project field-list {number} --owner @me --format json
 ```
 
