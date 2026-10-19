@@ -20,7 +20,7 @@ gh project list --owner @me --limit 1000 --format json --jq '.projects[] | selec
 gh project field-list {number} --owner @me --format json
 ```
 
-Keep the project number and id and the ids of the `Status` field and its `In progress`, `In review` and `Ready` options. No `project` scope on `gh` → stop and tell the user to run `gh auth refresh -h github.com -s project` in their own terminal. No `Work` project, a `Status` field without those three options, or a `Priority` field without `P0`–`P3` → stop, name what is missing and point at [Task queue setup](https://github.com/pravbeseda/ali-agent-kit#task-queue-setup).
+Keep the project number and id and the ids of the `Status` field and its `In progress`, `In review`, `Ready` and `Inbox` options. No `project` scope on `gh` → stop and tell the user to run `gh auth refresh -h github.com -s project` in their own terminal. No `Work` project, a `Status` field without those three options, or a `Priority` field without `P0`–`P3` → stop, name what is missing and point at [Task queue setup](https://github.com/pravbeseda/ali-agent-kit#task-queue-setup).
 
 ## 2. Pick the item
 
