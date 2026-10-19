@@ -38,6 +38,25 @@ model_reasoning_effort = "medium"
 
 Without the file the review runs on the top-level model and says so. Either way a minimal Codex run checks the model before anything is dispatched, and a model the CLI refuses leaves the Claude review running alone.
 
+### Task queue setup
+
+`ali-triage` and `ali-next-task` work on one user-level GitHub Project titled `Work`, and refuse to run until it exists with the fields below. Create it once:
+
+```sh
+gh auth refresh -h github.com -s project
+gh project create --owner @me --title Work
+gh project field-create {number} --owner @me --name Priority --data-type SINGLE_SELECT --single-select-options "P0,P1,P2,P3"
+gh project field-create {number} --owner @me --name Kind --data-type SINGLE_SELECT --single-select-options "bug,feature,chore"
+gh project field-create {number} --owner @me --name Size --data-type SINGLE_SELECT --single-select-options "S,M,L"
+gh project field-list {number} --owner @me --format json --jq '.fields[] | select(.name == "Status") | .id'
+gh api graphql -f query='mutation { updateProjectV2Field(input: {fieldId: "{statusFieldId}", singleSelectOptions: [
+  {name: "Inbox", color: GRAY, description: ""}, {name: "Ready", color: BLUE, description: ""},
+  {name: "In progress", color: YELLOW, description: ""}, {name: "In review", color: PURPLE, description: ""},
+  {name: "Done", color: GREEN, description: ""}]}) { projectV2Field { ... on ProjectV2SingleSelectField { name } } } }'
+```
+
+`gh auth refresh` is interactive, so run it in your own terminal. The field is `Kind` because GitHub reserves `Type`. Views and workflows cannot be created through the API; in the project's web UI add a `Queue` table filtered to `status:Ready` and sorted by Priority, and check that the *Item added*, *Item closed* and *Pull request merged* workflows point at `Inbox`, `Done` and `Done`.
+
 ## Install / update
 
 ```sh

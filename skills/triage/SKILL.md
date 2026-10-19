@@ -20,8 +20,9 @@ gh project field-list {number} --owner @me --format json
 ```
 
 - `gh` must carry the `project` scope. Without it, stop and tell the user to run `gh auth refresh -h github.com -s project` in their own terminal — it is interactive.
-- No project titled `Work` → stop and say so; do not create one.
-- Keep the project number and id and, from the field list, the ids of `Status`, `Priority`, `Kind` and `Size` with their option ids. Every later write needs them.
+- No project titled `Work` → stop, say so and point at [Task queue setup](https://github.com/pravbeseda/ali-agent-kit#task-queue-setup); do not create one.
+- **Check the fields before anything is written**: `Status` with `Inbox`, `Ready`, `In progress`, `In review`, `Done`; `Priority` with `P0`–`P3`; `Kind` with `bug`, `feature`, `chore`; `Size` with `S`, `M`, `L`. Anything missing → stop, name each missing field or option, and point at the same section. A write that fails halfway through step 2 is worse than a run that never started.
+- Keep the project number and id and the ids of those fields and options. Every later write needs them.
 
 ## 2. Sweep missing issues into `Inbox`
 
