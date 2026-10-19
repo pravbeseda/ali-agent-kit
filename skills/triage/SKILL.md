@@ -15,13 +15,13 @@ One GitHub Project, `Work`, owned by the authenticated user, holds the open issu
 
 ```sh
 gh api user --jq .login
-gh project list --owner @me --format json --jq '.projects[] | select(.title == "Work") | .number'
+gh project list --owner @me --format json --jq '.projects[] | select(.title == "Work") | {number, id}'
 gh project field-list {number} --owner @me --format json
 ```
 
 - `gh` must carry the `project` scope. Without it, stop and tell the user to run `gh auth refresh -h github.com -s project` in their own terminal — it is interactive.
 - No project titled `Work` → stop and say so; do not create one.
-- Keep the project id and, from the field list, the ids of `Status`, `Priority`, `Kind` and `Size` with their option ids. Every later write needs them.
+- Keep the project number and id and, from the field list, the ids of `Status`, `Priority`, `Kind` and `Size` with their option ids. Every later write needs them.
 
 ## 2. Sweep missing issues into `Inbox`
 
@@ -97,24 +97,25 @@ The user answers in short form — `ok`, `ok except 3 P1`, `5 not blocked`, `dro
 ## 6. Apply what was confirmed
 
 - **Fields:** `gh project item-edit` with the field and option ids from step 1, one call per field.
-- **Blocked by:** REST takes the blocker's database id, not its number:
+- **Blocked by:** REST takes the blocker's database id, not its number. The two issues may live in different repositories, so each command names its own:
 
   ```sh
-  gh api repos/{owner}/{repo}/issues/{blocker} --jq .id
-  gh api -X POST repos/{owner}/{repo}/issues/{blocked}/dependencies/blocked_by -F issue_id={blockerId}
+  gh api repos/{blockerRepo}/issues/{blocker} --jq .id
+  gh api -X POST repos/{blockedRepo}/issues/{blocked}/dependencies/blocked_by -F issue_id={blockerId}
   ```
 
-  Removing one: `gh api -X DELETE repos/{owner}/{repo}/issues/{blocked}/dependencies/blocked_by/{blockerId}`.
-- **New epic:** `gh issue create` in the chosen repository, English title and a body listing its parts; add it to the board; then attach each part:
+  Removing one: `gh api -X DELETE repos/{blockedRepo}/issues/{blocked}/dependencies/blocked_by/{blockerId}`.
+- **New epic:** `gh issue create` in the chosen repository, English title and a body listing its parts; add it to the board; then attach each part by the part's database id, read from the part's own repository:
 
   ```sh
-  gh api -X POST repos/{owner}/{repo}/issues/{epic}/sub_issues -F sub_issue_id={partId}
+  gh api repos/{partRepo}/issues/{part} --jq .id
+  gh api -X POST repos/{epicRepo}/issues/{epic}/sub_issues -F sub_issue_id={partId}
   ```
 
 - **Close:** `gh issue close {url} --reason "not planned" --comment "{evidence}"`; `--reason completed` when it is already done.
-- **Status:** every kept item moves to `Ready`. Epics too — `ali-next-task` skips containers on its own.
+- **Status:** a kept item moves to `Ready` last, and only once every other write for it succeeded. Epics too — `ali-next-task` skips containers on its own.
 
-A failed write is reported with `gh`'s message and the item it was for, and the run goes on with the rest; at the end list the failures together.
+A failed write is reported with `gh`'s message and the item it was for, and the run goes on with the other items; the item itself stays in `Inbox`, so a half-triaged task never reaches the queue. At the end list the failures together.
 
 ## 7. Close the pass
 

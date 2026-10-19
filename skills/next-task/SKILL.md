@@ -14,13 +14,13 @@ The `Work` GitHub Project, owned by the authenticated user, is the queue for all
 ## 1. Resolve the repository and the project
 
 ```sh
-gh repo view --json nameWithOwner,defaultBranchRef --jq '{repo: .nameWithOwner, base: .defaultBranchRef.name}'
+gh repo view --json name,nameWithOwner,defaultBranchRef --jq '{repo: .nameWithOwner, name: .name, base: .defaultBranchRef.name}'
 gh api user --jq .login
-gh project list --owner @me --format json --jq '.projects[] | select(.title == "Work") | .number'
+gh project list --owner @me --format json --jq '.projects[] | select(.title == "Work") | {number, id}'
 gh project field-list {number} --owner @me --format json
 ```
 
-Keep the project id and the ids of the `Status` field and its `In progress`, `In review` and `Ready` options. No `project` scope on `gh` → stop and tell the user to run `gh auth refresh -h github.com -s project` in their own terminal. No `Work` project → stop and point at `ali-triage`.
+Keep the project number and id and the ids of the `Status` field and its `In progress`, `In review` and `Ready` options. No `project` scope on `gh` → stop and tell the user to run `gh auth refresh -h github.com -s project` in their own terminal. No `Work` project → stop and point at `ali-triage`.
 
 ## 2. Pick the item
 
@@ -37,26 +37,26 @@ query($login: String!, $number: Int!, $cursor: String) {
       content { ... on Issue { number title state url repository { nameWithOwner }
         parent { number repository { nameWithOwner } }
         subIssuesSummary { total }
-        blockedBy(first: 20) { nodes { number state repository { nameWithOwner } } } } } } } } } }' \
+        issueDependenciesSummary { blockedBy } } } } } } } }' \
   -F login={login} -F number={number}
 ```
 
 While `pageInfo.hasNextPage`, repeat with `-F cursor={endCursor}`.
 
-**The user named an issue** (`#N` or a URL) → take that one. If it is not on the board, add it. If it is closed, say so and stop. If it has open blockers or sub-issues, list them and ask once whether to go ahead anyway — the user may know something the board does not.
+**The user named an issue** (`#N` or a URL) → take that one, whatever its `Status`. It must belong to the current repository — the branch and the work happen here; one from another repository stops the run with the name of the repository to start it in. If it is not on the board, add it. If it is closed, say so and stop. If it is `In progress` or `In review`, somebody already has it: say so and ask once whether to take it anyway. If it has open blockers or sub-issues, list them and ask once whether to go ahead anyway — the user may know something the board does not.
 
 **Otherwise** the candidates are the items that are all of:
 
 - `Status` is `Ready`,
 - an open issue of the current repository,
-- no open issue in `blockedBy` — a closed blocker no longer blocks,
+- `issueDependenciesSummary.blockedBy` is `0` — it counts open blockers only, so a closed blocker no longer blocks,
 - no sub-issues — an epic is a container; its parts are the tasks.
 
 Take the highest priority — P0 first, an empty priority last — and among equals the lowest issue number, the oldest. Nothing left → say the queue for this repository is empty, name how many items of it wait in `Inbox` or are blocked, and stop; point at `ali-triage` when `Inbox` is not empty.
 
 ## 3. Claim it
 
-Re-read the chosen item's `Status` just before writing. Another agent may have taken it seconds ago: if it is no longer `Ready`, go back to step 2 and take the next one.
+For an item step 2 picked from the queue, re-read its `Status` just before writing. Another agent may have taken it seconds ago: if it is no longer `Ready`, go back to step 2 and take the next one. A named issue skips this re-check — step 2 already settled its status with the user.
 
 ```sh
 gh project item-edit --project-id {projectId} --id {itemId} --field-id {statusFieldId} --single-select-option-id {inProgressOptionId}
@@ -76,7 +76,7 @@ git rev-parse --abbrev-ref HEAD
 
   ```sh
   git fetch origin {base}
-  git worktree add -b {branch} ../{repo}-{N} origin/{base}
+  git worktree add -b {branch} ../{name}-{N} origin/{base}
   ```
 
   Work in that directory from here on and tell the user its path. In Claude Code, prefer the built-in worktree tool when it is available.
@@ -91,7 +91,7 @@ Then do the task the way the user and the repository normally work.
 
 ## 6. Hand it back to the board
 
-- **This session opens the pull request** → its body carries `Closes #{N}` (`Closes {owner}/{repo}#{N}` when the PR lives in another repository), and the item moves to `In review`:
+- **This session opens the pull request** → its body carries `Closes #{N}`, and the item moves to `In review`:
 
   ```sh
   gh project item-edit --project-id {projectId} --id {itemId} --field-id {statusFieldId} --single-select-option-id {inReviewOptionId}
