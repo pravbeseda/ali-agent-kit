@@ -1,0 +1,112 @@
+---
+name: next-task
+description: Take the next task for the current repository from the user's `Work` GitHub Project — the top `Ready` issue by priority that nothing blocks, or the issue the user named — mark it `In progress`, set up a branch or worktree, work on it, and mark it `In review` when this session opens its pull request. Use when the user asks for the next task, what to work on, to take an issue from the board, or runs /ali-next-task.
+---
+
+# Take the next task
+
+The `Work` GitHub Project, owned by the authenticated user, is the queue for all their repositories; `ali-triage` fills and orders it. This skill takes one item off it for the repository the session runs in and keeps the board honest about it: `Ready` → `In progress` when the work starts, `In review` when the pull request opens. The project's own workflows move it to `Done` on merge or close.
+
+> **Not `ali-triage`:** that skill sorts the queue. This one consumes it and never reorders it.
+
+**Invoking this skill grants nothing else.** Commits, pushes and pull requests follow the user's and the repository's usual rules; the skill only adds the two board moves.
+
+## 1. Resolve the repository and the project
+
+```sh
+gh repo view --json nameWithOwner,defaultBranchRef --jq '{repo: .nameWithOwner, base: .defaultBranchRef.name}'
+gh api user --jq .login
+gh project list --owner @me --format json --jq '.projects[] | select(.title == "Work") | .number'
+gh project field-list {number} --owner @me --format json
+```
+
+Keep the project id and the ids of the `Status` field and its `In progress`, `In review` and `Ready` options. No `project` scope on `gh` → stop and tell the user to run `gh auth refresh -h github.com -s project` in their own terminal. No `Work` project → stop and point at `ali-triage`.
+
+## 2. Pick the item
+
+Page through the whole board; a truncated list can hide the top item:
+
+```sh
+gh api graphql -f query='
+query($login: String!, $number: Int!, $cursor: String) {
+  user(login: $login) { projectV2(number: $number) { items(first: 100, after: $cursor) {
+    pageInfo { hasNextPage endCursor }
+    nodes { id
+      status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } }
+      priority: fieldValueByName(name: "Priority") { ... on ProjectV2ItemFieldSingleSelectValue { name } }
+      content { ... on Issue { number title state url repository { nameWithOwner }
+        parent { number repository { nameWithOwner } }
+        subIssuesSummary { total }
+        blockedBy(first: 20) { nodes { number state repository { nameWithOwner } } } } } } } } } }' \
+  -F login={login} -F number={number}
+```
+
+While `pageInfo.hasNextPage`, repeat with `-F cursor={endCursor}`.
+
+**The user named an issue** (`#N` or a URL) → take that one. If it is not on the board, add it. If it is closed, say so and stop. If it has open blockers or sub-issues, list them and ask once whether to go ahead anyway — the user may know something the board does not.
+
+**Otherwise** the candidates are the items that are all of:
+
+- `Status` is `Ready`,
+- an open issue of the current repository,
+- no open issue in `blockedBy` — a closed blocker no longer blocks,
+- no sub-issues — an epic is a container; its parts are the tasks.
+
+Take the highest priority — P0 first, an empty priority last — and among equals the lowest issue number, the oldest. Nothing left → say the queue for this repository is empty, name how many items of it wait in `Inbox` or are blocked, and stop; point at `ali-triage` when `Inbox` is not empty.
+
+## 3. Claim it
+
+Re-read the chosen item's `Status` just before writing. Another agent may have taken it seconds ago: if it is no longer `Ready`, go back to step 2 and take the next one.
+
+```sh
+gh project item-edit --project-id {projectId} --id {itemId} --field-id {statusFieldId} --single-select-option-id {inProgressOptionId}
+```
+
+There is no lock behind this — two agents started in the same repository at the same moment can still collide. That is why the user passes `#N` explicitly when they start several at once.
+
+## 4. Set up where the work happens
+
+```sh
+git status --porcelain
+git rev-parse --abbrev-ref HEAD
+```
+
+- **Clean tree on the base branch** → `git pull --ff-only`, then create the working branch here.
+- **Anything else** — uncommitted changes, or another task's branch checked out — → this checkout belongs to other work. Leave it untouched and create a worktree next to it:
+
+  ```sh
+  git fetch origin {base}
+  git worktree add -b {branch} ../{repo}-{N} origin/{base}
+  ```
+
+  Work in that directory from here on and tell the user its path. In Claude Code, prefer the built-in worktree tool when it is available.
+
+Name the branch the way the repository already names them (look at `AGENTS.md`, `CONTRIBUTING.md` or recent branches); with no convention, `{N}-{short-slug}`.
+
+## 5. Brief, then work
+
+Before touching code, show in a few lines: the issue's number, title and link; its parent epic and that epic's plan file, if the epic body or the repository's plan folder names one; what it was blocked by and that those are closed; where the work happens. Read the plan file when there is one — it carries the reasons the issue does not.
+
+Then do the task the way the user and the repository normally work.
+
+## 6. Hand it back to the board
+
+- **This session opens the pull request** → its body carries `Closes #{N}` (`Closes {owner}/{repo}#{N}` when the PR lives in another repository), and the item moves to `In review`:
+
+  ```sh
+  gh project item-edit --project-id {projectId} --id {itemId} --field-id {statusFieldId} --single-select-option-id {inReviewOptionId}
+  ```
+
+- **The user drops the task** → move it back to `Ready` and say so.
+- **The session ends without a PR** → leave it `In progress` and say that it is, so the board is not silently stale.
+
+## Language
+
+- Discussion with the user — the language they write in, or the chat language configured by the user, if one is defined.
+- Anything that reaches GitHub or git — always English.
+
+## Extra context
+
+If the user passed an issue number or URL with the invocation, that is the task to take. It arrives below; an empty line there means no arguments were given.
+
+$ARGUMENTS
