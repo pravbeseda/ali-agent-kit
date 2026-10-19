@@ -43,7 +43,7 @@ query($login: String!, $number: Int!, $cursor: String) {
 
 While `pageInfo.hasNextPage`, repeat with `-F cursor={endCursor}`.
 
-**The user named an issue** (`#N` or a URL) → take that one, whatever its `Status`. It must belong to the current repository — the branch and the work happen here; one from another repository stops the run with the name of the repository to start it in. If it is not on the board, add it. If it is closed, say so and stop. If it is `In progress` or `In review`, somebody already has it: say so and ask once whether to take it anyway. If it has open blockers or sub-issues, list them and ask once whether to go ahead anyway — the user may know something the board does not.
+**The user named an issue** (`#N` or a URL) → take that one, whatever its `Status`. It must belong to the current repository — the branch and the work happen here; one from another repository stops the run with the name of the repository to start it in. If it is not on the board, add it with `gh project item-add {number} --owner @me --url {url} --format json --jq .id`. If it is closed, say so and stop. If it is `In progress` or `In review`, somebody already has it: say so and ask once whether to take it anyway. If it has open blockers or sub-issues, list them and ask once whether to go ahead anyway — the user may know something the board does not.
 
 **Otherwise** the candidates are the items that are all of:
 
@@ -56,7 +56,13 @@ Take the highest priority — P0 first, an empty priority last — and among equ
 
 ## 3. Claim it
 
-For an item step 2 picked from the queue, re-read its `Status` just before writing. Another agent may have taken it seconds ago: if it is no longer `Ready`, go back to step 2 and take the next one. A named issue skips this re-check — step 2 already settled its status with the user. Either way, remember the `Status` the item had before this write; step 6 may need to put it back.
+For an item step 2 picked from the queue, re-read its `Status` just before writing — one item, not the whole board:
+
+```sh
+gh api graphql -f query='query($id: ID!) { node(id: $id) { ... on ProjectV2Item { status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } } } } }' -F id={itemId}
+```
+
+Another agent may have taken it seconds ago: if it is no longer `Ready`, go back to step 2 and take the next one. A named issue skips this re-check — step 2 already settled its status with the user. Either way, remember the `Status` the item had before this write — an empty one counts as `Inbox` — because step 6 may need to put it back.
 
 ```sh
 gh project item-edit --project-id {projectId} --id {itemId} --field-id {statusFieldId} --single-select-option-id {inProgressOptionId}
