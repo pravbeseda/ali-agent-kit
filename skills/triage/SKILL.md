@@ -30,7 +30,7 @@ gh project field-list {number} --owner @me --format json
 gh search issues --owner {login} --state open --archived=false --limit 1000 --json url,repository,number,title
 ```
 
-Run the step 3 query first, compare by URL against the issues already on the board, and add each missing one:
+Run the step 3 query first, compare by URL against the issues already on the board, and add each missing one. Skip Renovate's *Dependency Dashboard* issues (author `app/renovate`): they are the bot's control panel, not tasks, and must stay open.
 
 ```sh
 gh project item-add {number} --owner @me --url {url} --format json --jq .id
@@ -77,7 +77,7 @@ For every candidate decide:
 | Size | S / M / L | S an agent can finish unattended; M needs a look at the result; L needs a plan first |
 | Blocked by | issue refs | other issues, in any repository, that must be done first — each with a one-line reason |
 | Epic | parent ref or new epic | only when several issues are parts of one outcome |
-| Close | reason | duplicate, already done, or obsolete — with the evidence |
+| Close | reason | duplicate, already done, or obsolete — with the evidence; or *off the board* for an open issue that is not a task |
 
 - **Read the issue text first; open the code only where the text leaves the answer open** — for example, to check whether a bug is already fixed or whether two issues touch the same module. This is a sorting pass, not an investigation.
 - **Dependencies are the part people cannot see from a list.** Look for them across repositories that share a domain: a client issue waiting for an API change, a migration that must land before a feature. Propose a link only with a concrete reason; "related" is not "blocked by".
@@ -113,8 +113,8 @@ The user answers in short form — `ok`, `ok except 3 P1`, `5 not blocked`, `dro
   gh api -X POST repos/{epicRepo}/issues/{epic}/sub_issues -F sub_issue_id={partId}
   ```
 
-- **Close:** `gh issue close {url} --reason "not planned" --comment "{evidence}"`; `--reason duplicate` for a duplicate, with the original in the comment; `--reason completed` when it is already done.
-- **Status:** a kept item moves to `Ready` last, and only once every other write for it succeeded. Epics too — `ali-next-task` skips containers on its own.
+- **Close:** `gh issue close {url} --reason "not planned" --comment "{evidence}"`; `--reason duplicate` for a duplicate, with the original in the comment; `--reason completed` when it is already done. Then set the card to `Done` yourself, for the same reason step 2 sets `Inbox`. *Off the board:* `gh project item-archive {number} --owner @me --id {itemId}`, and the issue stays open.
+- **Status:** a kept item moves to `Ready` last, and only once every other write for it succeeded. Epics too — `ali-next-task` skips containers on its own; an epic takes the highest priority among its parts.
 
 A failed write is reported with `gh`'s message and the item it was for, and the run goes on with the other items; the item itself stays in `Inbox`, so a half-triaged task never reaches the queue. At the end list the failures together.
 
