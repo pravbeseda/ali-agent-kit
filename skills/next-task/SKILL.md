@@ -96,7 +96,7 @@ Either way the branch starts from `origin/{base}`, not from the local `{base}`: 
   git worktree add --no-track -b {branch} ../{name}-{N} origin/{base}
   ```
 
-Name the branch the way the repository already names them (look at `AGENTS.md`, `CONTRIBUTING.md` or recent branches); with no convention, `{N}-{short-slug}`.
+Name the branch the way the repository already names them (look at `AGENTS.md`, `CONTRIBUTING.md` or recent branches), with the issue number always in it — `feat/{N}-{short-slug}`, not `feat/{short-slug}` — because the lookup above finds an earlier session's branch only by that number; with no convention, `{N}-{short-slug}`.
 
 ## 5. Brief, then work
 
