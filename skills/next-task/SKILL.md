@@ -76,7 +76,7 @@ git rev-parse --abbrev-ref HEAD
 
   ```sh
   git fetch origin {base}
-  git worktree add -b {branch} ../{name}-{N} origin/{base}
+  git worktree add --no-track -b {branch} ../{name}-{N} origin/{base}
   ```
 
   Work in that directory from here on and tell the user its path. In Claude Code, prefer the built-in worktree tool when it is available.

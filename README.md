@@ -40,7 +40,7 @@ Without the file the review runs on the top-level model and says so. Either way 
 
 ### Task queue setup
 
-`ali-triage` and `ali-next-task` work on one user-level GitHub Project titled `Work`, and refuse to run until it exists with the fields below. Create it once:
+`ali-triage` and `ali-next-task` work on one user-level GitHub Project titled `Work`, and refuse to run until it exists with the fields below (`ali-next-task` checks only the `Status` and `Priority` it uses). Create it once:
 
 ```sh
 gh auth refresh -h github.com -s project

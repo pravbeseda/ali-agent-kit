@@ -113,7 +113,7 @@ The user answers in short form — `ok`, `ok except 3 P1`, `5 not blocked`, `dro
   gh api -X POST repos/{epicRepo}/issues/{epic}/sub_issues -F sub_issue_id={partId}
   ```
 
-- **Close:** `gh issue close {url} --reason "not planned" --comment "{evidence}"`; `--reason completed` when it is already done.
+- **Close:** `gh issue close {url} --reason "not planned" --comment "{evidence}"`; `--reason duplicate` for a duplicate, with the original in the comment; `--reason completed` when it is already done.
 - **Status:** a kept item moves to `Ready` last, and only once every other write for it succeeded. Epics too — `ali-next-task` skips containers on its own.
 
 A failed write is reported with `gh`'s message and the item it was for, and the run goes on with the other items; the item itself stays in `Inbox`, so a half-triaged task never reaches the queue. At the end list the failures together.
