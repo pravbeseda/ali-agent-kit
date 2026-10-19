@@ -37,7 +37,7 @@ gh project item-add {number} --owner @me --url {url} --format json --jq .id
 gh project item-edit --project-id {projectId} --id {itemId} --field-id {statusFieldId} --single-select-option-id {inboxOptionId}
 ```
 
-Set `Inbox` explicitly even though the project's *Item added* workflow may do the same: the workflow can be off or point at a renamed option. An item already on the board with an empty `Status` counts as `Inbox` too.
+Set `Inbox` explicitly even though the project's *Item added* workflow may do the same: the workflow can be off or point at a renamed option. An item already on the board with an empty `Status` counts as `Inbox` too, and so does an open issue whose card says `Done` — it was reopened, and without this it would never reach the queue again: set it back to `Inbox`.
 
 Say how many issues were added, per repository.
 

@@ -79,7 +79,7 @@ git worktree list
 git branch --all --list '*{N}*'
 ```
 
-One branch or worktree that plainly belongs to this issue → continue there and say so; several candidates → ask the user which one. Only with nothing found does the issue get a new branch below.
+One worktree that plainly belongs to this issue → work in it. One such branch without a worktree → the busy-checkout rule below still applies: on a clean tree `git switch {branch}`, otherwise `git worktree add ../{name}-{N} {branch}`, so nobody's uncommitted changes ride along. Say which. Several candidates → ask the user which one. Only with nothing found does the issue get a new branch below.
 
 ```sh
 git status --porcelain
