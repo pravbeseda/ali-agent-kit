@@ -43,7 +43,7 @@ query($login: String!, $number: Int!, $cursor: String) {
 
 While `pageInfo.hasNextPage`, repeat with `-F cursor={endCursor}`.
 
-**The user named an issue** (`#N` or a URL) → take that one, whatever its `Status`. It must belong to the current repository — the branch and the work happen here; one from another repository stops the run with the name of the repository to start it in. If it is not on the board, add it with `gh project item-add {number} --owner @me --url {url} --format json --jq .id`. If it is closed, say so and stop. If it is `In progress` or `In review`, somebody already has it: say so and ask once whether to take it anyway. If it has open blockers or sub-issues, list them and ask once whether to go ahead anyway — the user may know something the board does not.
+**The user named an issue** (`#N` or a URL) → take that one, whatever its `Status`. It must belong to the current repository — the branch and the work happen here; one from another repository stops the run with the name of the repository to start it in. If it is closed, say so and stop. If it is not on the board, add it with `gh project item-add {number} --owner @me --url {url} --format json --jq .id`. If it is `In progress` or `In review`, somebody already has it: say so and ask once whether to take it anyway. If it has open blockers or sub-issues, list them and ask once whether to go ahead anyway — the user may know something the board does not.
 
 **Otherwise** the candidates are the items that are all of:
 
@@ -72,7 +72,7 @@ There is no lock behind this — two agents started in the same repository at th
 
 ## 4. Set up where the work happens
 
-**A task taken from `In progress` may already have its place.** An earlier session that ended without a PR left its branch, and maybe a worktree, behind. Look first:
+**The task may already have its place.** An earlier session that ended without a PR, or one whose task was dropped back into the queue, left its branch and maybe a worktree behind. Look first:
 
 ```sh
 git worktree list
