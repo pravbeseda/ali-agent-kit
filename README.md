@@ -22,6 +22,8 @@ Every skill is published with an `ali-` prefix: `skills/review-branch.md` in thi
 | `ali-generate-pr-description`    | Diffs the current branch against its base branch and writes a ready-to-paste PR description, laid out in the repository's own `.github/pull_request_template.md` — checklists included, untouched — or in a neutral fallback when there is none. |
 | `ali-instructions-global`        | Manual-only. Audits and tidies the user-level agent instruction files on this machine — one master `~/.agent-instructions/global.md` rendered to Claude Code, Codex and Copilot, Karpathy guidelines as a managed block, optional curated Ponytail rules per machine, auto memory curated, every write backed up and approved first. |
 | `ali-instructions-project`       | Manual-only. Audits and tidies one repository's agent instruction files — canonical `AGENTS.md`, Claude shim `.claude/CLAUDE.md`, optional Copilot copy — promotes stable auto-memory notes into it, and refuses team repositories unless authorized for the run. |
+| `ali-triage`                     | Sorts the cross-repo task queue on the user's `Work` GitHub Project — puts every open issue of their repositories into `Inbox`, then proposes priority, kind, size, "blocked by" links across repositories and epic groupings as one table per group of repositories, and applies only the rows the user confirmed. |
+| `ali-next-task`                  | Takes the next task for the current repository from the `Work` GitHub Project — the top `Ready` issue by priority with no open blocker and no sub-issues, or the one named — marks it `In progress`, works in a branch or a separate worktree when the checkout is busy, and marks it `In review` when the session opens its pull request. |
 | `ali-crashlytics-issues`         | Imports Firebase Crashlytics crashes into the repository's GitHub issues — checks every candidate against the code as it stands, files only the rows a human picked, and never files the same crash twice. Android apps and GitHub trackers only; needs the Firebase MCP plugin. |
 | `ali-cypress-burn-changed`       | Burns the Cypress tests the current branch added or edited — each one N times headless, retries off — and reports how many runs passed with a screenshot of every `(Results)` table. Carries the burn script itself and puts it into the project's `testing/Cypress/scripts/` only for the length of a run, so there is nothing to commit or ignore. |
 
@@ -35,6 +37,27 @@ model_reasoning_effort = "medium"
 ```
 
 Without the file the review runs on the top-level model and says so. Either way a minimal Codex run checks the model before anything is dispatched, and a model the CLI refuses leaves the Claude review running alone.
+
+### Task queue setup
+
+`ali-triage` and `ali-next-task` work on one user-level GitHub Project titled `Work`, and refuse to run until it exists with the fields below (`ali-next-task` checks only the `Status` and `Priority` it uses). Create it once:
+
+```sh
+gh auth refresh -h github.com -s project
+gh project create --owner @me --title Work
+gh project field-create {number} --owner @me --name Priority --data-type SINGLE_SELECT --single-select-options "P0,P1,P2,P3"
+gh project field-create {number} --owner @me --name Kind --data-type SINGLE_SELECT --single-select-options "bug,feature,chore"
+gh project field-create {number} --owner @me --name Size --data-type SINGLE_SELECT --single-select-options "S,M,L"
+gh project field-list {number} --owner @me --format json --jq '.fields[] | select(.name == "Status") | .id'
+gh api graphql -f query='mutation { updateProjectV2Field(input: {fieldId: "{statusFieldId}", singleSelectOptions: [
+  {name: "Inbox", color: GRAY, description: ""}, {name: "Ready", color: BLUE, description: ""},
+  {name: "In progress", color: YELLOW, description: ""}, {name: "In review", color: PURPLE, description: ""},
+  {name: "Done", color: GREEN, description: ""}]}) { projectV2Field { ... on ProjectV2SingleSelectField { name } } } }'
+```
+
+Both skills run on your own machine only: Claude Code cloud sessions block GitHub's GraphQL API, which Projects needs. Hand a cloud session a specific issue instead — mark its card `In progress` first (or run `ali-next-task #N` locally), and the pull request's `Closes #N` plus the project's workflows move it to `Done`.
+
+`gh auth refresh` is interactive, so run it in your own terminal. The field is `Kind` because GitHub reserves `Type`. Views and workflows cannot be created through the API; in the project's web UI add a `Queue` table filtered to `status:Ready` and sorted by Priority, and check that the *Item added*, *Item closed* and *Pull request merged* workflows point at `Inbox`, `Done` and `Done`.
 
 ## Install / update
 

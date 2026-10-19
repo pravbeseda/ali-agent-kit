@@ -124,3 +124,22 @@ test('review-pr and process-pr-comments give the same literal-path rule', () => 
       'skills/process-pr-comments/SKILL.md.'
   );
 });
+
+test('triage and next-task look up the Work project the same way', () => {
+  const lookup = (name) => block(name, 'gh api user --jq .login', 'gh project field-list');
+
+  assert.equal(
+    lookup('triage'),
+    lookup('next-task'),
+    'The Work project lookup is duplicated on purpose and must stay byte-identical — ' +
+      'apply the same edit to both skills/triage/SKILL.md and skills/next-task/SKILL.md.'
+  );
+  for (const name of ['triage', 'next-task']) {
+    const text = read(name);
+    assert.ok(text.includes('gh auth refresh -h github.com -s project'), `${name}: scope hint missing`);
+    assert.ok(
+      text.includes('https://github.com/pravbeseda/ali-agent-kit#task-queue-setup'),
+      `${name}: pointer to Task queue setup missing`
+    );
+  }
+});
