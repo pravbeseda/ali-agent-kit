@@ -56,7 +56,7 @@ Take the highest priority — P0 first, an empty priority last — and among equ
 
 ## 3. Claim it
 
-For an item step 2 picked from the queue, re-read its `Status` just before writing. Another agent may have taken it seconds ago: if it is no longer `Ready`, go back to step 2 and take the next one. A named issue skips this re-check — step 2 already settled its status with the user.
+For an item step 2 picked from the queue, re-read its `Status` just before writing. Another agent may have taken it seconds ago: if it is no longer `Ready`, go back to step 2 and take the next one. A named issue skips this re-check — step 2 already settled its status with the user. Either way, remember the `Status` the item had before this write; step 6 may need to put it back.
 
 ```sh
 gh project item-edit --project-id {projectId} --id {itemId} --field-id {statusFieldId} --single-select-option-id {inProgressOptionId}
@@ -97,7 +97,7 @@ Then do the task the way the user and the repository normally work.
   gh project item-edit --project-id {projectId} --id {itemId} --field-id {statusFieldId} --single-select-option-id {inReviewOptionId}
   ```
 
-- **The user drops the task** → move it back to `Ready` and say so.
+- **The user drops the task** → move it back to the `Status` it had before step 3 — `Inbox` stays `Inbox`, so an untriaged issue never lands in the queue — and say so.
 - **The session ends without a PR** → leave it `In progress` and say that it is, so the board is not silently stale.
 
 ## Language
