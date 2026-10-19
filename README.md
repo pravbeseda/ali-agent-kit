@@ -55,6 +55,8 @@ gh api graphql -f query='mutation { updateProjectV2Field(input: {fieldId: "{stat
   {name: "Done", color: GREEN, description: ""}]}) { projectV2Field { ... on ProjectV2SingleSelectField { name } } } }'
 ```
 
+Both skills run on your own machine only: Claude Code cloud sessions block GitHub's GraphQL API, which Projects needs. Hand a cloud session a specific issue instead — mark its card `In progress` first (or run `ali-next-task #N` locally), and the pull request's `Closes #N` plus the project's workflows move it to `Done`.
+
 `gh auth refresh` is interactive, so run it in your own terminal. The field is `Kind` because GitHub reserves `Type`. Views and workflows cannot be created through the API; in the project's web UI add a `Queue` table filtered to `status:Ready` and sorted by Priority, and check that the *Item added*, *Item closed* and *Pull request merged* workflows point at `Inbox`, `Done` and `Done`.
 
 ## Install / update

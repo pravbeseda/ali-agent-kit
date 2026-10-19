@@ -17,6 +17,9 @@ repository can take the next task with one command.
 - Triage → on demand with `/ali-triage`; a scheduled reminder only if `Inbox` turns out to pile up.
 - Epics → a parent issue with sub-issues; dependencies → native "blocked by" links. Both work
   across repositories. A cross-repo epic lives in the repository that holds its plan file.
+- Cloud sessions → not supported: their GitHub proxy blocks GraphQL, so Projects is unreachable there.
+  Cloud agents get a named issue from the user; a label-based queue that cloud agents could read
+  over REST is the upgrade if unattended cloud runs are ever wanted.
 - Setup for other users → a "Task queue setup" section in the README; both skills check the
   project, fields and options in step 1 and stop with a pointer there instead of creating anything.
 - Existing issues are all flat, but some depend on each other → the first triage also proposes
