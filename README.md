@@ -44,7 +44,7 @@ Without the file the review runs on the top-level model and says so. Either way 
 
 ```sh
 gh auth refresh -h github.com -s project
-gh project create --owner @me --title Work
+gh project create --owner @me --title Work --format json --jq '{number, id}'
 gh project field-create {number} --owner @me --name Priority --data-type SINGLE_SELECT --single-select-options "P0,P1,P2,P3"
 gh project field-create {number} --owner @me --name Kind --data-type SINGLE_SELECT --single-select-options "bug,feature,chore"
 gh project field-create {number} --owner @me --name Size --data-type SINGLE_SELECT --single-select-options "S,M,L"
@@ -57,7 +57,14 @@ gh api graphql -f query='mutation { updateProjectV2Field(input: {fieldId: "{stat
 
 Both skills run on your own machine only: Claude Code cloud sessions block GitHub's GraphQL API, which Projects needs. Hand a cloud session a specific issue instead — mark its card `In progress` first (or run `ali-next-task #N` locally), and the pull request's `Closes #N` plus the project's workflows move it to `Done`.
 
-`gh auth refresh` is interactive, so run it in your own terminal. The field is `Kind` because GitHub reserves `Type`. Views and workflows cannot be created through the API; in the project's web UI add a `Queue` table filtered to `status:Ready` and sorted by Priority, and check that the *Item added*, *Item closed* and *Pull request merged* workflows point at `Inbox`, `Done` and `Done`.
+`gh auth refresh` is interactive, so run it in your own terminal. The field is `Kind` because GitHub reserves `Type`. A view can be created through the API with its name, layout and filter — for the queue:
+
+```sh
+gh api graphql -f query='mutation { createProjectV2View(input: {projectId: "{projectId}", name: "Queue", layout: TABLE_LAYOUT}) { projectV2View { id } } }'
+gh api graphql -f query='mutation { updateProjectV2View(input: {viewId: "{viewId}", filter: "status:Ready"}) { projectV2View { name } } }'
+```
+
+Sorting, grouping and workflows have no API, so finish in the project's web UI: sort `Queue` by Priority and save the view, then turn on the *Item added*, *Item closed* and *Pull request merged* workflows, pointed at `Inbox`, `Done` and `Done` — a new project has them all switched off.
 
 ## Install / update
 
