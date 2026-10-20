@@ -37,12 +37,16 @@ go ahead" = `--shared-ok`).
 | `--assume-global` | the repo runs only on this machine: lines duplicated in the global master may be dropped |
 | `--copilot-copy` | keep `.github/copilot-instructions.md` as a generated copy (JetBrains does not read `AGENTS.md`); default from `config.copilot_copy` |
 
-Scripts live in `scripts/`; `node scripts/<name>.js --help`; `--json` on all.
+Scripts live in `scripts/` next to this file; `<skill>` below is the absolute
+path of the directory holding this file. Run them from the repository root as
+`node <skill>/scripts/<name>.js` — the gate, inventory, drift and render
+scripts read the repository from the working directory; `--help` and `--json`
+on all.
 
 ## Step 1 — Gate
 
 ```sh
-node scripts/gate.js [--shared-ok] [--status] [--plain-dir]
+node <skill>/scripts/gate.js [--shared-ok] [--status] [--plain-dir]
 ```
 
 Not a git repository → stop (exit 2). Only if the user insists, `--plain-dir`
@@ -61,9 +65,9 @@ a team file.
 ## Step 2 — Inventory (read-only)
 
 ```sh
-node scripts/inventory.js --new-run
-node scripts/drift.js --diff
-node scripts/dupes.js <every root instruction file the inventory found> ~/.agent-instructions/global.md   # those that exist
+node <skill>/scripts/inventory.js --new-run
+node <skill>/scripts/drift.js --diff
+node <skill>/scripts/dupes.js <every root instruction file the inventory found> ~/.agent-instructions/global.md   # those that exist
 ```
 
 `dupes.js` finds exact and near duplicates and secret-looking lines (report
@@ -126,7 +130,7 @@ Read `references/rubric.md` first. Then:
 3. **Render and plan:**
 
    ```sh
-   node scripts/render.js --run <id> --agents-from runs/<id>/input/AGENTS.md \
+   node <skill>/scripts/render.js --run <id> --agents-from runs/<id>/input/AGENTS.md \
      [--claude-only runs/<id>/input/claude-only.md] [--copilot-copy] [--memory-edits <json>] [--archive <memory files>]
    ```
 
@@ -142,7 +146,7 @@ Read `references/rubric.md` first. Then:
    when the user asked for a personal-only place (`--claude-local <file>`).
 4. **Show the proposal**: the file table, label counts, FLAG batches as
    questions (block the next step), REWORDs before → after, threshold warnings
-   (`project_lines`, Codex chain) — `node scripts/report.js --run <id>` prints
+   (`project_lines`, Codex chain) — `node <skill>/scripts/report.js --run <id>` prints
    the tables from `labels.json` and `plan.json`. Diff inline when ≤ 80 lines, else per-section
    summary plus the `diff/` path. Iterate until the user is happy.
 
@@ -155,14 +159,14 @@ memory dir is written before a yes.
 ## Step 5 — Apply, verify, report
 
 ```sh
-node scripts/apply.js --run <id> [--only <paths>] [--replace-symlinks]
-node scripts/drift.js --check    # exit 0 = shim (and copy) in-sync
-node scripts/report.js --run <id> --write
+node <skill>/scripts/apply.js --run <id> [--only <paths>] [--replace-symlinks]
+node <skill>/scripts/drift.js --check    # exit 0 = shim (and copy) in-sync
+node <skill>/scripts/report.js --run <id> --write
 ```
 
 Apply: backup → temp write → verify → atomic rename → manifest, per file, in
 plan order; first failure stops (exit 3), what was applied is listed, rollback
-(`node scripts/restore.js --run <id>`) is offered and run only on the user's
+(`node <skill>/scripts/restore.js --run <id>`) is offered and run only on the user's
 decision. Drift for a repository is read from the marker hashes only — no state
 file lives in the repo. Report: short in chat, full in `runs/<id>/report.md`
 (`references/report-template.md`; tables from `report.js`), including "git
@@ -170,21 +174,21 @@ status" of the changed paths — the user commits, this skill does not.
 
 **Independent review, then accept or roll back.** The run is applied but not
 yet accepted. Build the bundle and hand it to a second reader with a clean
-context and the strongest model available (at least Opus-class), exactly as
+context and the strongest model available, exactly as
 `references/review-prompt.md` describes:
 
 ```sh
-node scripts/review.js --run <id>        # runs/<id>/review/: before, after, diff per file
+node <skill>/scripts/review.js --run <id>        # runs/<id>/review/: before, after, diff per file
 ```
 
 Ask first, in one line: "Launch the independent reviewer (a subagent with a
-clean context, Opus-class or better)?" — invoking this skill is already the
+clean context, on the strongest model available)?" — invoking this skill is already the
 user's request for that review, and this question makes it explicit for any
 host or session rule that wants one (Claude Code's `Agent` tool needs no
 permission of its own). Then delegate with the prompt from that file and
 nothing else; show the
 user the review verbatim; then ask the one question: accept the new version, or
-roll back (`node scripts/restore.js --run <id>`, or `--path <file>` for one
+roll back (`node <skill>/scripts/restore.js --run <id>`, or `--path <file>` for one
 file).
 Nothing happens until the user answers; a rollback is run only on their word.
 No subagent on this host → say so and review yourself from the bundle alone,
