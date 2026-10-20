@@ -18,10 +18,10 @@ Arguments (all optional): `--days N` (default 7), `--include-non-fatal`, `--app-
 
 ## 1. Check the prerequisites
 
-- Firebase MCP tools `crashlytics_get_report` and `crashlytics_list_events` must be available.
+- Firebase MCP tools `Firebase:crashlytics_get_report` and `Firebase:crashlytics_list_events` must be available.
   They are the only way in: Crashlytics has no public REST API. If they are missing, stop and tell
   the user to install the Firebase MCP plugin — do not improvise a substitute.
-  (`crashlytics_get_issue` is not needed for an import — the report and the sample event carry
+  (`Firebase:crashlytics_get_issue` is not needed for an import — the report and the sample event carry
   everything the issue body uses. Reach for it only when a candidate needs digging into.)
 - `gh auth status` must succeed and `gh repo view --json nameWithOwner` must resolve.
   Without a GitHub remote there is nowhere to file.
@@ -34,7 +34,7 @@ Sources, in order, stopping at the first that answers:
 2. `google-services.json` in the working tree (`find . -name google-services.json -not -path '*/build/*'`):
    `client[].client_info.mobilesdk_app_id`, plus `project_info.project_id` and
    `client[].client_info.android_client_info.package_name` for the console links in step 7.
-3. `firebase_list_apps`.
+3. `Firebase:firebase_list_apps`.
 
 A project usually registers several apps — paid and free editions, staging copies, and ones it
 stopped shipping years ago. **Query every app the project still builds and merge the results into
@@ -45,7 +45,7 @@ which were skipped, and ask the user only when a package's status is genuinely u
 
 ## 3. Fetch the candidates
 
-- `crashlytics_get_report` with `report: "topIssues"`, `pageSize: 20`, and a filter of
+- `Firebase:crashlytics_get_report` with `report: "topIssues"`, `pageSize: 20`, and a filter of
   `intervalStartTime` = now minus `--days`, `intervalEndTime` = now. Omitting the interval means the
   last 7 days, which is the default anyway.
 - `issueErrorTypes`: `["FATAL", "ANR"]`, or `["FATAL", "ANR", "NON_FATAL"]` with `--include-non-fatal`.
@@ -82,7 +82,7 @@ carries only the issue body, so the second read is what makes a comment marker v
 ## 5. Check each candidate against the code as it stands
 
 Before showing the table, for every candidate with a frame the project owns — fetch its sample
-event first (`crashlytics_list_events`, `pageSize: 1`, `filter.issueId`), the checks below read it:
+event first (`Firebase:crashlytics_list_events`, `pageSize: 1`, `filter.issueId`), the checks below read it:
 
 - Open the blamed frame in the working tree. Crash reports come from a released version, so line
   numbers drift and the method may have been renamed or deleted.
@@ -131,7 +131,7 @@ unknown label. If `gh label list` does not have it, create it once for the whole
 
 For each row the user picked:
 
-- Reuse the sample event already fetched in step 5. Fetch one now (`crashlytics_list_events`,
+- Reuse the sample event already fetched in step 5. Fetch one now (`Firebase:crashlytics_list_events`,
   `pageSize: 1`, `filter.issueId`) only for a candidate step 5 skipped — one whose frames all belong
   to the framework or a library.
 - Title: `<Exception type> in <top app frame>` — the frame from the package the app owns, not
