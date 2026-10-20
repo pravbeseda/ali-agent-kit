@@ -17,6 +17,9 @@ import { getAdapter } from './adapters/index.js';
 
 const SOURCE_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_NAME_LENGTH = 64;
+// Limits from the Agent Skills spec and its authoring guide.
+const MAX_DESCRIPTION_LENGTH = 1024;
+const MAX_BODY_LINES = 500;
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
 export class SkillError extends Error {}
@@ -117,7 +120,7 @@ function buildSkill(sourceName, files, sourcePath) {
   const index = files.findIndex((f) => f.path === 'SKILL.md');
   // A leading BOM would hide the frontmatter from every parser downstream.
   const raw = files[index].content.toString('utf8').replace(/^\uFEFF/, '');
-  const { fields, description } = parseFrontmatter(raw);
+  const { fields, body, description } = parseFrontmatter(raw);
 
   if (!FRONTMATTER_RE.test(raw)) {
     throw new SkillError(`${sourcePath}: SKILL.md is missing YAML frontmatter`);
@@ -133,6 +136,17 @@ function buildSkill(sourceName, files, sourcePath) {
   if (!description) {
     throw new SkillError(
       `${sourcePath}: frontmatter must contain a non-empty "description" — agents use it to decide when to trigger the skill`
+    );
+  }
+  if (description.length > MAX_DESCRIPTION_LENGTH) {
+    throw new SkillError(
+      `${sourcePath}: description is ${description.length} characters, the limit is ${MAX_DESCRIPTION_LENGTH}`
+    );
+  }
+  const bodyLines = body.replace(/\r?\n$/, '').split(/\r?\n/).length;
+  if (bodyLines >= MAX_BODY_LINES) {
+    throw new SkillError(
+      `${sourcePath}: SKILL.md body has ${bodyLines} lines, keep it under ${MAX_BODY_LINES} lines — move detail into reference files`
     );
   }
 

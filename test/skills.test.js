@@ -55,6 +55,24 @@ test('rejects a missing description', () => {
   assert.throws(() => loadSkills(dir), SkillError, /description/);
 });
 
+test('rejects a description longer than 1024 characters', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'long.md'), `---\nname: long\ndescription: ${'x'.repeat(1025)}\n---\nbody\n`);
+  assert.throws(() => loadSkills(dir), SkillError, /1024/);
+});
+
+test('accepts a description of exactly 1024 characters', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'edge.md'), `---\nname: edge\ndescription: ${'x'.repeat(1024)}\n---\nbody\n`);
+  assert.equal(loadSkills(dir).length, 1);
+});
+
+test('rejects a SKILL.md body of 500 lines or more', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'big.md'), skillFile('big').replace('body\n', 'line\n'.repeat(500)));
+  assert.throws(() => loadSkills(dir), SkillError, /500 lines/);
+});
+
 test('rejects frontmatter name that does not match the file name', () => {
   const dir = tmp();
   writeFileSync(join(dir, 'one.md'), skillFile('two'));
