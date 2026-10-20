@@ -147,16 +147,17 @@ network, and `ali-review-pr` publishes with `gh api` — without the flag the ru
 looks like a review that found nothing, and with it the process reaches the whole
 network, which is what the fork question above is for.
 
-**Claude.** The `Agent` tool, `model: "fable"`, told to invoke the `ali-review-pr`
-skill on PR #{number}, carrying the same scope, round line and checkout answer, to
-ask nothing, and to return the verdict block it ends with together with that
-summary.
+**Claude.** The `Agent` tool on the top tier — the strongest model it offers,
+`fable` as of this writing — told to invoke the `ali-review-pr` skill on PR
+#{number}, carrying the same scope, round line and checkout answer, to ask
+nothing, and to return the verdict block it ends with together with that summary.
 
-**`opus` only once `fable`'s limit is spent.** A subagent that comes back saying
-the model's usage limit is reached has reviewed nothing, so dispatch that same
-review again with `model: "opus"`. That exhausted limit is the only failure this
-second dispatch answers — an empty return, or an error out of the skill itself, is
-a failed review that step 3 reports, not a reason to spend the other model on it.
+**The next tier — the model below it, `opus` — only once the top tier's limit is
+spent.** A subagent that comes back saying the model's usage limit is reached has
+reviewed nothing, so dispatch that same review again on the next tier. That
+exhausted limit is the only failure this second dispatch answers — an empty
+return, or an error out of the skill itself, is a failed review that step 3
+reports, not a reason to spend the other model on it.
 
 **That second dispatch starts late, so its round line always says: run a full
 round, whatever 🤖 threads are already on the PR.** The

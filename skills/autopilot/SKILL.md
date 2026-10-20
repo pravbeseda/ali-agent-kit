@@ -14,6 +14,8 @@ Two things make that safe, and neither is "try harder". Every step ends at a **r
 > **Not `ali-review-branch`:** that skill reviews finished work with the author in front of it. This one writes the work and reviews it as it goes.
 > **Not `plan-maker`:** a plan is an artifact of this skill, not its output.
 
+**Model tiers.** The *top* tier is the strongest model the `Agent` tool offers — `fable` as of this writing — and the *next* tier is the one below it, `opus`. Everything below names the tier, not the model, so a new model line changes this paragraph only.
+
 ## The standing permissions
 
 Invoking the skill **is** the permission for all of it. Do not ask again, at any point:
@@ -87,9 +89,9 @@ Update this file as part of each step's commit. A run that is interrupted must b
 
 For each open step, in order:
 
-1. **Delegate the implementation.** One `Agent` with a clean context, on the tier the step's lens count sets: `opus` for none or one, `fable` for two. Give it the step's text, the files it names, the done-criterion, the repository's CLAUDE.md / AGENTS.md and the command that runs the tests. Tell it to work test-first where the seam already exists — watch the test fail, then make it pass — to write the smallest thing that meets the done-criterion and nothing the criterion did not ask for, to commit nothing, and to return with the question rather than ask it whenever it meets one of [§5](#5-when-to-stop-for-the-user)'s.
+1. **Delegate the implementation.** One `Agent` with a clean context, on the tier the step's lens count sets: the next tier for none or one, the top tier for two. Give it the step's text, the files it names, the done-criterion, the repository's CLAUDE.md / AGENTS.md and the command that runs the tests. Tell it to work test-first where the seam already exists — watch the test fail, then make it pass — to write the smallest thing that meets the done-criterion and nothing the criterion did not ask for, to commit nothing, and to return with the question rather than ask it whenever it meets one of [§5](#5-when-to-stop-for-the-user)'s.
 
-   **Routing down is safe only because the bar does not move.** Every reviewer that judges the code against that bar stays on `fable` whatever wrote it, so a weaker implementer costs a round of fixes, never a finding nobody made. Re-read the step against the lens table before dispatching and correct the estimate upward where Phase 0 missed a plane — it is free here, and after the gate the work is already written.
+   **Routing down is safe only because the bar does not move.** Every reviewer that judges the code against that bar stays on the top tier whatever wrote it, so a weaker implementer costs a round of fixes, never a finding nobody made. Re-read the step against the lens table before dispatching and correct the estimate upward where Phase 0 missed a plane — it is free here, and after the gate the work is already written.
 2. **Verify it yourself.** Run the step's tests and read the output. Never write "done" or "passing" without having seen the output in this session; a claim about a command you did not run — the implementer's report included — is the one failure that makes the whole run untrustworthy.
 3. **Commit** the step and the updated plan file together.
 4. **Run the review gate** ([§4.1](#41-the-review-gate)).
@@ -103,12 +105,12 @@ Dispatch **subagents with a clean context, in parallel** — the `Agent` tool, e
 
 **Two always run:**
 
-- **Spec reviewer**, `model: "opus"` — does the diff do what this step says, all of it and only it? Its findings are: something the step asked for is missing, something outside the step arrived, the done-criterion is not actually met by what the test asserts.
-- **Quality reviewer**, `model: "fable"` — [`references/reviewer-prompt.md`](references/reviewer-prompt.md), the bar `ali-review-branch` uses, unchanged.
+- **Spec reviewer**, next tier — does the diff do what this step says, all of it and only it? Its findings are: something the step asked for is missing, something outside the step arrived, the done-criterion is not actually met by what the test asserts.
+- **Quality reviewer**, top tier — [`references/reviewer-prompt.md`](references/reviewer-prompt.md), the bar `ali-review-branch` uses, unchanged.
 
-The spec reviewer is the only one a tier down: its question is bounded by the step's own text. Everything that judges the code against a bar rather than against a sentence stays on `fable`.
+The spec reviewer is the only one a tier down: its question is bounded by the step's own text. Everything that judges the code against a bar rather than against a sentence stays on the top tier.
 
-**Then add a lens for each trigger the diff fires, and only those** — on `fable`, like the quality reviewer:
+**Then add a lens for each trigger the diff fires, and only those** — on the top tier, like the quality reviewer:
 
 | The diff… | Lens | It looks for |
 |---|---|---|
@@ -157,7 +159,7 @@ Everything not on that list you decide yourself: naming, file layout, which help
 ## 6. The final gate
 
 1. **The whole suite**, plus whatever the repository runs before a commit — lint, types, build. Read the output. A red suite ends the run at the user, not at a PR.
-2. **The final review**, over the whole branch diff, clean context: one reviewer on the quality reviewer's tier (`Agent` with `model: "fable"`) with the reviewer prompt, plus every lens of §4.1 whose trigger the **whole** diff fires. What makes this pass stronger is its scope, not its tier — it is the only reviewer that sees the steps together — a schema change in step 2 and its consumers in step 5 only look wrong together. One fix wave, then re-review only the fixes. Its residual findings are ruled on exactly as in §4.2.
+2. **The final review**, over the whole branch diff, clean context: one reviewer on the quality reviewer's tier, the top one, with the reviewer prompt, plus every lens of §4.1 whose trigger the **whole** diff fires. What makes this pass stronger is its scope, not its tier — it is the only reviewer that sees the steps together — a schema change in step 2 and its consumers in step 5 only look wrong together. One fix wave, then re-review only the fixes. Its residual findings are ruled on exactly as in §4.2.
 3. **Open the pull request** — description via `ali-generate-pr-description` if it is installed, otherwise a plain one: goal, what changed, how it was verified. Push the branch; do not merge, and do not ask to.
 4. **File the `## Parked` items** as issues on the repository's tracker, each with its `file:line` and how to see it. A finding that stays in the plan file is lost.
 5. **Report**, in this order: what now works and how to see it; every line of `## Rulings` — the decisions taken without the user; the parked issues; anything in the plan that was not done and why.
