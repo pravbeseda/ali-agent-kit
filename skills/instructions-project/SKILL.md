@@ -41,7 +41,10 @@ Scripts live in `scripts/` next to this file; `<skill>` below is the absolute
 path of the directory holding this file. Run them from the repository root as
 `node <skill>/scripts/<name>.js` — the gate, inventory, drift and render
 scripts read the repository from the working directory; `--help` and `--json`
-on all.
+on all. Each run works in `~/.agent-instructions/runs/<id>/`, with the id
+`inventory.js --new-run` prints; `runs/<id>/…` below is short for that run
+directory. Pass such paths to the scripts as absolute paths — they resolve them
+against the working directory, and the store moves with `AGENT_INSTRUCTIONS_DIR`.
 
 ## Step 1 — Gate
 

@@ -22,7 +22,7 @@ what still needs the user (FLAG batches), whether anything failed.
 Claude Code: ~/.claude/CLAUDE.md written · Codex: written · Copilot CLI: created ·
 JetBrains: skipped (plugin dir missing) · VS Code: settings edited (chat.useClaudeMdFile=false)
 
-**Backup:** ~/.agent-instructions/backups/<run-id> — restore with `node scripts/restore.js --run <run-id>`
+**Backup:** ~/.agent-instructions/backups/<run-id> — restore with `node <skill>/scripts/restore.js --run <run-id>`
 Full report: ~/.agent-instructions/runs/<run-id>/report.md
 ```
 

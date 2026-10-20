@@ -120,7 +120,7 @@ function buildSkill(sourceName, files, sourcePath) {
   const index = files.findIndex((f) => f.path === 'SKILL.md');
   // A leading BOM would hide the frontmatter from every parser downstream.
   const raw = files[index].content.toString('utf8').replace(/^\uFEFF/, '');
-  const { fields, body, description } = parseFrontmatter(raw);
+  const { fields, description } = parseFrontmatter(raw);
 
   if (!FRONTMATTER_RE.test(raw)) {
     throw new SkillError(`${sourcePath}: SKILL.md is missing YAML frontmatter`);
@@ -143,13 +143,6 @@ function buildSkill(sourceName, files, sourcePath) {
       `${sourcePath}: description is ${description.length} characters, the limit is ${MAX_DESCRIPTION_LENGTH}`
     );
   }
-  const bodyLines = body.replace(/\r?\n$/, '').split(/\r?\n/).length;
-  if (bodyLines >= MAX_BODY_LINES) {
-    throw new SkillError(
-      `${sourcePath}: SKILL.md body has ${bodyLines} lines, keep it under ${MAX_BODY_LINES} lines — move detail into reference files`
-    );
-  }
-
   if (raw.includes(NOTICE_SENTINEL)) {
     throw new SkillError(
       `${sourcePath}: SKILL.md already carries the managed-file notice — it is added on install, keep it out of the source`
@@ -158,10 +151,19 @@ function buildSkill(sourceName, files, sourcePath) {
 
   const agents = parseAgents(fields.agents, sourcePath);
 
+  const installed = withInstallNotice(rewriteFrontmatter(dropAgentsKey(raw), { name, description }));
+  // Counted on what agents receive, so the install notice is included.
+  const bodyLines = parseFrontmatter(installed).body.replace(/\r?\n$/, '').split(/\r?\n/).length;
+  if (bodyLines >= MAX_BODY_LINES) {
+    throw new SkillError(
+      `${sourcePath}: installed SKILL.md body has ${bodyLines} lines, keep it under ${MAX_BODY_LINES} lines — move detail into reference files`
+    );
+  }
+
   const rewritten = files.slice();
   rewritten[index] = {
     path: 'SKILL.md',
-    content: withInstallNotice(rewriteFrontmatter(dropAgentsKey(raw), { name, description })),
+    content: installed,
     mode: files[index].mode
   };
 

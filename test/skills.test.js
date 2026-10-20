@@ -73,6 +73,12 @@ test('rejects a SKILL.md body of 500 lines or more', () => {
   assert.throws(() => loadSkills(dir), SkillError, /500 lines/);
 });
 
+test('the body limit counts the installed SKILL.md, notice included', () => {
+  const dir = tmp();
+  writeFileSync(join(dir, 'edge.md'), skillFile('edge').replace('body\n', 'line\n'.repeat(495)));
+  assert.throws(() => loadSkills(dir), SkillError, /500 lines/);
+});
+
 test('rejects frontmatter name that does not match the file name', () => {
   const dir = tmp();
   writeFileSync(join(dir, 'one.md'), skillFile('two'));

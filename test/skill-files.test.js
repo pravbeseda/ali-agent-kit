@@ -40,13 +40,14 @@ test('every bundled file a skill names exists in that skill', () => {
   assert.deepEqual(missing, []);
 });
 
-test('SKILL.md runs bundled scripts through the skill directory, not the working directory', () => {
-  const relative = [];
+test('skills run bundled scripts through the skill directory, not the working directory', () => {
+  const found = [];
   for (const name of skillDirs) {
-    const text = readFileSync(join(skillsSourceDir, name, 'SKILL.md'), 'utf8');
-    for (const [command] of text.matchAll(/node scripts\/\S+/g)) {
-      relative.push(`${name}: ${command}`);
+    for (const file of markdownFiles(join(skillsSourceDir, name))) {
+      for (const [command] of readFileSync(file, 'utf8').matchAll(/node scripts\/\S+/g)) {
+        found.push(`${relative(skillsSourceDir, file).split(sep).join('/')}: ${command}`);
+      }
     }
   }
-  assert.deepEqual(relative, [], 'write `node <skill>/scripts/…` — the scripts run from the user\'s directory');
+  assert.deepEqual(found, [], 'write `node <skill>/scripts/…` — the scripts run from the user\'s directory');
 });

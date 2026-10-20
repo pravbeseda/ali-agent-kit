@@ -60,6 +60,9 @@ state against the bundled snapshot, env overrides, and warnings: Codex
 VS Code profile instruction files, symlinks, BOMs, size thresholds, shared-file
 drift between the two skills. Keep the run id it prints; every later script
 takes `--run <id>` and writes only under `~/.agent-instructions/runs/<id>/`.
+`runs/<id>/…` below is short for that run directory; pass such paths to the
+scripts as absolute paths — they resolve them against the working directory,
+and the store moves with `AGENT_INSTRUCTIONS_DIR`.
 
 Then, still read-only:
 
