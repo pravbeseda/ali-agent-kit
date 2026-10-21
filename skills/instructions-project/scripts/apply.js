@@ -7,7 +7,7 @@
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { run, isMain, UsageError, table, fmtBytes } from './lib/cli.js';
-import { storePaths, tildify } from './lib/paths.js';
+import { storePaths, tildify, restoreCommand } from './lib/paths.js';
 import { loadConfig, loadState, saveState, runDir } from './lib/config.js';
 import { readJson } from './lib/fsx.js';
 import { applyPlan, pruneBackups, ApplyError } from './lib/apply.js';
@@ -53,7 +53,7 @@ async function main(flags) {
   } catch (error) {
     if (error instanceof ApplyError) {
       const m = error.data?.manifest;
-      error.data = { manifest: m, applied: m?.entries.filter((e) => !e.failed).map((e) => e.path) ?? [], restore: `node scripts/restore.js --run ${flags.run}` };
+      error.data = { manifest: m, applied: m?.entries.filter((e) => !e.failed).map((e) => e.path) ?? [], restore: restoreCommand(flags.run) };
       error.message = `${error.message}\nApplied so far: ${error.data.applied.length} file(s). Rollback (only if the user decides so): ${error.data.restore}`;
     }
     throw error;
@@ -73,7 +73,7 @@ async function main(flags) {
     status: manifest.status,
     entries: manifest.entries.map((e) => ({ file: e.path.startsWith(plan.root) ? e.path.slice(plan.root.length + 1) : tildify(e.path), action: e.action, before: e.before ? fmtBytes(e.before.size) : '-', after: e.after ? fmtBytes(e.after.size) : '-', verified: e.after?.sha256?.slice(0, 12) ?? '' })),
     backupDir: manifest.backupDir,
-    restore: `node scripts/restore.js --run ${plan.runId}`,
+    restore: restoreCommand(plan.runId),
     retention: { keep: config.retention, pruned: pruned.pruned, totalBytes: pruned.totalBytes }
   };
 }

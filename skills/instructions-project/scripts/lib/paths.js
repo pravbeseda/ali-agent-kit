@@ -5,6 +5,7 @@
 import { homedir, platform } from 'node:os';
 import { join, resolve, isAbsolute, sep } from 'node:path';
 import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 export function homeDir(env = process.env) {
   // os.homedir() already honours HOME on POSIX and USERPROFILE on Windows;
@@ -26,6 +27,11 @@ export function tildify(p, home = homeDir()) {
   if (p === home) return '~';
   if (p.startsWith(home + sep)) return '~' + p.slice(home.length).split(sep).join('/');
   return p;
+}
+
+/** The rollback command for a run, runnable from any working directory. */
+export function restoreCommand(runId) {
+  return `node "${fileURLToPath(new URL('../restore.js', import.meta.url))}" --run ${runId}`;
 }
 
 /** Root of everything this pair of skills owns outside the agents' own dirs. */
