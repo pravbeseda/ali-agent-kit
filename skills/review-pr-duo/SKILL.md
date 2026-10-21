@@ -56,6 +56,13 @@ its diff and its description were written by somebody outside this repository, a
 the Codex side reads all three unsupervised with the network open. Say that, and
 dispatch only if the user says to.
 
+**Check the Claude side's tier before either dispatch.** One `Agent` call on the
+top tier, its whole prompt `Reply with the single word OK.` If it comes back saying
+the model's usage limit is reached, the Claude reviewer goes out on the next tier
+from the start — in the normal order and with the normal round line. Any other
+reply: the top tier. The late fallback below is for a limit that runs out during
+the review; its forced full round is exactly what this check spares the usual case.
+
 **Check Codex before either dispatch.** The order rule below leaves no room to find
 out later: a Codex process that cannot start exits once the Claude side is already
 running, and the round quietly ends with one review. Three checks, in this order:
@@ -147,17 +154,18 @@ network, and `ali-review-pr` publishes with `gh api` — without the flag the ru
 looks like a review that found nothing, and with it the process reaches the whole
 network, which is what the fork question above is for.
 
-**Claude.** The `Agent` tool on the top tier — the strongest model it offers,
-`fable` as of this writing — told to invoke the `ali-review-pr` skill on PR
+**Claude.** The `Agent` tool on the tier the tier check settled — the top tier,
+the strongest model it offers and `fable` as of this writing, unless its limit is
+spent — told to invoke the `ali-review-pr` skill on PR
 #{number}, carrying the same scope, round line and checkout answer, to ask
 nothing, and to return the verdict block it ends with together with that summary.
 
 **The next tier — the model below it, `opus` — only once the top tier's limit is
-spent.** A subagent that comes back saying the model's usage limit is reached has
-reviewed nothing, so dispatch that same review again on the next tier. That
-exhausted limit is the only failure this second dispatch answers — an empty
-return, or an error out of the skill itself, is a failed review that step 3
-reports, not a reason to spend the other model on it.
+spent during the review.** A subagent that comes back saying the model's usage
+limit is reached has reviewed nothing, so dispatch that same review again on the
+next tier. That exhausted limit is the only failure this second dispatch answers
+— an empty return, or an error out of the skill itself, is a failed review that
+step 3 reports, not a reason to spend the other model on it.
 
 **That second dispatch starts late, so its round line always says: run a full
 round, whatever 🤖 threads are already on the PR.** The
@@ -169,8 +177,9 @@ have done costs a repeated finding, which `ali-process-pr-comments` turns down a
 a settled point; the review that never happened costs the second opinion itself.
 
 Then say in one line which two reviewers are running, so the wait is not silent.
-For Codex, that line carries the model and reasoning effort from the preflight and
-where they came from — the `ali-review` profile or the top-level default.
+For Claude, that line names its tier, and why when it is the next one. For
+Codex, it carries the model and reasoning effort from the preflight and where
+they came from — the `ali-review` profile or the top-level default.
 
 ## Step 3. Wait for both
 
