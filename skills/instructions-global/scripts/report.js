@@ -8,7 +8,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { run, isMain, UsageError, table, fmtBytes, fmtDelta } from './lib/cli.js';
-import { storePaths, tildify } from './lib/paths.js';
+import { storePaths, tildify, restoreCommand } from './lib/paths.js';
 import { loadConfig, loadState } from './lib/config.js';
 import { readJson, readText, metricsOf, atomicWrite } from './lib/fsx.js';
 
@@ -106,7 +106,7 @@ async function main(flags) {
   // Backup + previous run
   const prev = state.runs.filter((r) => r.runId !== flags.run).at(-1);
   const backupLine = manifest
-    ? `Backup: ${tildify(manifest.backupDir)} (${manifest.entries.length} entries, status ${manifest.status}). Restore: \`node scripts/restore.js --run ${flags.run}\`.`
+    ? `Backup: ${tildify(manifest.backupDir)} (${manifest.entries.length} entries, status ${manifest.status}). Restore: \`${restoreCommand(flags.run)}\`.`
     : 'Backup: none yet (nothing applied).';
   sections.push({ title: 'Backup', body: `${backupLine}${prev ? `\nPrevious run: ${prev.runId} (${prev.at})` : ''}` });
 
