@@ -17,6 +17,9 @@ import { getAdapter } from './adapters/index.js';
 
 const SOURCE_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_NAME_LENGTH = 64;
+// Limits from the Agent Skills spec and its authoring guide.
+const MAX_DESCRIPTION_LENGTH = 1024;
+const MAX_BODY_LINES = 500;
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
 export class SkillError extends Error {}
@@ -135,7 +138,11 @@ function buildSkill(sourceName, files, sourcePath) {
       `${sourcePath}: frontmatter must contain a non-empty "description" — agents use it to decide when to trigger the skill`
     );
   }
-
+  if (description.length > MAX_DESCRIPTION_LENGTH) {
+    throw new SkillError(
+      `${sourcePath}: description is ${description.length} characters, the limit is ${MAX_DESCRIPTION_LENGTH}`
+    );
+  }
   if (raw.includes(NOTICE_SENTINEL)) {
     throw new SkillError(
       `${sourcePath}: SKILL.md already carries the managed-file notice — it is added on install, keep it out of the source`
@@ -144,10 +151,19 @@ function buildSkill(sourceName, files, sourcePath) {
 
   const agents = parseAgents(fields.agents, sourcePath);
 
+  const installed = withInstallNotice(rewriteFrontmatter(dropAgentsKey(raw), { name, description }));
+  // Counted on what agents receive, so the install notice is included.
+  const bodyLines = parseFrontmatter(installed).body.replace(/\r?\n$/, '').split(/\r?\n/).length;
+  if (bodyLines >= MAX_BODY_LINES) {
+    throw new SkillError(
+      `${sourcePath}: installed SKILL.md body has ${bodyLines} lines, keep it under ${MAX_BODY_LINES} lines — move detail into reference files`
+    );
+  }
+
   const rewritten = files.slice();
   rewritten[index] = {
     path: 'SKILL.md',
-    content: withInstallNotice(rewriteFrontmatter(dropAgentsKey(raw), { name, description })),
+    content: installed,
     mode: files[index].mode
   };
 

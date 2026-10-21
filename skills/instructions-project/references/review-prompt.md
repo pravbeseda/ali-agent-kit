@@ -7,18 +7,18 @@ judges the result the way the user would when opening the files tomorrow.
 
 ## How to run it
 
-1. `node scripts/review.js --run <id>` → `runs/<id>/review/` (before / after /
+1. `node <skill>/scripts/review.js --run <id>` → `runs/<id>/review/` (before / after /
    diff per file, `README.md` with the table).
 2. Ask the user in one line whether to launch the reviewer (invoking the skill
    is that request already; the question makes it explicit for any session rule
    about subagents). Then delegate to a subagent with a fresh context and the
-   strongest model available, at least an Opus-class model (Claude Code: `Agent`
-   with `model: "opus"` or better; other hosts: their equivalent). Give it only
+   strongest model available (Claude Code: the strongest model the `Agent` tool
+   offers; other hosts: their equivalent). Give it only
    the prompt below and the review directory. If the host has no subagents, say so
    to the user and do the review yourself in a separate pass **reading only the
    review directory** — mark the verdict "self-review, no clean context".
 3. Show the user the review verbatim, then ask one question:
-   **accept the new version, or roll back the run** (`node scripts/restore.js
+   **accept the new version, or roll back the run** (`node <skill>/scripts/restore.js
    --run <id>` — undoes every file of the run; `--path <file>` for one file).
    Rolling back is the user's decision; do nothing until it comes. A partial
    answer ("keep everything except X") → restore that path only, re-render if
@@ -90,6 +90,6 @@ Do not repeat the diff. Do not use markdown tables.
 Independent review (run <id>, reviewer: <model>, clean context)
 <the review, verbatim>
 
-Accept the new version, or roll back?  (roll back = node scripts/restore.js --run <id>;
+Accept the new version, or roll back?  (roll back = node <skill>/scripts/restore.js --run <id>;
 one file only = --path <file>)
 ```

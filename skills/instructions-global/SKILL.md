@@ -39,14 +39,16 @@ mode; with `--sync-only` the master is re-rendered with the block put or
 removed (Step 2, item 4).
 
 Config: `~/.agent-instructions/config.json` (`references/config-schema.md`).
-Scripts live in `scripts/` next to this file; run them with `node`; every one
+Scripts live in `scripts/` next to this file; `<skill>` below is the absolute
+path of the directory holding this file, so run them as
+`node <skill>/scripts/<name>.js` from wherever the session is; every one
 takes `--help` and `--json`. Exit codes: 0 ok, 1 usage, 2 refused before any
 write, 3 stopped part-way (rollback offered).
 
 ## Step 1 — Inventory (read-only)
 
 ```sh
-node scripts/inventory.js --new-run
+node <skill>/scripts/inventory.js --new-run
 ```
 
 Prints the surface table (detected?, file, bytes, lines, ~tokens as chars/4,
@@ -58,14 +60,17 @@ state against the bundled snapshot, env overrides, and warnings: Codex
 VS Code profile instruction files, symlinks, BOMs, size thresholds, shared-file
 drift between the two skills. Keep the run id it prints; every later script
 takes `--run <id>` and writes only under `~/.agent-instructions/runs/<id>/`.
+`runs/<id>/…` below is short for that run directory; pass such paths to the
+scripts as absolute paths — they resolve them against the working directory,
+and the store moves with `AGENT_INSTRUCTIONS_DIR`.
 
 Then, still read-only:
 
 ```sh
-node scripts/karpathy.js status            # fetches upstream (6 s timeout, fine in every mode; --offline when there is no network), else snapshot — says which
-node scripts/ponytail.js status            # the optional Ponytail rules block for this machine's config
-node scripts/drift.js --diff               # on a first run every target is "never-applied": expected, not a problem
-node scripts/dupes.js <the master and every existing target file, plus the legacy files the inventory warns about>
+node <skill>/scripts/karpathy.js status            # fetches upstream (6 s timeout, fine in every mode; --offline when there is no network), else snapshot — says which
+node <skill>/scripts/ponytail.js status            # the optional Ponytail rules block for this machine's config
+node <skill>/scripts/drift.js --diff               # on a first run every target is "never-applied": expected, not a problem
+node <skill>/scripts/dupes.js <the master and every existing target file, plus the legacy files the inventory warns about>
 ```
 
 `dupes.js` returns exact and near duplicates and secret-looking lines — report
@@ -148,17 +153,17 @@ rewritten memory files, `parked.md`); `render.js` writes its output under
    sane structure is kept).
    One rule per line, imperative, English. Order of operations for the block:
    write the v-next without it, run
-   `node scripts/karpathy.js put --master runs/<id>/input/global.noblock.md --out runs/<id>/input/global.md`,
+   `node <skill>/scripts/karpathy.js put --master runs/<id>/input/global.noblock.md --out runs/<id>/input/global.md`,
    then append `### Local additions` (an H3 under the block's H2, so the block
    stays the last section) with the deltas. Once the machine has decided, run
-   `node scripts/ponytail.js put --master runs/<id>/input/global.md --out runs/<id>/input/global.md --skip <ids>`
+   `node <skill>/scripts/ponytail.js put --master runs/<id>/input/global.md --out runs/<id>/input/global.md --skip <ids>`
    (the block lands right before the Karpathy section). `karpathy.js status
    --master <v-next>` and `ponytail.js status --master <v-next> --skip <ids>`
    (the same list) must say `current` (or `off`) afterwards.
 6. **Render** to every detected target and build the plan:
 
    ```sh
-   node scripts/render.js --run <id> --master-from runs/<id>/input/global.md \
+   node <skill>/scripts/render.js --run <id> --master-from runs/<id>/input/global.md \
      --vscode \
      --archive <legacy copilot file>,<VS Code profile *.instructions.md>,<superseded memory files> \
      [--parked runs/<id>/input/parked.md] [--memory-edits runs/<id>/input/memory-edits.json] \
@@ -181,7 +186,7 @@ rewritten memory files, `parked.md`); `render.js` writes its output under
 7. **Show the proposal**: the file table, label counts, the FLAG batches as
    questions (they block the next step), REWORDs as before → after, the
    Karpathy and Ponytail state (rules skipped and why), threshold warnings (`master_lines`, Codex budget) —
-   `node scripts/report.js --run <id>` prints the tables from `plan.json` and
+   `node <skill>/scripts/report.js --run <id>` prints the tables from `plan.json` and
    `labels.json`
    — warnings and questions, never automatic cutting. Diff inline when ≤ 80
    lines, else per-section summary plus the `diff/` path (on a first run the
@@ -205,7 +210,7 @@ which values, which file).
 ## Step 4 — Apply
 
 ```sh
-node scripts/apply.js --run <id> [--only <paths>] [--replace-symlinks]
+node <skill>/scripts/apply.js --run <id> [--only <paths>] [--replace-symlinks]
 ```
 
 Order: master → targets → VS Code settings → moves. Per file: backup into
@@ -221,8 +226,8 @@ printed. `--migrate-and-disable`: after apply, propose the settings edit
 `apply.js` re-reads every file and records hashes in `state.json`; then:
 
 ```sh
-node scripts/drift.js --check  # exit 0 = no changes
-node scripts/report.js --run <id> --write
+node <skill>/scripts/drift.js --check  # exit 0 = no changes
+node <skill>/scripts/report.js --run <id> --write
 ```
 
 Print `references/diagnostics-checklist.md` — the user confirms each surface
@@ -232,21 +237,21 @@ Diagnostics, Claude `/memory`, Codex by asking it).
 ### Independent review, then accept or roll back
 
 The run is applied but not yet accepted. Build the review bundle and hand it to
-a second reader with a clean context and the strongest model available (at
-least Opus-class), exactly as `references/review-prompt.md` describes:
+a second reader with a clean context and the strongest model available,
+exactly as `references/review-prompt.md` describes:
 
 ```sh
-node scripts/review.js --run <id>        # runs/<id>/review/: before, after, diff per file
+node <skill>/scripts/review.js --run <id>        # runs/<id>/review/: before, after, diff per file
 ```
 
 Ask first, in one line: "Launch the independent reviewer (a subagent with a
-clean context, Opus-class or better)?" — invoking this skill is already the
+clean context, on the strongest model available)?" — invoking this skill is already the
 user's request for that review, and this question makes it explicit for any
 host or session rule that wants one (Claude Code's `Agent` tool needs no
 permission of its own). Then delegate with the prompt from that file and
 nothing else; show the
 user the review verbatim; then ask the one question: accept the new version, or
-roll back (`node scripts/restore.js --run <id>`, or `--path <file>` for one
+roll back (`node <skill>/scripts/restore.js --run <id>`, or `--path <file>` for one
 file).
 Nothing happens until the user answers; a rollback is run only on their word.
 No subagent on this host → say so and review yourself from the bundle alone,
@@ -262,7 +267,7 @@ Instructions" stays off on purpose.
 
 ## Rollback
 
-`node scripts/restore.js --list`, `--run <id>`, `--run <id> --path <file>`;
+`node <skill>/scripts/restore.js --list`, `--run <id>`, `--run <id> --path <file>`;
 works without the model, undoes the run from the manifest, last entry first.
 
 ## References

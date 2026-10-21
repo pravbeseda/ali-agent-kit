@@ -14,6 +14,8 @@ Answer one question about a codebase as it stands: **what in it is wrong now, an
 
 It runs on Claude Code subagents — up to twelve per run, all on one tier — so it starts when the user asks for it and never on its own.
 
+**Model tiers.** The *top* tier is the strongest model the `Agent` tool offers — `fable` as of this writing — and the *next* tier is the one below it, `opus`. Everything below names the tier, not the model, so a new model line changes this paragraph only.
+
 ## Step 1. Scope, ledger and map
 
 **Scope.** The path the user named with the invocation, or the whole repository. Record the commit being audited and whether the working tree is dirty:
@@ -60,9 +62,9 @@ Write the map down as one block — it is the only picture of the repository the
 
 ## Step 2. Collect — one finder per lens
 
-Say in one line that six finders are starting, then dispatch them **in parallel, in one message**: the `Agent` tool, `model: "fable"`, one per lens — security, architecture, correctness, duplication, lean, docs. Each gets [`references/finder-prompt.md`](references/finder-prompt.md) from its `---` line up to its `## Lenses` heading, followed by its own lens section, the map, the scope and the ledger. Nothing else: no chat history, no other lens's brief. A finder that knows what the others look for drifts into their lanes and the report fills with duplicates.
+Say in one line that six finders are starting, then dispatch them **in parallel, in one message**: the `Agent` tool on the top tier, one per lens — security, architecture, correctness, duplication, lean, docs. Each gets [`references/finder-prompt.md`](references/finder-prompt.md) from its `---` line up to its `## Lenses` heading, followed by its own lens section, the map, the scope and the ledger. Nothing else: no chat history, no other lens's brief. A finder that knows what the others look for drifts into their lanes and the report fills with duplicates.
 
-**`opus` only once `fable`'s limit is spent.** A subagent that comes back saying the model's usage limit is reached has done nothing; dispatch that same brief again with `model: "opus"`, and from then on the rest of the run uses `opus` too, so the report names one tier. An empty return or an error is a failed lens, reported in step 6 and in `Not checked`, not a reason to spend the other model.
+**The next tier only once the top tier's limit is spent.** A subagent that comes back saying the model's usage limit is reached has done nothing; dispatch that same brief again on the next tier, and from then on the rest of the run uses it too, so the report names one tier. An empty return or an error is a failed lens, reported in step 6 and in `Not checked`, not a reason to spend the other model.
 
 Wait for all six. Do nothing with partial results.
 

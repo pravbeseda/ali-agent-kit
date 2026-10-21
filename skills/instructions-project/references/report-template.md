@@ -22,7 +22,7 @@ what still needs the user (FLAG batches), whether anything failed.
 Claude Code: ~/.claude/CLAUDE.md written · Codex: written · Copilot CLI: created ·
 JetBrains: skipped (plugin dir missing) · VS Code: settings edited (chat.useClaudeMdFile=false)
 
-**Backup:** ~/.agent-instructions/backups/<run-id> — restore with `node scripts/restore.js --run <run-id>`
+**Backup:** ~/.agent-instructions/backups/<run-id> — restore with `node <skill>/scripts/restore.js --run <run-id>`
 Full report: ~/.agent-instructions/runs/<run-id>/report.md
 ```
 
@@ -56,8 +56,8 @@ Sections, in order — paste the `report.js` tables where they belong:
    `.github/instructions/*.instructions.md`, nested `AGENTS.md`/`CLAUDE.md`,
    `AGENTS.override.md`.
 8. **Threshold warnings** — master / project lines, Codex chain bytes.
-9. **Diagnostics checklist** — from `references/diagnostics-checklist.md`, one
-   line per surface, for the user to tick.
+9. **Diagnostics checklist** — global runs only: the per-surface checklist
+   `instructions-global` bundles, one line per surface, for the user to tick.
 9a. **Independent review** — the reviewer's text verbatim (model, clean
    context or self-review), then the user's decision: accepted / rolled back
    (which files).
