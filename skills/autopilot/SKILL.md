@@ -85,7 +85,7 @@ Commit the plan file as the branch's first commit — newly written in Mode A, o
 
 Update this file as part of each step's commit. A run that is interrupted must be resumable from it alone — that is the test for whether it holds enough.
 
-**Check the top tier before the first step.** One `Agent` call on the top tier, its whole prompt `Reply with the single word OK.` If it comes back saying the model's usage limit is reached, every role this skill puts on the top tier runs on the next tier instead. The implementer and the reviewers then share a tier, so the gate holds a lower bar than §4 describes: say so in one line now, and again in the final report. Any other reply: carry on as below.
+**Check the top tier before the first step.** One `Agent` call on the top tier, its whole prompt `Reply with the single word OK.` If it comes back saying the model's usage limit is reached, every role this skill puts on the top tier runs on the next tier instead: wherever §4 to §6 say the top tier, read the next tier for this run. The implementer and the reviewers then share a tier, so the gate holds a lower bar than §4 describes: say so in one line now, and again in the final report. Any other reply: carry on as below.
 
 ## 4. The step loop
 
