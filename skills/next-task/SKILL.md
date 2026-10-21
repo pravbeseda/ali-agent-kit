@@ -1,6 +1,6 @@
 ---
 name: next-task
-description: Take the next task for the current repository from the user's `Work` GitHub Project — the top `Ready` issue by priority that nothing blocks, or the issue the user named — mark it `In progress`, set up a branch or worktree, work on it, and mark it `In review` when this session opens its pull request. Use when the user asks for the next task, what to work on, to take an issue from the board, or runs /ali-next-task.
+description: Take the next task for the current repository from the user's `Work` GitHub Project — the one the user picks from the top five `Ready` issues by priority that nothing blocks, or the issue the user named — mark it `In progress`, set up a branch or worktree, work on it, and mark it `In review` when this session opens its pull request. Use when the user asks for the next task, what to work on, to take an issue from the board, or runs /ali-next-task.
 ---
 
 # Take the next task
@@ -34,6 +34,7 @@ query($login: String!, $number: Int!, $cursor: String) {
     nodes { id
       status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } }
       priority: fieldValueByName(name: "Priority") { ... on ProjectV2ItemFieldSingleSelectValue { name } }
+      size: fieldValueByName(name: "Size") { ... on ProjectV2ItemFieldSingleSelectValue { name } }
       content { ... on Issue { number title state url repository { nameWithOwner }
         parent { number repository { nameWithOwner } }
         subIssuesSummary { total }
@@ -52,17 +53,19 @@ While `pageInfo.hasNextPage`, repeat with `-F cursor={endCursor}`.
 - `issueDependenciesSummary.blockedBy` is `0` — it counts open blockers only, so a closed blocker no longer blocks,
 - no sub-issues — an epic is a container; its parts are the tasks.
 
-Take the highest priority — P0 first, an empty priority last — and among equals the lowest issue number, the oldest. Nothing left → say the queue for this repository is empty, name how many items of it wait in `Inbox` or are blocked, and stop; point at `ali-triage` when `Inbox` is not empty.
+Order them by priority — P0 first, an empty priority last — and among equals by the lowest issue number, the oldest. Nothing left → say the queue for this repository is empty, name how many items of it wait in `Inbox` or are blocked, and stop; point at `ali-triage` when `Inbox` is not empty.
+
+**The user picks, not the skill.** Show the first five candidates — fewer when fewer exist, even just one — as a numbered list, so the answer is one digit: the issue number, title, priority and size (where set), its parent epic's number (where it has one), and the link. Mark the first as the queue's recommendation, say how many more candidates wait beyond the list, and wait for the answer. An answer naming an issue outside the list (`#N` or a URL) is a named issue: handle it as above.
 
 ## 3. Claim it
 
-For an item step 2 picked from the queue, re-read its `Status` just before writing — one item, not the whole board:
+For an item the user picked from the list, re-read its `Status` just before writing — one item, not the whole board:
 
 ```sh
 gh api graphql -f query='query($id: ID!) { node(id: $id) { ... on ProjectV2Item { status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } } } } }' -F id={itemId}
 ```
 
-Another agent may have taken it seconds ago: if it is no longer `Ready`, go back to step 2 and take the next one. A named issue skips this re-check — step 2 already settled its status with the user. Either way, note the `Status` the item had before this write; step 6 offers it back.
+Another agent may have taken it while the user was choosing: if it is no longer `Ready`, say so and go back to step 2 for a fresh list. A named issue skips this re-check — step 2 already settled its status with the user. Either way, note the `Status` the item had before this write; step 6 offers it back.
 
 ```sh
 gh project item-edit --project-id {projectId} --id {itemId} --field-id {statusFieldId} --single-select-option-id {inProgressOptionId}
