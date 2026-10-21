@@ -62,9 +62,11 @@ Write the map down as one block — it is the only picture of the repository the
 
 ## Step 2. Collect — one finder per lens
 
+**Check the top tier first.** One `Agent` call on the top tier, its whole prompt `Reply with the single word OK.` If it comes back saying the model's usage limit is reached, the whole run — finders and verifiers — uses the next tier from the start; say so in one line. Any other reply: carry on on the top tier. Six finders failing on a spent limit, then six dispatched again, is what this saves.
+
 Say in one line that six finders are starting, then dispatch them **in parallel, in one message**: the `Agent` tool on the top tier, one per lens — security, architecture, correctness, duplication, lean, docs. Each gets [`references/finder-prompt.md`](references/finder-prompt.md) from its `---` line up to its `## Lenses` heading, followed by its own lens section, the map, the scope and the ledger. Nothing else: no chat history, no other lens's brief. A finder that knows what the others look for drifts into their lanes and the report fills with duplicates.
 
-**The next tier only once the top tier's limit is spent.** A subagent that comes back saying the model's usage limit is reached has done nothing; dispatch that same brief again on the next tier, and from then on the rest of the run uses it too, so the report names one tier. An empty return or an error is a failed lens, reported in step 6 and in `Not checked`, not a reason to spend the other model.
+**The next tier only once the top tier's limit is spent mid-run.** A subagent that comes back saying the model's usage limit is reached has done nothing; dispatch that same brief again on the next tier, and from then on the rest of the run uses it too, so the report names one tier. An empty return or an error is a failed lens, reported in step 6 and in `Not checked`, not a reason to spend the other model.
 
 Wait for all six. Do nothing with partial results.
 
