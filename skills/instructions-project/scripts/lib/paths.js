@@ -29,12 +29,12 @@ export function tildify(p, home = homeDir()) {
   return p;
 }
 
-/** Root of everything this pair of skills owns outside the agents' own dirs. */
 /** The rollback command for a run, runnable from any working directory. */
 export function restoreCommand(runId) {
   return `node "${fileURLToPath(new URL('../restore.js', import.meta.url))}" --run ${runId}`;
 }
 
+/** Root of everything this pair of skills owns outside the agents' own dirs. */
 export function storeDir(env = process.env, home = homeDir(env)) {
   return env.AGENT_INSTRUCTIONS_DIR ? resolve(env.AGENT_INSTRUCTIONS_DIR) : join(home, '.agent-instructions');
 }
