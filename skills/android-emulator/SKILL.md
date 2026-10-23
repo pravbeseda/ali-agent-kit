@@ -28,7 +28,7 @@ node <skill>/scripts/with-emulator.mjs Medium_Phone_API_36.0 -- ./gradlew connec
 node <skill>/scripts/with-emulator.mjs Medium_Phone_API_36.0 -- adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-`emulator -list-avds` (in `$ANDROID_HOME/emulator`) names the AVDs. Exit code 2 means the arguments were wrong; 1 means the emulator did not boot within 5 minutes or exited while booting — its log is `~/.ali-android-emulator/<avd>.log`, rewritten on every boot.
+`emulator -list-avds` (in `$ANDROID_HOME/emulator`) names the AVDs. Exit code 2 means the arguments were wrong or this is not macOS; 1 means the emulator did not boot within 5 minutes or exited while booting — its log is `~/.ali-android-emulator/<avd>.log`, rewritten on every boot.
 
 ## The reaper
 
