@@ -8,7 +8,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { AVD_NAME, IDLE_MS, STATE_ROOT, adbPath, avdDir, decide, isAlive, readAvdState, runningEmulators, serialOf, stamp, tryLock, unlock } from './lib.mjs';
+import { AVD_NAME, IDLE_MS, REAPER_RAN, STATE_ROOT, adbPath, avdDir, decide, isAlive, lockPath, readAvdState, runningEmulators, serialOf, stamp, tryLock, unlock } from './lib.mjs';
 
 const log = (avd, message) => console.log(`${new Date().toISOString()} ${avd}: ${message}`);
 
@@ -19,12 +19,14 @@ const known = existsSync(STATE_ROOT)
       .map((entry) => entry.name)
   : [];
 const now = Date.now();
+stamp(STATE_ROOT, REAPER_RAN, now);
 
 for (const avd of [...new Set([...emulators.map((e) => e.avd), ...known])].sort()) {
   const emulator = emulators.find((e) => e.avd === avd) ?? null;
   const dir = avdDir(avd);
   if (emulator && !emulator.headless && !existsSync(dir)) continue;
-  if (!tryLock(dir)) continue;
+  const lock = tryLock(lockPath(avd));
+  if (lock === null) continue;
 
   try {
     const { dead, verdict } = decide({ emulator, state: readAvdState(dir), isAlive, now, idleMs: IDLE_MS });
@@ -47,6 +49,6 @@ for (const avd of [...new Set([...emulators.map((e) => e.avd), ...known])].sort(
       log(avd, `idle for ${IDLE_MS / 60_000} minutes, killed ${serial}`);
     }
   } finally {
-    unlock(dir);
+    unlock(lock);
   }
 }

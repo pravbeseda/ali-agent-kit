@@ -11,9 +11,10 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, openSync, rmSync, writeFileSync } from 'node:fs';
 import { constants as os } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { AVD_NAME, BOOT_TIMEOUT_MS, adbPath, avdDir, emulatorPath, runningEmulators, serialOf, stamp, tryLock, unlock } from './lib.mjs';
+import { AVD_NAME, BOOT_TIMEOUT_MS, REAPER_RAN, STATE_ROOT, adbPath, avdDir, emulatorPath, lockPath, logPath, readStamp, reaperSilent, runningEmulators, serialOf, stamp, tryLock, unlock } from './lib.mjs';
 
 const USAGE = 'usage: with-emulator.mjs <avd> -- <command...>';
 
@@ -61,15 +62,15 @@ function booted(serial) {
 /** Under the AVD's lock: the reaper cannot kill it between the lease and the check, nor two wrappers boot it twice. */
 async function acquire() {
   const deadline = Date.now() + BOOT_TIMEOUT_MS;
-  await waitFor('the lock', () => tryLock(dir), deadline);
+  const lock = await waitFor('the lock', () => tryLock(lockPath(avd)), deadline);
   try {
     mkdirSync(join(dir, 'leases'), { recursive: true });
     writeFileSync(lease, '');
 
     let emulator = null;
     if (!runningEmulators().some((e) => e.avd === avd)) {
-      const log = join(dir, 'emulator.log');
-      const out = openSync(log, 'a');
+      const log = logPath(avd);
+      const out = openSync(log, 'w');
       emulator = spawn(emulatorPath(), ['-avd', avd, '-no-window', '-no-audio', '-no-boot-anim', '-no-snapshot-save'], {
         detached: true,
         stdio: ['ignore', out, out]
@@ -85,7 +86,7 @@ async function acquire() {
     emulator?.removeAllListeners('exit');
     return serial;
   } finally {
-    unlock(dir);
+    unlock(lock);
   }
 }
 
@@ -100,6 +101,12 @@ for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
 }
 
 const serial = await acquire();
+const lastRan = readStamp(join(STATE_ROOT, REAPER_RAN));
+if (reaperSilent(lastRan, Date.now())) {
+  const since = lastRan === null ? 'has never run' : `has not run since ${new Date(lastRan).toISOString()}`;
+  const installer = join(dirname(fileURLToPath(import.meta.url)), 'install-reaper.mjs');
+  console.error(`ali-android-emulator: the reaper ${since}, so idle emulators stay up; register it with: node ${installer}`);
+}
 child = spawn(command[0], command.slice(1), { stdio: 'inherit', env: { ...process.env, ANDROID_SERIAL: serial } });
 
 child.on('error', (error) => fail(`could not start ${command[0]}: ${error.message}`));

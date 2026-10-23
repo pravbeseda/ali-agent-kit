@@ -1,11 +1,12 @@
 // Shared by with-emulator.mjs and reap.mjs. State lives per AVD under
 // STATE_ROOT/<avd>/: leases/<pid> (one per wrapper using the emulator),
-// last-used and first-seen (epoch ms), lock/ (mkdir lock, macOS has no flock).
+// last-used and first-seen (epoch ms). Next to it, never inside it, so that
+// clearing the state touches neither: <avd>.lock and <avd>.log (the last boot).
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, constants, existsSync, mkdirSync, openSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 // shortcut: fixed timings, make them options when a second value is needed.
 export const IDLE_MS = 20 * 60_000;
@@ -13,7 +14,8 @@ export const REAP_INTERVAL_S = 300;
 export const BOOT_TIMEOUT_MS = 5 * 60_000;
 
 export const STATE_ROOT = process.env.ALI_EMULATOR_STATE ?? join(homedir(), '.ali-android-emulator');
-export const AVD_NAME = /^[A-Za-z0-9._-]+$/;
+// No leading dot: `.` and `..` would put the state outside its own directory.
+export const AVD_NAME = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
 
 export const sdkRoot = () =>
   process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT ?? join(homedir(), 'Library', 'Android', 'sdk');
@@ -26,6 +28,13 @@ export const adbPath = () => sdkTool('platform-tools', 'adb');
 export const emulatorPath = () => sdkTool('emulator', 'emulator');
 
 export const avdDir = (avd) => join(STATE_ROOT, avd);
+// Stamped by every reaper run, so a reaper launchd can no longer start is noticed.
+export const REAPER_RAN = 'reaper-ran';
+export const lockPath = (avd) => join(STATE_ROOT, `${avd}.lock`);
+export const logPath = (avd) => join(STATE_ROOT, `${avd}.log`);
+
+/** Whether the reaper's last run, or its absence (null), means it is not running. */
+export const reaperSilent = (lastRan, now) => lastRan === null || now - lastRan > 3 * REAP_INTERVAL_S * 1000;
 
 export function isAlive(pid) {
   try {
@@ -69,7 +78,7 @@ export function parseProcesses(text) {
 export const runningEmulators = () =>
   parseProcesses(execFileSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' }));
 
-const readStamp = (path) => {
+export const readStamp = (path) => {
   try {
     return Number(readFileSync(path, 'utf8').trim()) || null;
   } catch {
@@ -89,25 +98,25 @@ export const stamp = (dir, name, now = Date.now()) => {
   writeFileSync(join(dir, name), `${now}\n`);
 };
 
-/** Take the AVD's lock without waiting; a lock whose holder died is taken over. */
-export function tryLock(dir) {
-  const lock = join(dir, 'lock');
-  mkdirSync(dir, { recursive: true });
+// macOS open(2) flag: the open takes an flock, which the kernel drops when the
+// holder exits however it dies, so a lock never goes stale.
+const O_EXLOCK = 0x20;
+
+/**
+ * Take a lock without waiting: an fd to pass to unlock(), or null when another
+ * process holds it. The file is never deleted, so every holder locks one inode.
+ */
+export function tryLock(path) {
+  mkdirSync(dirname(path), { recursive: true });
   try {
-    mkdirSync(lock);
+    return openSync(path, constants.O_RDWR | constants.O_CREAT | constants.O_NONBLOCK | O_EXLOCK);
   } catch (error) {
-    if (error.code !== 'EEXIST') throw error;
-    // No pid yet means the holder is between mkdir and write: still held.
-    const owner = readStamp(join(lock, 'pid'));
-    if (!owner || isAlive(owner)) return false;
-    rmSync(lock, { recursive: true, force: true });
-    return tryLock(dir);
+    if (error.code === 'EAGAIN') return null;
+    throw error;
   }
-  writeFileSync(join(lock, 'pid'), String(process.pid));
-  return true;
 }
 
-export const unlock = (dir) => rmSync(join(dir, 'lock'), { recursive: true, force: true });
+export const unlock = (fd) => closeSync(fd);
 
 /** The adb serial of the running emulator with this AVD, or null. */
 export function serialOf(avd) {

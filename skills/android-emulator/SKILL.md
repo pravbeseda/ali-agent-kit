@@ -28,7 +28,7 @@ node <skill>/scripts/with-emulator.mjs Medium_Phone_API_36.0 -- ./gradlew connec
 node <skill>/scripts/with-emulator.mjs Medium_Phone_API_36.0 -- adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-`emulator -list-avds` (in `$ANDROID_HOME/emulator`) names the AVDs. Exit code 2 means the arguments were wrong; 1 means the emulator did not boot within 5 minutes or exited while booting — its log is `~/.ali-android-emulator/<avd>/emulator.log`.
+`emulator -list-avds` (in `$ANDROID_HOME/emulator`) names the AVDs. Exit code 2 means the arguments were wrong; 1 means the emulator did not boot within 5 minutes or exited while booting — its log is `~/.ali-android-emulator/<avd>.log`, rewritten on every boot.
 
 ## The reaper
 
@@ -39,4 +39,4 @@ node <skill>/scripts/install-reaper.mjs              # register, or re-register 
 node <skill>/scripts/install-reaper.mjs --uninstall  # remove
 ```
 
-The plist runs the `reap.mjs` next to the script that registered it, every 5 minutes. Its log is `~/.ali-android-emulator/reaper.log`. When `launchctl list com.github.pravbeseda.ali-android-emulator.reaper` fails, the reaper is not registered: say so and offer to run the install. macOS only.
+The plist runs the `reap.mjs` next to the script that registered it, every 5 minutes. Its log is `~/.ali-android-emulator/reaper.log`. Every run stamps `~/.ali-android-emulator/reaper-ran`; when the reaper has not run for 15 minutes — never registered, or launchd can no longer start it after a Node upgrade or a moved skill — `with-emulator` says so on stderr. Tell the user and offer to run the install. macOS only.

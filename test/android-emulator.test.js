@@ -1,13 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { packageRoot } from '../src/config.js';
-import { decide, parseProcesses, readAvdState, tryLock, unlock } from '../skills/android-emulator/scripts/lib.mjs';
+import { decide, parseProcesses, readAvdState, reaperSilent, tryLock, unlock } from '../skills/android-emulator/scripts/lib.mjs';
 
 const SCRIPTS = join(packageRoot, 'skills', 'android-emulator', 'scripts');
+const LIB = join(SCRIPTS, 'lib.mjs');
 const MIN = 60_000;
 const IDLE = 20 * MIN;
 const NOW = 1_000 * MIN;
@@ -74,6 +76,12 @@ test('the state of an emulator that is gone is forgotten unless a wrapper still 
   assert.equal(decide({ emulator: null, state: s, isAlive: alive([11]), now: NOW, idleMs: IDLE }).verdict, 'keep');
 });
 
+test('a reaper that never ran or missed three runs counts as not running', () => {
+  assert.equal(reaperSilent(null, NOW), true);
+  assert.equal(reaperSilent(NOW - 15 * MIN, NOW), false);
+  assert.equal(reaperSilent(NOW - 15 * MIN - 1, NOW), true);
+});
+
 test('emulator processes are read from ps output, headless told apart by the binary name', () => {
   const ps = [
     '  501 /usr/bin/login -pf ai',
@@ -98,18 +106,43 @@ test('the state of one AVD is read from its directory', () => {
   assert.equal(readAvdState(join(tmp(), 'missing')), null);
 });
 
-test('a lock is exclusive, and one left by a dead process is taken over', () => {
-  const dir = join(tmp(), 'test26');
-  assert.equal(tryLock(dir), true);
-  assert.equal(tryLock(dir), false, 'the holder is alive: this process');
-  unlock(dir);
-  assert.equal(existsSync(join(dir, 'lock')), false);
+test('a lock is exclusive and released by unlock', () => {
+  const path = join(tmp(), 'state', 'test26.lock');
+  const fd = tryLock(path);
+  assert.notEqual(fd, null);
+  assert.equal(tryLock(path), null);
+  unlock(fd);
+  const again = tryLock(path);
+  assert.notEqual(again, null);
+  unlock(again);
+});
 
-  mkdirSync(join(dir, 'lock'));
-  const dead = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' }).stdout;
-  writeFileSync(join(dir, 'lock', 'pid'), dead);
-  assert.equal(tryLock(dir), true);
-  assert.equal(readFileSync(join(dir, 'lock', 'pid'), 'utf8'), String(process.pid));
+test('a lock dies with its holder, however it dies', async () => {
+  const path = join(tmp(), 'test26.lock');
+  const holder = spawn(
+    process.execPath,
+    ['--input-type=module', '-e', `import { tryLock } from ${JSON.stringify(LIB)}; tryLock(${JSON.stringify(path)}); console.log('held'); setInterval(() => {}, 1000);`],
+    { stdio: ['ignore', 'pipe', 'inherit'] }
+  );
+  await once(holder.stdout, 'data');
+  assert.equal(tryLock(path), null);
+  holder.kill('SIGKILL');
+  await once(holder, 'exit');
+  const fd = tryLock(path);
+  assert.notEqual(fd, null);
+  unlock(fd);
+});
+
+test('a process started under the lock does not keep it', async () => {
+  // The emulator is booted under the lock and outlives the wrapper.
+  const path = join(tmp(), 'test26.lock');
+  const fd = tryLock(path);
+  const child = spawn('sleep', ['30'], { stdio: 'ignore' });
+  unlock(fd);
+  const again = tryLock(path);
+  child.kill();
+  assert.notEqual(again, null);
+  unlock(again);
 });
 
 test('with-emulator refuses malformed arguments before touching anything', () => {
@@ -119,7 +152,7 @@ test('with-emulator refuses malformed arguments before touching anything', () =>
       encoding: 'utf8',
       env: { ...process.env, ALI_EMULATOR_STATE: state }
     });
-  for (const args of [[], ['test26'], ['test26', '--'], ['bad/name', '--', 'true'], ['test26', 'true']]) {
+  for (const args of [[], ['test26'], ['test26', '--'], ['bad/name', '--', 'true'], ['..', '--', 'true'], ['.', '--', 'true'], ['.hidden', '--', 'true'], ['test26', 'true']]) {
     const r = run(args);
     assert.equal(r.status, 2, `${JSON.stringify(args)}: ${r.stderr}`);
     assert.match(r.stderr, /usage: /);
