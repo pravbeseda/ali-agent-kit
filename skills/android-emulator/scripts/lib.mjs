@@ -5,7 +5,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { closeSync, constants, existsSync, mkdirSync, openSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, platform } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
 // shortcut: fixed timings, make them options when a second value is needed.
@@ -101,6 +101,13 @@ export const stamp = (dir, name, now = Date.now()) => {
 // macOS open(2) flag: the open takes an flock, which the kernel drops when the
 // holder exits however it dies, so a lock never goes stale.
 const O_EXLOCK = 0x20;
+
+/** Linux open(2) drops O_EXLOCK without a word, so off macOS a script refuses rather than run unlocked. */
+export function refuseUnlessMacOS() {
+  if (platform() === 'darwin') return;
+  console.error('ali-android-emulator: macOS only, the lock is an O_EXLOCK flock that other systems ignore');
+  process.exit(2);
+}
 
 /**
  * Take a lock without waiting: an fd to pass to unlock(), or null when another

@@ -8,7 +8,26 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { AVD_NAME, IDLE_MS, REAPER_RAN, STATE_ROOT, adbPath, avdDir, decide, isAlive, lockPath, readAvdState, runningEmulators, serialOf, stamp, tryLock, unlock } from './lib.mjs';
+import {
+  AVD_NAME,
+  IDLE_MS,
+  REAPER_RAN,
+  STATE_ROOT,
+  adbPath,
+  avdDir,
+  decide,
+  isAlive,
+  lockPath,
+  readAvdState,
+  refuseUnlessMacOS,
+  runningEmulators,
+  serialOf,
+  stamp,
+  tryLock,
+  unlock
+} from './lib.mjs';
+
+refuseUnlessMacOS();
 
 const log = (avd, message) => console.log(`${new Date().toISOString()} ${avd}: ${message}`);
 

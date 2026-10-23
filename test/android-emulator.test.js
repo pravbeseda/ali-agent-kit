@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { tmpdir } from 'node:os';
+import { platform, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { packageRoot } from '../src/config.js';
 import { decide, parseProcesses, readAvdState, reaperSilent, tryLock, unlock } from '../skills/android-emulator/scripts/lib.mjs';
@@ -13,6 +13,7 @@ const LIB = join(SCRIPTS, 'lib.mjs');
 const MIN = 60_000;
 const IDLE = 20 * MIN;
 const NOW = 1_000 * MIN;
+const macOnly = { skip: platform() !== 'darwin' && 'the lock is an O_EXLOCK flock, macOS only' };
 const tmp = () => realpathSync(mkdtempSync(join(tmpdir(), 'ali-emulator-')));
 
 const headless = { avd: 'test26', headless: true };
@@ -106,7 +107,7 @@ test('the state of one AVD is read from its directory', () => {
   assert.equal(readAvdState(join(tmp(), 'missing')), null);
 });
 
-test('a lock is exclusive and released by unlock', () => {
+test('a lock is exclusive and released by unlock', macOnly, () => {
   const path = join(tmp(), 'state', 'test26.lock');
   const fd = tryLock(path);
   assert.notEqual(fd, null);
@@ -117,23 +118,28 @@ test('a lock is exclusive and released by unlock', () => {
   unlock(again);
 });
 
-test('a lock dies with its holder, however it dies', async () => {
+test('a lock dies with its holder, however it dies', macOnly, async () => {
   const path = join(tmp(), 'test26.lock');
   const holder = spawn(
     process.execPath,
     ['--input-type=module', '-e', `import { tryLock } from ${JSON.stringify(LIB)}; tryLock(${JSON.stringify(path)}); console.log('held'); setInterval(() => {}, 1000);`],
     { stdio: ['ignore', 'pipe', 'inherit'] }
   );
-  await once(holder.stdout, 'data');
-  assert.equal(tryLock(path), null);
-  holder.kill('SIGKILL');
-  await once(holder, 'exit');
+  const exited = once(holder, 'exit');
+  try {
+    await once(holder.stdout, 'data');
+    assert.equal(tryLock(path), null);
+  } finally {
+    // A holder left alive would keep the suite from ever exiting.
+    holder.kill('SIGKILL');
+  }
+  await exited;
   const fd = tryLock(path);
   assert.notEqual(fd, null);
   unlock(fd);
 });
 
-test('a process started under the lock does not keep it', async () => {
+test('a process started under the lock does not keep it', macOnly, async () => {
   // The emulator is booted under the lock and outlives the wrapper.
   const path = join(tmp(), 'test26.lock');
   const fd = tryLock(path);
@@ -158,4 +164,15 @@ test('with-emulator refuses malformed arguments before touching anything', () =>
     assert.match(r.stderr, /usage: /);
   }
   assert.equal(existsSync(join(state, 'test26')), false);
+});
+
+test('off macOS the scripts refuse instead of running without a lock', { skip: platform() === 'darwin' && 'macOS runs them' }, () => {
+  for (const args of [['with-emulator.mjs', 'test26', '--', 'true'], ['reap.mjs']]) {
+    const r = spawnSync(process.execPath, [join(SCRIPTS, args[0]), ...args.slice(1)], {
+      encoding: 'utf8',
+      env: { ...process.env, ALI_EMULATOR_STATE: tmp() }
+    });
+    assert.equal(r.status, 2, `${args[0]}: ${r.stderr}`);
+    assert.match(r.stderr, /macOS only/);
+  }
 });
