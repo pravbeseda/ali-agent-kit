@@ -85,7 +85,7 @@ Read the fields from step 1:
 gh pr update-branch {number}
 ```
 
-**Merge the base in; never pass `--rebase`.** A rebase rewrites the author's commits and force-pushes their branch; a merge commit only adds one on top. A branch that is behind without `BEHIND` — the repository does not require up-to-date branches — is left alone: nothing needs it.
+**Merge the base in; never pass `--rebase`.** A rebase rewrites the author's commits and force-pushes their branch; a merge commit only adds one on top.
 
 **A failed update stops the run.** Report `gh`'s message verbatim: a conflict is the author's to resolve, exactly like `CONFLICTING`, and a fork that does not allow maintainer edits is the contributor's to update.
 
@@ -95,7 +95,7 @@ After a successful update the PR has a new head commit, so re-read it:
 gh pr view {number} --json headRefOid,mergeable,mergeStateStatus
 ```
 
-That `headRefOid` replaces the one from step 1 everywhere below — it is the commit the checks now run on and the one step 5 guards the merge with. Its checks start from scratch, so step 4 will wait, and step 5 then re-reads the threads as it does after any wait. A checkout on the PR's branch is now behind its head, which step 1 already established is harmless.
+That `headRefOid` replaces the one from step 1 everywhere below — it is the commit the checks now run on and the one step 5 guards the merge with.
 
 `mergeStateStatus` values `BLOCKED` and `UNSTABLE` are **not** read as blockers here, and the reason is worth knowing: `BLOCKED` usually restates a missing review or a check still running, which steps 3 and 4 diagnose far better than one opaque word, and `UNSTABLE` means only non-required checks are failing — which this skill still refuses to merge past, from step 4, on its own terms. Report the value when the run stops, never decide on it alone.
 
@@ -193,7 +193,7 @@ So re-read the head **after** the checks pass and use that value:
 gh pr view {number} --json headRefOid --jq '.headRefOid'
 ```
 
-If it differs from the SHA the pass last recorded (step 1's, or the one read after an update), the PR moved during the wait — say so and start the pass again from step 3 rather than merging: the new commits have their own threads and their own checks.
+If it differs from the SHA the pass last recorded, the PR moved during the wait — say so and start the pass again from step 3 rather than merging: the new commits have their own threads and their own checks.
 
 The base can move during the wait too. Read `mergeStateStatus` with the head (`--json headRefOid,mergeStateStatus`); if it is `BEHIND` again, [update the branch](#a-branch-that-is-behind-gets-updated) once more and go back to step 3. **Stop after the third update in one pass** and report it: a base that moves faster than the checks finish needs a merge queue, not a loop.
 
