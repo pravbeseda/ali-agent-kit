@@ -1,8 +1,7 @@
 ---
 name: review-pr-duo
-description: Review a pull request twice at once — Claude and Codex, each in its own clean context — then work through everything they posted. Use when the user asks for a second opinion on a PR, a double review, or runs /ali-review-pr-duo.
+description: Review a pull request twice at once — Claude and Codex, each in its own clean context — then work through everything they posted. Use when the user asks for a second opinion on a PR, a double review, runs /ali-review-pr-duo, or their instructions say to run it after opening a pull request.
 agents: claude-code
-disable-model-invocation: true
 ---
 
 # Review PR twice
@@ -14,8 +13,10 @@ answers the one question the reviewers cannot be asked, dispatches them, and get
 out of the way.
 
 > **Not `ali-review-pr`:** that skill is the review. This one runs two copies of it.
-> **Manual only.** It spawns a process and publishes to a pull request, so it
-> starts when the user asks for it and never on its own.
+> **Only on the user's request.** It spawns a process and publishes to a pull
+> request, so it starts when the user asks for it — in the moment, or through a
+> standing instruction such as "run it after opening a pull request" — and never
+> on the agent's own initiative.
 
 **Run it on pull requests you trust.** The Codex reviewer works unattended, with
 the network open and this machine's `gh` credentials, over text somebody else
