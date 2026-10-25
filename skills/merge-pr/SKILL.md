@@ -10,7 +10,7 @@ Land a pull request whose work is finished. The skill answers one question — *
 > **Not `ali-review-pr`:** that skill judges the change and posts findings. This one assumes the judging is done and only checks that nothing is still open.
 > **Not `ali-process-pr-comments`:** that skill triages review threads. This one refuses to merge while any thread is unresolved and hands them there.
 
-**This skill fixes nothing.** It does not edit code, does not reply to comments, does not resolve threads and does not rerun a failed job. Every blocker it finds ends the run with a message naming what to do next.
+**This skill fixes nothing** — with one exception: a branch the base branch's protection rejects as out of date is brought up to date ([step 2](#a-branch-that-is-behind-gets-updated)). It does not edit code, does not reply to comments, does not resolve threads and does not rerun a failed job. Every blocker it finds ends the run with a message naming what to do next.
 
 ## Step 1. Resolve the PR and the local state
 
@@ -74,8 +74,28 @@ Read the fields from step 1:
 - **`reviewDecision` is `REVIEW_REQUIRED`** → stop. The branch protection will refuse the merge anyway; saying so up front beats a failed `gh pr merge`.
 - **`reviewDecision` is `APPROVED` or empty** → not a blocker. Empty means the repository asks for no review at all, which is a policy, not an omission — do not invent an approval requirement the repository does not have.
 - **`mergeable` is `CONFLICTING`** → stop. The branch needs rebasing onto its base — the author's call, not this skill's.
-- **`mergeStateStatus` is `BEHIND`** → stop and say the branch has to be updated first (`gh pr update-branch {number}` is the usual fix, but run it only if the user asks).
+- **`mergeStateStatus` is `BEHIND`** → not a blocker: update the branch, as below, without asking.
 - **`mergeable` is `UNKNOWN`** → GitHub is still computing it. Re-read `gh pr view --json mergeable,mergeStateStatus` a few seconds later before deciding anything.
+
+### A branch that is behind gets updated
+
+`BEHIND` means the base branch's protection requires branches to be up to date and this one is not — the merge would be refused, and the fix is mechanical. Invoking this skill authorizes it, so update the branch and say so in one line:
+
+```sh
+gh pr update-branch {number}
+```
+
+**Merge the base in; never pass `--rebase`.** A rebase rewrites the author's commits and force-pushes their branch; a merge commit only adds one on top.
+
+**A failed update stops the run.** Report `gh`'s message verbatim: a conflict is the author's to resolve, exactly like `CONFLICTING`, and a fork that does not allow maintainer edits is the contributor's to update.
+
+After a successful update the PR has a new head commit, so re-read it:
+
+```sh
+gh pr view {number} --json headRefOid,mergeable,mergeStateStatus
+```
+
+That `headRefOid` replaces the one from step 1 everywhere below — it is the commit the checks now run on and the one step 5 guards the merge with.
 
 `mergeStateStatus` values `BLOCKED` and `UNSTABLE` are **not** read as blockers here, and the reason is worth knowing: `BLOCKED` usually restates a missing review or a check still running, which steps 3 and 4 diagnose far better than one opaque word, and `UNSTABLE` means only non-required checks are failing — which this skill still refuses to merge past, from step 4, on its own terms. Report the value when the run stops, never decide on it alone.
 
@@ -173,7 +193,9 @@ So re-read the head **after** the checks pass and use that value:
 gh pr view {number} --json headRefOid --jq '.headRefOid'
 ```
 
-If it differs from the SHA step 1 read, the PR moved during the wait — say so and start the pass again from step 3 rather than merging: the new commits have their own threads and their own checks.
+If it differs from the SHA the pass last recorded, the PR moved during the wait — say so and start the pass again from step 3 rather than merging: the new commits have their own threads and their own checks.
+
+The base can move during the wait too. Read `mergeStateStatus` with the head (`--json headRefOid,mergeStateStatus`); if it is `BEHIND` again, [update the branch](#a-branch-that-is-behind-gets-updated) once more and go back to step 3. **Stop after the third update in one pass** and report it: a base that moves faster than the checks finish needs a merge queue, not a loop.
 
 ### If step 4 waited, the threads are stale too
 
@@ -220,6 +242,7 @@ Print this block, with nothing between it and the end of the run except what [st
 PR #{number} — {title}
 Checks: {n} passed{, waited {duration}} | or "none reported"
 Threads: all resolved
+{Branch: updated from {base}{, {n} times} — only when this pass updated it}
 
 ## ✅ MERGED ({method})
 Now on {base} at {sha}. Local branch {head} kept — `git branch -d {head}` to drop it.
