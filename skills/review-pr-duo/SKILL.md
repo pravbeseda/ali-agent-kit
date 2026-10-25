@@ -1,6 +1,6 @@
 ---
 name: review-pr-duo
-description: Review a pull request twice at once — Claude and Codex, each in its own clean context — then work through everything they posted. Use when the user asks for a second opinion on a PR, a double review, runs /ali-review-pr-duo, or their instructions say to run it after opening a pull request.
+description: Review a pull request twice at once — Claude and Codex, each in its own clean context — then work through everything they posted, and review again whatever that pass fixed. Use when the user asks for a second opinion on a PR, a double review, runs /ali-review-pr-duo, or their instructions say to run it after opening a pull request.
 agents: claude-code
 ---
 
@@ -8,7 +8,8 @@ agents: claude-code
 
 Run `ali-review-pr` twice over the same pull request, on two models that cannot
 see each other's reasoning, wait for both, and hand what they published to
-`ali-process-pr-comments`. This skill reviews nothing itself: it resolves the PR,
+`ali-process-pr-comments`. When that pass changes code, it runs another round on
+the fixes. This skill reviews nothing itself: it resolves the PR,
 answers the one question the reviewers cannot be asked, dispatches them, and gets
 out of the way.
 
@@ -177,7 +178,8 @@ it, and recovers no second opinion at all. A full round where a narrower one wou
 have done costs a repeated finding, which `ali-process-pr-comments` turns down as
 a settled point; the review that never happened costs the second opinion itself.
 
-Then say in one line which two reviewers are running, so the wait is not silent.
+Then say in one line which two reviewers are running and in which round, so the
+wait is not silent.
 For Claude, that line names its tier, and why when it is the next one. For
 Codex, it carries the model and reasoning effort from the preflight and where
 they came from — the `ali-review` profile or the top-level default.
@@ -224,6 +226,36 @@ topic applies — one decision, both threads.
 
 Nothing else is passed down. The comment pass decides each finding on its merits,
 as it always does, and it is the only thing in this run that edits code.
+
+## Step 5. Review the fixes, then stop
+
+The comment pass ends with its close block, and that block decides what happens next:
+
+- **`PASS CLOSED — NOTHING TO VERIFY`** — the run is over.
+- **`NEXT: VERIFY THE FIXES` with a SHA on the `Pushed:` line** — those fixes are
+  the only code on the PR nobody has reviewed. Go back to step 2 for another round,
+  without stopping to ask.
+- **`NEXT: VERIFY THE FIXES` with no SHA** — the push failed or never happened.
+  The reviewers read what GitHub holds, so another round would review the code
+  as it was before the fixes. The run stops on the comment pass's own report.
+
+**A new round asks nothing the first round already asked.** The fork question,
+the checkout answer, the tier check and the three Codex checks all carry over
+from round one; only the PR head moves, and the reviewers read that themselves.
+The user's scope carries over unchanged. **The round line always says to choose
+the round from the PR's 🤖 threads, even when round one ran a full pass.** That
+full pass has been done, and the code that is new since then is only the fixes.
+The late full-round fallback in step 2 still applies.
+
+**After the third round, ask before each further round.** If the third comment
+pass changed code again, the run stops before step 2 and asks one question: run
+one more round, or stop with the latest fixes unreviewed. That question is asked
+before every round after the third. When fixes keep producing findings round
+after round, the user should look at what is happening rather than let the loop
+spend more.
+
+When the run ends, say in one line how many rounds ran and why it stopped:
+a clean pass, a failed push, or the user's answer.
 
 ## Language
 
