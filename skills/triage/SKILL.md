@@ -27,10 +27,12 @@ gh project field-list {number} --owner @me --format json
 ## 2. Sweep missing issues into `Inbox`
 
 ```sh
-gh search issues --owner {login} --state open --archived=false --limit 1000 --json url,repository,number,title
+gh search issues --owner {login} --state open --archived=false --limit 1000 --json url,repository,number,title,body,author
 ```
 
-Run the step 3 query first, compare by URL against the issues already on the board, and add each missing one. Skip Renovate's *Dependency Dashboard* issues (author `app/renovate`): they are the bot's control panel, not tasks, and must stay open.
+Run the step 3 query first, compare by URL against the issues already on the board, and add each missing one. Skip Renovate's *Dependency Dashboard* issues (author `renovate[bot]`): they are the bot's control panel, not tasks, and must stay open.
+
+**Read what a skipped dashboard holds.** A Renovate config with `dependencyDashboardApproval` opens no PR until a box in the dashboard is ticked, so those updates reach the queue only through this sweep. Collect, per repository, the unticked `- [ ] <!-- approve-branch=… -->` lines under the dashboard's **Pending Approval** heading — not the `approve-all-pending-prs` box, and no other section: rate-limited and scheduled updates arrive on their own. Look among the open issues of the same search for one whose body carries `<!-- ali-triage:renovate-approvals -->` in that repository: that is the approval task an earlier pass created. Step 4 turns both into proposal rows.
 
 ```sh
 gh project item-add {number} --owner @me --url {url} --format json --jq .id
@@ -84,6 +86,7 @@ For every candidate decide:
 - **Keep the links that already exist.** Show them in the table so the user sees the chains; propose removing one only when the blocker is closed or wrong.
 - **An epic is a container, not a task.** Propose one only for three or more issues that make sense only together. A cross-repo epic goes into the repository that holds its plan file, or the one that carries the final user-visible change when there is no plan.
 - **Close only on evidence** — the duplicate's number, the commit that fixed it, the feature that no longer exists.
+- **Pending Renovate approvals** from step 2 get one row per repository, Kind `chore`, with Priority and Size weighed like any other row. With no approval task yet, the row is `new` — *Approve {n} pending Renovate updates in {repo}*, listing the updates. With an approval task open, the row names it and proposes replacing its list with the current one; when the two lists match there is no row, and when nothing is pending any more the row proposes closing it as done.
 
 ## 5. Show it and collect the decisions
 
@@ -113,6 +116,7 @@ The user answers in short form — `ok`, `ok except 3 P1`, `5 not blocked`, `dro
   gh api -X POST repos/{epicRepo}/issues/{epic}/sub_issues -F sub_issue_id={partId}
   ```
 
+- **Approval task:** write the body to a temp file — the marker line, a link to the dashboard, one `- [ ] {update}` line per pending update, and the way to work it: tick each update in the dashboard, wait for Renovate's PRs, check CI, merge. A new task is `gh issue create --repo {repo} --title "Approve pending Renovate updates" --body-file {file}`, then added to the board and given its fields like any kept item; an existing one gets `gh issue edit {url} --body-file {file}` and keeps its card.
 - **Close:** `gh issue close {url} --reason "not planned" --comment "{evidence}"`; `--reason duplicate` for a duplicate, with the original in the comment; `--reason completed` when it is already done. Then set the card to `Done` yourself, for the same reason step 2 sets `Inbox`. *Off the board:* `gh project item-archive {number} --owner @me --id {itemId}`, and the issue stays open.
 - **Status:** a kept item moves to `Ready` last, and only once every other write for it succeeded. Epics too — `ali-next-task` skips containers on its own; an epic takes the highest priority among its parts.
 
