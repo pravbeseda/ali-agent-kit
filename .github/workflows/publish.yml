@@ -91,8 +91,6 @@ jobs:
       - name: Publish
         if: ${{ !inputs.dry-run }}
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # Creates the tag on the released commit as well as the release entry, so
       # the repository page shows the version without a commit landing on main.

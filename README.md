@@ -189,7 +189,7 @@ Register it in the `adapters` array in `src/adapters/index.js`; the loader valid
 
 GitHub Actions → **Publish to npm** → Run workflow → pick `patch` / `minor` / `major`.
 
-The workflow runs `npm run check`, reads the currently published version from the registry, applies the bump **in the working copy only**, publishes with provenance, and records the release as a tag plus a GitHub release. Requires an `NPM_TOKEN` repo secret (an _automation_ token — a publish token would ask for an OTP that CI cannot provide). Only runs on `main`.
+The workflow runs `npm run check`, reads the currently published version from the registry, applies the bump **in the working copy only**, publishes with provenance, and records the release as a tag plus a GitHub release. It publishes through npm [trusted publishing](https://docs.npmjs.com/trusted-publishers): the package's npm settings name this repository and `publish.yml` as its trusted publisher, and no token is stored. Only runs on `main`.
 
 Nothing is ever committed to `main`, so the branch stays protected and every change reaches it through a pull request. The consequence: **`version` in `package.json` is a placeholder** (`0.0.0`) and is not the released version. The real one lives in the registry, in the tags, and in the badge above; published tarballs always carry the correct version.
 
