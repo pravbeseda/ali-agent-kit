@@ -1,6 +1,6 @@
 ---
 name: triage
-description: Sort the user's cross-repo task queue — put every open issue of their repositories on the `Work` GitHub Project, then set priority, kind, size, "blocked by" links and epic groupings for everything in `Inbox` on its own, asking only before closing an issue or removing a link; in manual mode apply only what the user confirms. Use when the user asks to triage, sort or prioritise their issues or the board, or runs /ali-triage.
+description: Sort the user's cross-repo task queue — put every open issue of their repositories on the `Work` GitHub Project, then set priority, kind, size, "blocked by" links and epic groupings for everything in `Inbox` on its own, asking only before closing an issue, taking it off the board or removing a link; in manual mode apply only what the user confirms. Use when the user asks to triage, sort or prioritise their issues or the board, or runs /ali-triage.
 ---
 
 # Triage the task queue
@@ -101,7 +101,7 @@ Split the proposal into groups of related repositories — a product family toge
 
 Go through the groups one at a time, so a long pass loses nothing if it is interrupted.
 
-- **Automatic mode:** apply each group through step 6 without asking, then show its table as the report of what was written. Hold back the lossy writes: a row with a *Close* stays in `Inbox` untouched, and a link proposed for removal stays in place while the rest of its row is applied. Mark the items left in `Inbox` with the reason. When every group is done, show the held-back rows as one last table and ask for it once, answered in the short form of manual mode; apply what is confirmed, and a rejected *Close* gets the rest of its row like any other item.
+- **Automatic mode:** apply each group through step 6 without asking, then show its table as the report of what was written. Hold back the lossy writes: a row with a *Close* or a link proposed for removal stays in `Inbox` untouched, so an interrupted run proposes it again. Mark the items left in `Inbox` with the reason. When every group is done, show the held-back rows as one last table and ask for it once, answered in the short form of manual mode; apply what is confirmed, then the rest of each held-back row that stays on the board.
 - **Manual mode:** show each group before writing anything. The user answers in short form — `ok`, `ok except 3 P1`, `5 not blocked`, `drop 7` — and may change any cell. Ask nothing else; the table is the question. Apply each group once it is confirmed.
 
 ## 6. Apply the rows
