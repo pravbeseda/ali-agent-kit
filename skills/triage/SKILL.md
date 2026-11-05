@@ -1,6 +1,6 @@
 ---
 name: triage
-description: Sort the user's cross-repo task queue — put every open issue of their repositories on the `Work` GitHub Project, then propose priority, kind, size, "blocked by" links and epic groupings for everything in `Inbox`, and apply only what the user confirms. Use when the user asks to triage, sort or prioritise their issues or the board, or runs /ali-triage.
+description: Sort the user's cross-repo task queue — put every open issue of their repositories on the `Work` GitHub Project, then set priority, kind, size, "blocked by" links and epic groupings for everything in `Inbox` on its own, asking only before closing an issue, taking it off the board or removing a link; in manual mode apply only what the user confirms. Use when the user asks to triage, sort or prioritise their issues or the board, or runs /ali-triage.
 ---
 
 # Triage the task queue
@@ -9,7 +9,9 @@ One GitHub Project, `Work`, owned by the authenticated user, holds the open issu
 
 > **Not `ali-next-task`:** that skill takes one `Ready` item and works on it. This one only sorts; it never starts work on an issue.
 
-**Nothing changes on GitHub without the user's confirmation, except step 2.** Adding a missing issue to `Inbox` is lossless and is the point of the run; every field, link, new epic and closed issue waits for the user's word in step 5.
+**Automatic unless the user asks for manual mode.** By default the run applies its own proposal — fields, new "blocked by" links, new epics, approval tasks — and shows the tables as a report. The user asks for manual mode with the argument `manual` or by asking to confirm or see the proposal first; then nothing beyond step 2 changes without their word.
+
+**A write that loses something always waits for the user** — closing an issue, taking it off the board, removing a link. A wrong close hides the issue from every list, so no one would notice it.
 
 ## 1. Resolve the project
 
@@ -86,19 +88,23 @@ For every candidate decide:
 - **Keep the links that already exist.** Show them in the table so the user sees the chains; propose removing one only when the blocker is closed or wrong.
 - **An epic is a container, not a task.** Propose one only for three or more issues that make sense only together. A cross-repo epic goes into the repository that holds its plan file, or the one that carries the final user-visible change when there is no plan.
 - **Close only on evidence** — the duplicate's number, the commit that fixed it, the feature that no longer exists.
+- **Leave an item in `Inbox` when its text cannot place it** — too vague to size, or its priority hangs on a decision only the user can make — and note why. In automatic mode no one checks the row before it is written.
 - **Pending Renovate approvals** from step 2 get one row per repository, Kind `chore`, with Priority and Size weighed like any other row. With no approval task yet, the row is `new` — *Approve pending Renovate updates*, the title step 6 creates, with the repository and the updates listed. With an approval task open, the row names it and proposes adding the pending updates its list lacks; with none missing there is no row. Never drop an item or propose closing the task: an update leaves **Pending Approval** when its box is ticked, long before its PR is merged, so the task closes when whoever works it merges the last one.
 
-## 5. Show it and collect the decisions
+## 5. Apply and show it, group by group
 
-Present one table per group of related repositories — a product family together, infrastructure together, the rest last — at most about 25 rows each, P0 first:
+Split the proposal into groups of related repositories — a product family together, infrastructure together, the rest last — at most about 25 rows each, P0 first, and show each as:
 
 ```
 | # | Issue | Title | Priority | Kind | Size | Blocked by | Epic | Close |
 ```
 
-The user answers in short form — `ok`, `ok except 3 P1`, `5 not blocked`, `drop 7` — and may change any cell. Ask nothing else; the table is the question. Go through the groups one at a time and apply each group once it is confirmed, so a long pass loses nothing if it is interrupted.
+Go through the groups one at a time, so a long pass loses nothing if it is interrupted.
 
-## 6. Apply what was confirmed
+- **Automatic mode:** apply each group through step 6 without asking, then show its table as the report of what was written. Hold back the lossy writes: a row with a *Close* or a link proposed for removal stays in `Inbox` untouched, so an interrupted run proposes it again. Mark the items left in `Inbox` with the reason. When every group is done, show the held-back rows as one last table and ask for it once, answered in the short form of manual mode; apply what is confirmed, then the rest of each held-back row that stays on the board.
+- **Manual mode:** show each group before writing anything. The user answers in short form — `ok`, `ok except 3 P1`, `5 not blocked`, `drop 7` — and may change any cell. Ask nothing else; the table is the question. Apply each group once it is confirmed.
+
+## 6. Apply the rows
 
 - **Fields:** `gh project item-edit` with the field and option ids from step 1, one call per field.
 - **Blocked by:** REST takes the blocker's database id, not its number. The two issues may live in different repositories, so each command names its own:
@@ -143,6 +149,6 @@ Then the failed writes, if any.
 
 ## Extra context
 
-If the user passed anything with the invocation — a repository, a group of repositories, a limit — treat it as the scope of this pass. It arrives below; an empty line there means no arguments were given.
+If the user passed anything with the invocation — a repository, a group of repositories, a limit — treat it as the scope of this pass; `manual` switches to manual mode. It arrives below; an empty line there means no arguments were given.
 
 $ARGUMENTS
