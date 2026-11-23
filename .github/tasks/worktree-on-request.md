@@ -291,8 +291,14 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   `node_modules`; a `prunable` entry; the worktree gate; removal when the include copies match and
   keeping when one differs; undoing a lone `ali-worktree: staged` commit with one soft reset.
 - Review suggestion to replace step 3's detached worktree with `gh pr checkout --worktree`: not
-  taken. The flag needs gh 2.102 (2026-09-30), and the written path works with any gh; step 3 now
-  passes `--branch` instead, so a fork's `main` cannot be mistaken for this repository's.
+  taken. The flag needs gh 2.102 (2026-09-30), and the written path works with any gh.
+- A PR's local branch is the name `gh pr checkout` gives it — `headRefName`, or
+  `{owner}/{headRefName}` when that is the repository's default branch — and `ali-worktree` §3,
+  its listing and `ali-merge-pr` steps 1 and 8 all look the PR's worktree up by that name.
+- Step 1's "`ExitWorktree` `keep` first" became "leave only right before creating or entering a
+  worktree": a listing, or a run that stops, now leaves the session where it was.
+- `ali-autopilot` hands its plan file to `ali-worktree` only on a new branch; a resumed run moving
+  its own branch carries the plan with the rest of its uncommitted work through §4.
 
 ## Parked
 - Step 4 stays open: whether a model running `ali-next-task` on a busy checkout calls

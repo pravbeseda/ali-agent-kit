@@ -64,7 +64,7 @@ In a repository without `origin`, from the local `{base}`.
 
 ### Prepare it
 
-Only a worktree this run created gets items 1 and 3. Entering an existing one skips them: its ignored files may be newer than the main checkout's — the copy `ali-merge-pr` keeps a worktree for — and its dependencies are already there.
+Only a worktree this run created gets item 1. Entering an existing one skips it — its ignored files may be newer than the main checkout's, the very copy `ali-merge-pr` keeps a worktree for — and gets item 4 only when its dependencies were never installed, as after a run that created it but never got in.
 
 1. **Ignored files the build needs.** Only when `{main}/.worktreeinclude` exists — the skill never creates it. Its lines are gitignore patterns; git does the matching:
 
@@ -74,11 +74,11 @@ Only a worktree this run created gets items 1 and 3. Entering an existing one sk
 
    Keep each listed file that `git check-ignore -q -- {file}` confirms is ignored (an untracked file the user is still writing is not config), and copy it to the same relative path under `{path}`, creating its directory.
 
-   **Files the caller hands over** — `ali-autopilot`'s plan file — come along too, and the main checkout gets its copy back as it was: copy each to the same path under `{path}`, then delete the original when it is untracked, or `git restore --source=HEAD --staged --worktree -- {file}` when it is tracked.
-2. **Enter** with `EnterWorktree` (`path: {path}`). Say first that Claude Code asks to approve the entry: outside `.claude/worktrees/` it asks every time, and no setting turns that off.
-3. **Dependencies**, inside the worktree: the setup command the repository documents (`AGENTS.md`, `CONTRIBUTING.md`, README); otherwise the lockfile's package manager in frozen mode — `package-lock.json` → `npm ci`, `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `yarn.lock` → `yarn install --immutable` (`--frozen-lockfile` for Yarn 1), `bun.lock` or `bun.lockb` → `bun install --frozen-lockfile`; another ecosystem's lockfile likewise. No lockfile, no documented command → nothing.
+2. **Files the caller hands over** — `ali-autopilot`'s plan file — come along, and the main checkout gets its copy back as it was: copy each to the same path under `{path}`, then delete the original when it is untracked, or `git restore --source=HEAD --staged --worktree -- {file}` when it is tracked.
+3. **Enter** with `EnterWorktree` (`path: {path}`). Say first that Claude Code asks to approve the entry: outside `.claude/worktrees/` it asks every time, and no setting turns that off.
+4. **Dependencies**, inside the worktree: the setup command the repository documents (`AGENTS.md`, `CONTRIBUTING.md`, README); otherwise the lockfile's package manager in frozen mode — `package-lock.json` → `npm ci`, `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `yarn.lock` → `yarn install --immutable` (`--frozen-lockfile` for Yarn 1), `bun.lock` or `bun.lockb` → `bun install --frozen-lockfile`; another ecosystem's lockfile likewise. No lockfile, no documented command → nothing.
 
-**An agent without `EnterWorktree`** — Codex, Copilot, Claude Code with the worktree tools off — stops after step 1. Its sandbox lets it write only where it was started, so working on the task from the main checkout fails or asks on every edit. Print what the new session runs — `cd {path}`, the PR checkout when [§3](#3-a-pr-by-number) asked for one, the dependency command — and the agent to start there, and say the conversation does not come along.
+**An agent without `EnterWorktree`** — Codex, Copilot, Claude Code with the worktree tools off — stops after item 2. Its sandbox lets it write only where it was started, so working on the task from the main checkout fails or asks on every edit. Print what the new session runs — `cd {path}`, the PR checkout when [§3](#3-a-pr-by-number) asked for one, the dependency command — and the agent to start there, and say the conversation does not come along.
 
 ### Report
 
@@ -91,7 +91,7 @@ gh pr view {number} --json headRefName,headRepositoryOwner,isCrossRepository,bas
 gh api user --jq .login
 ```
 
-**The local branch** is `headRefName` for a PR from this repository and `{owner}/{headRefName}` for one from a fork, `{owner}` being `headRepositoryOwner.login`. A fork's head is often its own `main`, and that name would match this repository's `main` in the main checkout; the prefix keeps the two apart, and `--branch` below makes `gh` use it.
+**The PR's local branch** is the name `gh pr checkout` gives it: `headRefName`, or `{owner}/{headRefName}` when `headRefName` is this repository's default branch — a fork's PR from its own `main` — `{owner}` being `headRepositoryOwner.login`. Every lookup of a PR's worktree uses that name, here, in the listing and in `ali-merge-pr`; `--branch` below pins it.
 
 - **That branch has a worktree** → [§2](#2-create-and-enter)'s existing-branch case.
 - **Otherwise** → a detached worktree on the base, checked out onto the PR from inside, since `gh pr checkout` also finds a head branch this clone never had, or one in a fork:
@@ -149,7 +149,7 @@ gh pr list --head {branch} --state all --json number,state --limit 1
 git -C {worktree} status --porcelain
 ```
 
-Claude Code may refuse the `git -C` from inside a worktree; then list without the clean-or-dirty column and say why.
+A branch named `{owner}/{head}` by [§3](#3-a-pr-by-number)'s rule is looked up as `--head {head}`, keeping the PR whose `headRepositoryOwner` is `{owner}`. Claude Code may refuse the `git -C` from inside a worktree; then list without the clean-or-dirty column and say why.
 
 - **Stale** — its PR is merged or closed. Print `git worktree remove {worktree}`; git refuses it on a dirty tree or initialized submodules, and deletes the worktree's ignored files.
 - **Unfinished** — everything else: branch (or detached), clean or dirty, its PR number and state or "no PR".

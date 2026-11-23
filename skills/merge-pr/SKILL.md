@@ -17,8 +17,8 @@ Land a pull request whose work is finished. The skill answers one question — *
 Fetch in parallel:
 
 ```sh
-gh pr view --json number,title,state,isDraft,mergeable,mergeStateStatus,reviewDecision,headRefName,headRefOid,baseRefName
-gh repo view --json nameWithOwner --jq '.nameWithOwner'
+gh pr view --json number,title,state,isDraft,mergeable,mergeStateStatus,reviewDecision,headRefName,headRefOid,headRepositoryOwner,baseRefName
+gh repo view --json nameWithOwner,defaultBranchRef --jq '{repo: .nameWithOwner, default: .defaultBranchRef.name}'
 git rev-parse --abbrev-ref HEAD
 git status --porcelain
 ```
@@ -34,7 +34,7 @@ git worktree list --porcelain
 git rev-parse --show-toplevel
 ```
 
-The first entry is the main checkout. The PR's worktree is the entry on `refs/heads/{headRefName}`; an entry marked `prunable` is a directory deleted by hand and counts as none.
+The first entry is the main checkout. The PR's local branch is the name `gh pr checkout` gives it — `headRefName`, or `{owner}/{headRefName}` when `headRefName` is the repository's default branch, a fork's PR from its own `main` (`{owner}` is `headRepositoryOwner.login`). The PR's worktree is the entry on that branch; an entry marked `prunable` is a directory deleted by hand and counts as none.
 
 - **The session stands in the main checkout or in the PR's own worktree** → go on.
 - **In any other worktree** → stop before anything else, and say to run it from the main checkout or from the PR's worktree, naming both paths. Step 6 needs git in the main checkout, which Claude Code refuses from inside a worktree, and leaving this one would drop another task's session out of its directory.
@@ -45,7 +45,7 @@ The first entry is the main checkout. The PR's worktree is the entry on `refs/he
 
 This applies whatever branch the checkout is on, for two different reasons:
 
-- **On the PR's own branch** (`headRefName` equals the current branch) the dirt is work belonging to this PR that GitHub has never seen. Merging leaves it stranded on a branch nobody will look at again.
+- **On the PR's own branch** (its local branch, as above, equals the current branch) the dirt is work belonging to this PR that GitHub has never seen. Merging leaves it stranded on a branch nobody will look at again.
 - **On any other branch** it is unrelated work that step 6 would drag onto the base branch, or that would make the `git checkout` fail outright.
 
 When the checkout **is** the PR's branch, one more check: is the commit on disk the commit that is about to be merged?
@@ -340,7 +340,7 @@ gh pr list --state open --author @me --limit 30 --json number,title,headRefName,
 
 Open it only once the user has picked one, and where depends on the state of the main checkout alone, wherever this run started — say which before opening:
 
-- **The PR's branch has a worktree** (`git worktree list --porcelain`, prunable entries aside) → `ali-worktree` enters it. `gh pr checkout` would fail on a branch another worktree holds.
+- **The PR's local branch has a worktree** (step 1's naming rule, `git worktree list --porcelain`, prunable entries aside) → `ali-worktree` enters it. `gh pr checkout` would fail on a branch another worktree holds.
 - **The main checkout is clean and on the base branch** → `gh pr checkout {number}` there, as after every ordinary run. Nothing of the user's rides on the branch being left.
 - **Anything else** — uncommitted changes, or another branch, as after a run from the PR's worktree beside a busy main checkout, or one whose step-6 `git checkout` failed → `ali-worktree` opens the PR by its number in a worktree of its own, at the price of one approval, and leaves the main checkout alone.
 
