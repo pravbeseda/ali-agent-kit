@@ -64,7 +64,7 @@ In a repository without `origin`, from the local `{base}`.
 
 ### Prepare it
 
-Only a worktree this run created gets item 1. Entering an existing one skips it — its ignored files may be newer than the main checkout's, the very copy `ali-merge-pr` keeps a worktree for — and gets item 4 only when its dependencies were never installed, as after a run that created it but never got in.
+Only a worktree this run created gets items 1 and 4. Entering an existing one skips both: its ignored files may be newer than the main checkout's — the very copy `ali-merge-pr` keeps a worktree for — and a worktree without dependencies may be another author's PR, left so on purpose ([§3](#3-a-pr-by-number)).
 
 1. **Ignored files the build needs.** Only when `{main}/.worktreeinclude` exists — the skill never creates it. Its lines are gitignore patterns; git does the matching:
 
@@ -91,7 +91,7 @@ gh pr view {number} --json headRefName,headRepositoryOwner,isCrossRepository,bas
 gh api user --jq .login
 ```
 
-**The PR's local branch** is the name `gh pr checkout` gives it: `headRefName`, or `{owner}/{headRefName}` when `headRefName` is this repository's default branch — a fork's PR from its own `main` — `{owner}` being `headRepositoryOwner.login`. Every lookup of a PR's worktree uses that name, here, in the listing and in `ali-merge-pr`; `--branch` below pins it.
+**The PR's local branch** is the name `gh pr checkout` gives it: `headRefName`, or `{owner}/{headRefName}` when the PR comes from a fork (`isCrossRepository`) and `headRefName` is this repository's default branch — a fork's PR from its own `main` — `{owner}` being `headRepositoryOwner.login`. Every lookup of a PR's worktree uses that name, here, in the listing and in `ali-merge-pr`; `--branch` below pins it.
 
 - **That branch has a worktree** → [§2](#2-create-and-enter)'s existing-branch case.
 - **Otherwise** → a detached worktree on the base, checked out onto the PR from inside, since `gh pr checkout` also finds a head branch this clone never had, or one in a fork:
@@ -145,11 +145,11 @@ Then [§2](#2-create-and-enter)'s preparation and entry. **A failure after the f
 Every linked worktree of this repository, from `git worktree list --porcelain` — prunable entries aside — with its PR. Both answer from wherever the session stands, so a listing never leaves the current worktree:
 
 ```sh
-gh pr list --head {branch} --state all --json number,state --limit 1
+gh pr list --head {head} --state all --json number,state,headRepositoryOwner
 git -C {worktree} status --porcelain
 ```
 
-A branch named `{owner}/{head}` by [§3](#3-a-pr-by-number)'s rule is looked up as `--head {head}`, keeping the PR whose `headRepositoryOwner` is `{owner}`. Claude Code may refuse the `git -C` from inside a worktree; then list without the clean-or-dirty column and say why.
+`--head` matches the branch name in every fork, so keep the newest PR whose `headRepositoryOwner` is the branch's owner: `{owner}` for a branch named `{owner}/{head}` by [§3](#3-a-pr-by-number)'s rule, looked up as `--head {head}`; this repository's owner for any other branch, looked up by its own name. Claude Code may refuse the `git -C` from inside a worktree; then list without the clean-or-dirty column and say why.
 
 - **Stale** — its PR is merged or closed. Print `git worktree remove {worktree}`; git refuses it on a dirty tree or initialized submodules, and deletes the worktree's ignored files.
 - **Unfinished** — everything else: branch (or detached), clean or dirty, its PR number and state or "no PR".

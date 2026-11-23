@@ -17,7 +17,7 @@ Land a pull request whose work is finished. The skill answers one question — *
 Fetch in parallel:
 
 ```sh
-gh pr view --json number,title,state,isDraft,mergeable,mergeStateStatus,reviewDecision,headRefName,headRefOid,headRepositoryOwner,baseRefName
+gh pr view --json number,title,state,isDraft,mergeable,mergeStateStatus,reviewDecision,headRefName,headRefOid,headRepositoryOwner,isCrossRepository,baseRefName
 gh repo view --json nameWithOwner,defaultBranchRef --jq '{repo: .nameWithOwner, default: .defaultBranchRef.name}'
 git rev-parse --abbrev-ref HEAD
 git status --porcelain
@@ -34,7 +34,7 @@ git worktree list --porcelain
 git rev-parse --show-toplevel
 ```
 
-The first entry is the main checkout. The PR's local branch is the name `gh pr checkout` gives it — `headRefName`, or `{owner}/{headRefName}` when `headRefName` is the repository's default branch, a fork's PR from its own `main` (`{owner}` is `headRepositoryOwner.login`). The PR's worktree is the entry on that branch; an entry marked `prunable` is a directory deleted by hand and counts as none.
+The first entry is the main checkout. The PR's local branch is the name `gh pr checkout` gives it — `headRefName`, or `{owner}/{headRefName}` when the PR comes from a fork (`isCrossRepository`) and `headRefName` is the repository's default branch — a fork's PR from its own `main` (`{owner}` is `headRepositoryOwner.login`). The PR's worktree is the entry on that branch; an entry marked `prunable` is a directory deleted by hand and counts as none.
 
 - **The session stands in the main checkout or in the PR's own worktree** → go on.
 - **In any other worktree** → stop before anything else, and say to run it from the main checkout or from the PR's worktree, naming both paths. Step 6 needs git in the main checkout, which Claude Code refuses from inside a worktree, and leaving this one would drop another task's session out of its directory.
@@ -333,7 +333,7 @@ Run it **only after a ✅ verdict** — `MERGED` or `ALREADY MERGED`. A 🛑 blo
 Before looking at anything else, ask whether the user has other pull requests still open here:
 
 ```sh
-gh pr list --state open --author @me --limit 30 --json number,title,headRefName,isDraft,updatedAt
+gh pr list --state open --author @me --limit 30 --json number,title,headRefName,headRepositoryOwner,isCrossRepository,isDraft,updatedAt
 ```
 
 **Any result at all takes over this step.** An open PR of the user's own is work already written and waiting on them — it outranks every plan item and every issue, because starting something new while it sits there only widens the queue. So list them for the user to pick from — number, title, branch, `draft` where it applies, oldest first, since the one that has waited longest is usually the one to look at — and offer to open one of them for review.

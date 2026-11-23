@@ -293,12 +293,17 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
 - Review suggestion to replace step 3's detached worktree with `gh pr checkout --worktree`: not
   taken. The flag needs gh 2.102 (2026-09-30), and the written path works with any gh.
 - A PR's local branch is the name `gh pr checkout` gives it — `headRefName`, or
-  `{owner}/{headRefName}` when that is the repository's default branch — and `ali-worktree` §3,
-  its listing and `ali-merge-pr` steps 1 and 8 all look the PR's worktree up by that name.
+  `{owner}/{headRefName}` for a fork's PR whose head is the repository's default branch — and
+  `ali-worktree` §3, its listing and `ali-merge-pr` steps 1 and 8 all look the PR's worktree up by
+  that name. The listing keeps only a PR whose `headRepositoryOwner` owns the branch, since
+  `--head` matches the name in every fork.
+- An existing worktree gets no copy and no install: a missing install may be another author's PR,
+  left so on purpose.
 - Step 1's "`ExitWorktree` `keep` first" became "leave only right before creating or entering a
   worktree": a listing, or a run that stops, now leaves the session where it was.
-- `ali-autopilot` hands its plan file to `ali-worktree` only on a new branch; a resumed run moving
-  its own branch carries the plan with the rest of its uncommitted work through §4.
+- `ali-autopilot` hands its plan file to `ali-worktree` only on a new branch. A resumed run keeps
+  the dirty-tree rule even when asked for a worktree — uncommitted work besides the plan file is a
+  half-done step — and moves its branch with the plan through §4.
 
 ## Parked
 - Step 4 stays open: whether a model running `ali-next-task` on a busy checkout calls
