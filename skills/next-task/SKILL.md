@@ -1,6 +1,6 @@
 ---
 name: next-task
-description: Take the next task for the current repository from the user's `Work` GitHub Project — the one the user picks from the top five `Ready` issues by priority that nothing blocks, or the issue the user named — mark it `In progress`, set up a branch or worktree, work on it, and mark it `In review` when this session opens its pull request. Use when the user asks for the next task, what to work on, to take an issue from the board, or runs /ali-next-task.
+description: Take the next task for the current repository from the user's `Work` GitHub Project — the one the user picks from the top five `Ready` issues by priority that nothing blocks, or the issue the user named — mark it `In progress`, set up a branch — or a worktree through `ali-worktree` when the checkout is busy — work on it, and mark it `In review` when this session opens its pull request. Use when the user asks for the next task, what to work on, to take an issue from the board, or runs /ali-next-task.
 ---
 
 # Take the next task
@@ -82,7 +82,10 @@ git worktree list
 git branch --all --list '*{N}*'
 ```
 
-One worktree that plainly belongs to this issue → work in it. One such branch without a worktree → the busy-checkout rule below still applies: only on a clean tree on the base branch `git switch {branch}`, otherwise — uncommitted changes, or another task's branch checked out — `git worktree add ../{name}-{N} {branch}`, so no other task's checkout is moved or carried along. Say which. Several candidates → ask the user which one. Only with nothing found does the issue get a new branch below.
+- **One worktree that plainly belongs to this issue** — an old `../{name}-{N}` one too → enter it through `ali-worktree`, saying which. Ask nothing: the user chose the task, and the `EnterWorktree` approval is the one confirmation.
+- **One such branch without a worktree** → the rule below, with that branch: `git switch {branch}` where it says to work here, `ali-worktree` with it otherwise.
+- **Several candidates** → ask the user which one.
+- **Nothing found** → the issue gets a new branch below.
 
 ```sh
 git status --porcelain
@@ -90,14 +93,10 @@ git rev-parse --abbrev-ref HEAD
 git fetch origin {base}
 ```
 
-Either way the branch starts from `origin/{base}`, not from the local `{base}`: commits on the local base branch that were never pushed belong to other work and stay out of this task.
+A new branch starts from `origin/{base}`, not from the local `{base}`: commits on the local base branch that were never pushed belong to other work and stay out of this task.
 
-- **Clean tree on the base branch** → create the working branch here: `git switch --no-track -c {branch} origin/{base}`.
-- **Anything else** — uncommitted changes, or another task's branch checked out — → this checkout belongs to other work. Leave it untouched and create a worktree next to it, then work in that directory from here on and tell the user its path:
-
-  ```sh
-  git worktree add --no-track -b {branch} ../{name}-{N} origin/{base}
-  ```
+- **Clean tree on the base branch, and no worktree asked for** → work here: `git switch --no-track -c {branch} origin/{base}`.
+- **Anything else** — uncommitted changes, another task's branch checked out, or the user asked for a worktree → this checkout belongs to other work, or the user wants the task beside it. Hand the branch name to `ali-worktree`: it creates the worktree off `origin/{base}`, prepares it and moves this session into it, at the price of one approval. Leave the checkout itself untouched.
 
 Name the branch the way the repository already names them (look at `AGENTS.md`, `CONTRIBUTING.md` or recent branches), with the issue number always in it — `feat/{N}-{short-slug}`, not `feat/{short-slug}` — because the lookup above finds an earlier session's branch only by that number; with no convention, `{N}-{short-slug}`.
 

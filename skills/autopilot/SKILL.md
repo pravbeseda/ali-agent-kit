@@ -1,6 +1,6 @@
 ---
 name: autopilot
-description: Implement a feature end to end with almost no interruption — plan it, then run a step → independent review → fix loop, and stop only for a strategic choice. Manual only: it commits, pushes and opens a pull request on its own, so use it only when the user explicitly hands the work over with /ali-autopilot.
+description: Implement a feature end to end with almost no interruption — plan it, then run a step → independent review → fix loop, and stop only for a strategic choice; in a worktree of its own when asked. Manual only: it commits, pushes and opens a pull request on its own, so use it only when the user explicitly hands the work over with /ali-autopilot.
 agents: claude-code
 disable-model-invocation: true
 ---
@@ -20,7 +20,7 @@ Two things make that safe, and neither is "try harder". Every step ends at a **r
 
 Invoking the skill **is** the permission for all of it. Do not ask again, at any point:
 
-- create a working branch off the repository's base branch and work only there
+- create a working branch off the repository's base branch and work only there — in a worktree of its own, through `ali-worktree`, when the user asked for one
 - commit each step as it is accepted
 - push that working branch
 - open a pull request at the end
@@ -53,11 +53,12 @@ A file that has steps but no done-criteria is a Mode B plan with a Mode A gap: k
 
 ## 3. Set up the run
 
-**A working tree with uncommitted changes ends the run before it starts.** Say what is dirty and hand it back — branching off the base branch would drag that work along, and reviewing it as part of the feature is exactly the confusion the gates cannot resolve.
+**A working tree with uncommitted changes ends the run before it starts.** Say what is dirty and hand it back — branching off the base branch would drag that work along, and reviewing it as part of the feature is exactly the confusion the gates cannot resolve. A run the user asked to put in a worktree is the exception: that work stays behind in the main checkout, untouched.
 
 Then pick the branch. Resolve the base branch first — the repository default, or the integration branch it actually merges into; never assume `main` blindly.
 
 - **A run being resumed** — Mode B, and the evidence for the plan's finished steps sits on the current branch rather than on the base — **continues on that branch.** Creating a new one off the base would throw the finished steps away.
+- **A run the user asked to put in a worktree** → hand the branch name to `ali-worktree` instead of branching here. It creates the branch off `origin/{base}`, prepares the worktree and moves this session into it, so every step, subagent and commit below happens there. Then bring the plan file along: copy it from the main checkout to the same path in the worktree and delete the original, leaving the main checkout exactly as it was found.
 - **Anything else** branches off the base.
 
 Commit the plan file as the branch's first commit — newly written in Mode A, or extended with the `## Rulings` and `## Parked` sections in Mode B. The file is the run's memory: **conversation context does not survive compaction and a todo list does not either.** Keep the in-session todo list too, but the file is the source of truth.

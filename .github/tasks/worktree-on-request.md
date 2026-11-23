@@ -34,9 +34,8 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
 - Default → the current checkout, exactly as today. A worktree only on the user's request in the
   session, or when `ali-next-task` finds the checkout busy or the task's own worktree, where it
   already makes or uses one today, or when `ali-merge-pr`'s next PR finds the main checkout busy.
-  No line
-  in the global instructions: the user's request is the explicit instruction `EnterWorktree`
-  requires, and for `ali-next-task` the skill the user invoked is.
+  No line in the global instructions: the user's request is the explicit instruction
+  `EnterWorktree` requires, and for `ali-next-task` the skill the user invoked is.
 - When → at the request, in the same session, so the discussion is kept and the agent names the
   branch.
 - Location → `~/worktrees/{repo}/{slug}`, `{repo}` being the main checkout's directory name and
@@ -44,10 +43,9 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   linter, IDE or Node resolution in the main checkout sees it and no project's config changes. The
   price is one approval on every `EnterWorktree`: on a request for a worktree, on `ali-merge-pr`'s
   next PR when the main checkout is busy, and on `ali-next-task`'s busy checkout or the task's
-  worktree it finds, where today's `../{name}-{N}` asked nothing but left the session working by absolute paths from
-  the main checkout. A path that
-  already exists and is not this branch's worktree — a same-named clone's, a fork's — gets the next
-  free `{slug}-2`, `{slug}-3`.
+  worktree it finds, where today's `../{name}-{N}` asked nothing but left the session working by
+  absolute paths from the main checkout. A path that already exists and is not this branch's
+  worktree — a same-named clone's, a fork's — gets the next free `{slug}-2`, `{slug}-3`.
 - Branch → named by the agent after the repository's convention, with the issue number when there is
   one; branched from `origin/{base}`, or from the local `{base}` where there is no `origin`.
 - Ignored files the build needs → copied when an optional `.worktreeinclude` lists them, matched by
@@ -96,7 +94,7 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   both sessions answers.
 
 ## Steps
-- [ ] 1. **New skill `worktree` (`ali-worktree`): its frame and listing.**
+- [x] 1. **New skill `worktree` (`ali-worktree`): its frame and listing.**
   - A session already on the task's branch → nothing to do: in its worktree always, in the current
     checkout unless the user asked to move the task into a worktree.
   - Asked to move the task it stands on in the main checkout → its uncommitted work travels in two
@@ -133,7 +131,7 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
     - a run from another task's worktree goes on from the main checkout;
     - a worktree whose PR is merged is listed, not removed.
 
-- [ ] 2. **`ali-worktree`: creating and entering.**
+- [x] 2. **`ali-worktree`: creating and entering.**
   - Take a branch name from the caller, or name the branch.
   - An existing branch:
     - with a worktree → enter it after asking once, or without asking for `ali-next-task`'s
@@ -171,7 +169,7 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
     - an ignored file matched by a glob entry such as `config/*.local` in `.worktreeinclude` is
       copied, and without that file nothing is copied and none is created.
 
-- [ ] 3. **`ali-worktree`: a PR by number.**
+- [x] 3. **`ali-worktree`: a PR by number.**
   - The PR's branch has no worktree here → `git worktree add --detach {path} origin/{base}`, then
     `gh pr checkout {number}` inside it, which also finds a head branch this clone never had or
     one in a fork.
@@ -206,7 +204,7 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
       instruction);
     - a run for an issue whose worktree exists enters it with the one approval and no question.
 
-- [ ] 5. **`merge-pr`.**
+- [x] 5. **`merge-pr`.**
   - It runs from the PR's own worktree or from the main checkout; from any other worktree it stops
     before anything else and says where to run it.
   - Find the PR's worktree by its branch in `git worktree list --porcelain`, skipping an entry marked
@@ -245,7 +243,7 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
     - a run from another task's worktree stops before merging, names where to run it and leaves the
       session where it was.
 
-- [ ] 6. **`autopilot` in a worktree.**
+- [x] 6. **`autopilot` in a worktree.**
   - A run the user asked to put in a worktree gets its branch from `ali-worktree` at the point where
     §3 branches today; the plan file written in the main checkout is moved into the worktree and
     committed there as the branch's first commit, and uncommitted changes in the main checkout do
@@ -259,7 +257,7 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
     - a subagent dispatched after `EnterWorktree` was checked, before the step is written, to work
       in the worktree rather than the launch directory.
 
-- [ ] 7. **Docs.**
+- [x] 7. **Docs.**
   - The `description` frontmatter and README rows of `next-task`, `merge-pr` and `autopilot` match.
   - The README names:
     - how to ask for a worktree, and that the default stays the current checkout;
@@ -273,5 +271,34 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
     `../{name}-{N}`.
 
 ## Rulings
+- Step 2's order is copy → enter → (PR checkout) → install, not copy → install → enter. Installing
+  and `gh pr checkout` inside the entered worktree need no `cd {path} &&`, which Claude Code's guard
+  turns into an extra prompt; the copy stays before entering because it runs git in the main
+  checkout. An agent without `EnterWorktree` gets the remaining commands printed.
+- The temporary commits run with `--no-verify` and `-c commit.gpgsign=false`: hooks and signing
+  must not block or prompt on two commits undone a moment later. Claude Code's own note on entering
+  a worktree recommends a temporary commit over the shared stash, as step 1 does.
+- Live check (2026-11-23, Claude Code 2.1.330, git 2.54), in this repository: `EnterWorktree` with
+  a path under `~/worktrees/ali-agent-kit/` moved the session; an edit, a command and a commit there
+  raised no further prompt; `git -C {main}` from inside was refused; a subagent dispatched after
+  entering ran in the worktree (`pwd`, `--show-toplevel`, a file write); `ExitWorktree` `keep` came
+  back and git in the main checkout worked again. The session ran in auto mode, so whether the entry
+  itself showed an approval prompt was not observed here.
+- Checked in scratch repositories, git only: the move with a staged, a modified and an untracked
+  file; a clean tree keeping its commits; a pending merge seen before any commit; a
+  `.worktreeinclude` glob copying only ignored files; the `{slug}-2` suffix next to a stray
+  directory; a remote-only branch created tracking `origin`; `npm ci` giving the worktree its own
+  `node_modules`; a `prunable` entry; the worktree gate; removal when the include copies match and
+  keeping when one differs.
 
 ## Parked
+- Step 4 stays open: whether a model running `ali-next-task` on a busy checkout calls
+  `EnterWorktree` when the user never said "worktree". The tool's description allows it only on the
+  user's word or an instruction in `CLAUDE.md` or memory, and this session could not test the new
+  skill text without installing it. Verify after release in a fresh session with a dirty checkout;
+  if the model refuses, `ali-next-task` asks one question ("open it in a worktree?") whose answer
+  is the user's word.
+- End-to-end runs with the released skills, not done here: a PR by number whose head exists only
+  on the remote, and one by another author (step 3); `ali-merge-pr` from a PR's worktree, and its
+  step 8 beside a busy main checkout (step 5); an `ali-autopilot` run asked to go into a worktree
+  (step 6); the agent-without-`EnterWorktree` path on Codex (step 2).
