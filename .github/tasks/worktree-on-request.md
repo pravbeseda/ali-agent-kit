@@ -39,9 +39,11 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   branch.
 - Location → `~/worktrees/{repo}/{slug}`, `{repo}` being the main checkout's directory name,
   outside the repository, so no test runner, linter, IDE or Node resolution in the main checkout
-  sees it and no project's config changes. The price is one approval on every `EnterWorktree`,
-  which only a request for a worktree triggers. Codex only reviews pull requests, so it needs no
-  writes there.
+  sees it and no project's config changes. The price is one approval on every `EnterWorktree`: on a
+  request for a worktree, and on `ali-next-task`'s busy checkout, where today's `../{name}-{N}`
+  asked nothing but left the session working by absolute paths from the main checkout. A path that
+  already exists and is not this branch's worktree — a same-named clone's, a fork's — gets the next
+  free `{slug}-2`, `{slug}-3`.
 - Branch → named by the agent after the repository's convention, with the issue number when there is
   one; branched from `origin/{base}`, or from the local `{base}` where there is no `origin`.
 - Ignored files the build needs → copied when an optional `.worktreeinclude` lists them, matched by
@@ -53,7 +55,9 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   get a worktree: `ali-worktree` stops, on a clean tree with `git -C {main} switch {base}` for the
   user, who alone knows whether a session works there, and with uncommitted changes with no switch
   command, saying that work must be committed there first, because `git switch` would carry it onto
-  the base branch.
+  the base branch. The one exception is the session standing in the main checkout on the task's
+  branch and asked to move that task: it switches its own checkout, and its uncommitted changes go
+  through `git stash` into the worktree rather than onto the base branch.
 - Git work in the main checkout → done before `EnterWorktree` or after `ExitWorktree`, never from
   inside a worktree, where Claude Code refuses it. A skill that needs it from inside a worktree
   leaves first (`ExitWorktree` `keep`); a session that cannot leave prints the command instead.
@@ -73,17 +77,23 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   checkout.
 - A worktree with initialized submodules cannot be removed without `--force`; `ali-merge-pr` reports
   it and leaves it.
-- An agent that cannot move its session — Codex, Copilot, or Claude Code without the worktree tools —
-  runs every command with the worktree's absolute path; Codex's sandbox lets it write there only when
-  started in that directory. Copilot is not verified.
+- An agent that cannot move its session — Codex, Copilot, or Claude Code without the worktree tools,
+  as with `permissions.blockWritesOutsideWorkingDirectories` — does not work on the task from the main
+  checkout, since Codex's sandbox lets it write in a worktree only when started there. `ali-worktree`
+  ends with the command that starts the agent in the worktree, and the discussion stays behind.
+  Copilot is not verified.
 - Whether another session works in an existing worktree cannot be detected: there is no lock, and a
   session's working directory is not visible from outside. The skill asks, and the user who started
   both sessions answers.
 
 ## Steps
 - [ ] 1. **New skill `worktree` (`ali-worktree`): its frame and listing.**
-  - A session already on the task's branch, in its worktree or in the current checkout → nothing to
-    do.
+  - A session already on the task's branch → nothing to do: in its worktree always, in the current
+    checkout unless the user asked to move the task into a worktree.
+  - Asked to move the task it stands on in the main checkout → `git stash push -u -m
+    "ali-worktree {branch}"` when the tree is dirty, `git switch {base}`, step 2's
+    `git worktree add {path} {branch}`, and right after it `git stash pop --index` of that entry
+    inside the worktree; a pop that fails stops and names the stash entry that holds the edits.
   - Standing in another worktree → `ExitWorktree` `keep` first, since everything below runs in the
     main checkout; a session that cannot leave prints the command instead, as the Git-work decision
     says.
@@ -97,6 +107,9 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   - **Files:** `skills/worktree/SKILL.md`, `README.md` (skills table). **Lenses:** none.
   - **Done when:** `npm run check` is green, and
     - a run for the same task from inside its worktree changes nothing;
+    - a request to move the task from the main checkout, with a modified tracked file and a new
+      untracked one, leaves the main checkout clean on the base branch and both files in the
+      worktree on the task's branch;
     - a run from another task's worktree goes on from the main checkout;
     - a worktree whose PR is merged is listed, not removed.
 
@@ -104,17 +117,20 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   - Take a branch name from the caller, or name the branch.
   - An existing branch:
     - with a worktree → enter it after asking once;
-    - checked out in the main checkout → stop as the Main-checkout decision says: on a clean tree
+    - checked out in the main checkout, for a session that came from another worktree → stop as
+      the Main-checkout decision says: on a clean tree
       print `git -C {main} switch {base}` for the user to run before trying again; with
       uncommitted changes print no switch and say that work must be committed there first;
     - otherwise → `git worktree add {path} {branch}`.
   - A new branch → `git fetch origin {base}`, then
     `git worktree add --no-track -b {branch} {path} origin/{base}`; in a repository without
     `origin`, from the local `{base}`.
-  - A `{path}` that exists and is not a worktree of this repository → stop and name it.
+  - A `{path}` that exists and is not this branch's worktree → the next free `{slug}-2`,
+    `{slug}-3`; nothing is written into the existing directory.
   - Copy the `.worktreeinclude` matches when the file exists.
   - Install dependencies.
-  - Enter with `EnterWorktree` (`path`); other agents use absolute paths.
+  - Enter with `EnterWorktree` (`path`). An agent without it stops here and prints the command that
+    starts it in the worktree; the task goes on in that new session.
   - **Files:** `skills/worktree/SKILL.md`. **Lenses:** security.
   - **Done when:** `npm run check` is green, and
     - in this repository a run from the main checkout leaves `git status` there empty and the
@@ -126,6 +142,10 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
     - a run from another worktree for a branch checked out in a clean main checkout stops with
       that command and changes nothing, and with a modified tracked file there it stops without a
       switch command and the edit stays on that branch;
+    - a second clone with the same directory name gets `{slug}-2` for the same task, and the first
+      clone's worktree is untouched;
+    - a run where `EnterWorktree` is unavailable creates the worktree, prints the command that
+      starts the agent there and edits nothing;
     - in a scratch repository with a lockfile, the new worktree gets its own `node_modules`;
     - an ignored file matched by a glob entry such as `config/*.local` in `.worktreeinclude` is
       copied, and without that file nothing is copied and none is created.
