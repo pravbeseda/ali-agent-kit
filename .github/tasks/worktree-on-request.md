@@ -33,7 +33,8 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
 ## Decisions
 - Default → the current checkout, exactly as today. A worktree only on the user's request in the
   session, or when `ali-next-task` finds the checkout busy or the task's own worktree, where it
-  already makes or uses one today; a session already in a worktree keeps to worktrees. No line
+  already makes or uses one today, or when `ali-merge-pr`'s next PR finds the main checkout busy.
+  No line
   in the global instructions: the user's request is the explicit instruction `EnterWorktree`
   requires, and for `ali-next-task` the skill the user invoked is.
 - When → at the request, in the same session, so the discussion is kept and the agent names the
@@ -59,7 +60,7 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   command, saying that work must be committed there first, because `git switch` would carry it onto
   the base branch. The one exception is the session standing in the main checkout on the task's
   branch and asked to move that task: it switches its own checkout, and its uncommitted changes go
-  through `git stash` into the worktree rather than onto the base branch.
+  through a temporary commit on the task's branch into the worktree rather than onto the base branch.
 - Git work in the main checkout → done before `EnterWorktree` or after `ExitWorktree`, never from
   inside a worktree, where Claude Code refuses it. A skill that needs it from inside a worktree
   leaves first (`ExitWorktree` `keep`); a session that cannot leave prints the command instead.
@@ -94,10 +95,12 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
 - [ ] 1. **New skill `worktree` (`ali-worktree`): its frame and listing.**
   - A session already on the task's branch → nothing to do: in its worktree always, in the current
     checkout unless the user asked to move the task into a worktree.
-  - Asked to move the task it stands on in the main checkout → `git stash push -u -m
-    "ali-worktree {branch}"` when the tree is dirty, `git switch {base}`, step 2's
-    `git worktree add {path} {branch}`, and right after it `git stash pop --index` of that entry
-    inside the worktree; a pop that fails stops and names the stash entry that holds the edits.
+  - Asked to move the task it stands on in the main checkout → when the tree is dirty, a temporary
+    commit of everything on the task's branch (`git add -A`, `git commit --no-verify`), never the
+    stash, whose stack all worktrees share; `git switch {base}`, step 2's
+    `git worktree add {path} {branch}`, and right after it `git reset HEAD~1` inside the worktree,
+    which turns the edits back into uncommitted ones. A failure after the temporary commit stops and
+    says the edits are in it and `git reset HEAD~1` on the task's branch brings them back.
   - Standing in another worktree → `ExitWorktree` `keep` first, since everything below runs in the
     main checkout; a session that cannot leave prints the command instead, as the Git-work decision
     says.
@@ -112,8 +115,8 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   - **Done when:** `npm run check` is green, and
     - a run for the same task from inside its worktree changes nothing;
     - a request to move the task from the main checkout, with a modified tracked file and a new
-      untracked one, leaves the main checkout clean on the base branch and both files in the
-      worktree on the task's branch;
+      untracked one, leaves the main checkout clean on the base branch and both files uncommitted
+      in the worktree, with the task's branch at the commit it had before;
     - a run from another task's worktree goes on from the main checkout;
     - a worktree whose PR is merged is listed, not removed.
 
@@ -186,7 +189,8 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
 - [ ] 5. **`merge-pr`.**
   - It runs from the PR's own worktree or from the main checkout; from any other worktree it stops
     before anything else and says where to run it.
-  - Find the PR's worktree by its branch in `git worktree list --porcelain`.
+  - Find the PR's worktree by its branch in `git worktree list --porcelain`, skipping an entry marked
+    `prunable` (its directory was deleted by hand), so such a PR merges as it does today.
   - Step 1's gate (`git status --porcelain`, the `--is-ancestor` test against `headRefOid`) runs
     where the session stands, as today, and also in the PR's worktree when there is one; it stops
     the run when it cannot be read.
@@ -200,8 +204,12 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
       is clean on the base branch, else `git fetch origin {base} --prune`, so another session's
       branch there is left alone.
   - Step 7 gets the matching close lines.
-  - Step 8 checks the chosen PR out with today's `gh pr checkout` when the main checkout is clean
-    on the base branch, and otherwise opens it through `ali-worktree` by its number.
+  - Step 8, by the state of the main checkout alone, wherever the run started:
+    - the chosen PR's branch has a worktree → enter it through `ali-worktree`, since
+      `gh pr checkout` would fail on a branch another worktree holds;
+    - the main checkout is clean on the base branch → today's `gh pr checkout` there;
+    - anything else (uncommitted changes, another branch) → open it through `ali-worktree` by its
+      number.
   - **Files:** `skills/merge-pr/SKILL.md`. **Lenses:** none.
   - **Done when:** `npm run check` is green, and
     - a run in the main checkout on the PR's branch, with no worktrees, ends as it does today;
@@ -211,6 +219,9 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
       merging;
     - a merge run from the PR's worktree ends in the main checkout on the updated base, with that
       worktree gone and the branch kept;
+    - step 8 after such a run checks the next PR out in the main checkout when it is clean on the
+      base branch, opens it in a new worktree when it is not, and enters the PR's worktree when
+      its branch has one;
     - a run from another task's worktree stops before merging, names where to run it and leaves the
       session where it was.
 
