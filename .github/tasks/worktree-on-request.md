@@ -39,11 +39,12 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   requires, and for `ali-next-task` the skill the user invoked is.
 - When → at the request, in the same session, so the discussion is kept and the agent names the
   branch.
-- Location → `~/worktrees/{repo}/{slug}`, `{repo}` being the main checkout's directory name,
-  outside the repository, so no test runner, linter, IDE or Node resolution in the main checkout
-  sees it and no project's config changes. The price is one approval on every `EnterWorktree`: on a
-  request for a worktree, and on `ali-next-task`'s busy checkout or the task's worktree it finds,
-  where today's `../{name}-{N}` asked nothing but left the session working by absolute paths from
+- Location → `~/worktrees/{repo}/{slug}`, `{repo}` being the main checkout's directory name and
+  `{slug}` the branch name with `/` turned into `-`, outside the repository, so no test runner,
+  linter, IDE or Node resolution in the main checkout sees it and no project's config changes. The
+  price is one approval on every `EnterWorktree`: on a request for a worktree, on `ali-merge-pr`'s
+  next PR when the main checkout is busy, and on `ali-next-task`'s busy checkout or the task's
+  worktree it finds, where today's `../{name}-{N}` asked nothing but left the session working by absolute paths from
   the main checkout. A path that
   already exists and is not this branch's worktree — a same-named clone's, a fork's — gets the next
   free `{slug}-2`, `{slug}-3`.
@@ -60,7 +61,7 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   command, saying that work must be committed there first, because `git switch` would carry it onto
   the base branch. The one exception is the session standing in the main checkout on the task's
   branch and asked to move that task: it switches its own checkout, and its uncommitted changes go
-  through a temporary commit on the task's branch into the worktree rather than onto the base branch.
+  through temporary commits on the task's branch into the worktree rather than onto the base branch.
 - Git work in the main checkout → done before `EnterWorktree` or after `ExitWorktree`, never from
   inside a worktree, where Claude Code refuses it. A skill that needs it from inside a worktree
   leaves first (`ExitWorktree` `keep`); a session that cannot leave prints the command instead.
@@ -80,6 +81,9 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   started inside the worktree directory needs none.
 - Ignored files not listed in `.worktreeinclude` (a local database, caches, a `.env`) stay in the main
   checkout.
+- `ali-merge-pr` removing the merged PR's worktree deletes the ignored files in it without a word —
+  a `.env` put there by hand, build output, caches (the user's choice on this PR). Only a
+  `.worktreeinclude` copy that differs from the main checkout's file keeps the worktree.
 - A worktree with initialized submodules cannot be removed without `--force`; `ali-merge-pr` reports
   it and leaves it.
 - An agent that cannot move its session — Codex, Copilot, or Claude Code without the worktree tools,
@@ -95,12 +99,17 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
 - [ ] 1. **New skill `worktree` (`ali-worktree`): its frame and listing.**
   - A session already on the task's branch → nothing to do: in its worktree always, in the current
     checkout unless the user asked to move the task into a worktree.
-  - Asked to move the task it stands on in the main checkout → when the tree is dirty, a temporary
-    commit of everything on the task's branch (`git add -A`, `git commit --no-verify`), never the
-    stash, whose stack all worktrees share; `git switch {base}`, step 2's
-    `git worktree add {path} {branch}`, and right after it `git reset HEAD~1` inside the worktree,
-    which turns the edits back into uncommitted ones. A failure after the temporary commit stops and
-    says the edits are in it and `git reset HEAD~1` on the task's branch brings them back.
+  - Asked to move the task it stands on in the main checkout → its uncommitted work travels in two
+    temporary commits on the task's branch, never in the stash, whose stack all worktrees share:
+    - only when the tree is dirty: `git commit --no-verify --allow-empty -m "ali-worktree: staged"`
+      for what is staged, then `git add -A` and the same commit with `ali-worktree: unstaged`;
+    - `git switch {base}`, then step 2's `git worktree add {path} {branch}`;
+    - inside the worktree, only when the branch tip is that pair: `git reset HEAD~1`, then
+      `git reset --soft HEAD~1`, which leaves the branch at its old commit, the staged part staged
+      and the rest uncommitted;
+    - a failure after the commits stops and says the edits are in them; a later run that finds the
+      pair at the tip of the task's branch undoes it the same way, wherever the branch is checked
+      out, before going on.
   - Standing in another worktree → `ExitWorktree` `keep` first, since everything below runs in the
     main checkout; a session that cannot leave prints the command instead, as the Git-work decision
     says.
@@ -114,9 +123,10 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   - **Files:** `skills/worktree/SKILL.md`, `README.md` (skills table). **Lenses:** none.
   - **Done when:** `npm run check` is green, and
     - a run for the same task from inside its worktree changes nothing;
-    - a request to move the task from the main checkout, with a modified tracked file and a new
-      untracked one, leaves the main checkout clean on the base branch and both files uncommitted
-      in the worktree, with the task's branch at the commit it had before;
+    - a request to move the task from the main checkout, with a staged file, a modified one and a
+      new untracked one, leaves the main checkout clean on the base branch and, in the worktree,
+      the first file staged, the other two uncommitted and the task's branch at the commit it had
+      before; the same request on a clean tree leaves every commit of the branch in place;
     - a run from another task's worktree goes on from the main checkout;
     - a worktree whose PR is merged is listed, not removed.
 
@@ -245,7 +255,8 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
     - how to ask for a worktree, and that the default stays the current checkout;
     - where worktrees go and the one approval on every entry;
     - the optional `.worktreeinclude`;
-    - that `ali-merge-pr` removes the merged PR's worktree and `ali-worktree` lists the rest.
+    - that `ali-merge-pr` removes the merged PR's worktree with the ignored files in it, and
+      `ali-worktree` lists the rest.
   - **Files:** `skills/next-task/SKILL.md`, `skills/merge-pr/SKILL.md`,
     `skills/autopilot/SKILL.md`, `README.md`. **Lenses:** none.
   - **Done when:** `npm run check` is green, and no text still says a new worktree goes to
