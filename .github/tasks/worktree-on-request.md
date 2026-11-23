@@ -32,7 +32,8 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
 
 ## Decisions
 - Default → the current checkout, exactly as today. A worktree only on the user's request in the
-  session, or when `ali-next-task` finds the checkout busy, where it already makes one today. No line
+  session, or when `ali-next-task` finds the checkout busy or the task's own worktree, where it
+  already makes or uses one today; a session already in a worktree keeps to worktrees. No line
   in the global instructions: the user's request is the explicit instruction `EnterWorktree`
   requires, and for `ali-next-task` the skill the user invoked is.
 - When → at the request, in the same session, so the discussion is kept and the agent names the
@@ -40,8 +41,9 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
 - Location → `~/worktrees/{repo}/{slug}`, `{repo}` being the main checkout's directory name,
   outside the repository, so no test runner, linter, IDE or Node resolution in the main checkout
   sees it and no project's config changes. The price is one approval on every `EnterWorktree`: on a
-  request for a worktree, and on `ali-next-task`'s busy checkout, where today's `../{name}-{N}`
-  asked nothing but left the session working by absolute paths from the main checkout. A path that
+  request for a worktree, and on `ali-next-task`'s busy checkout or the task's worktree it finds,
+  where today's `../{name}-{N}` asked nothing but left the session working by absolute paths from
+  the main checkout. A path that
   already exists and is not this branch's worktree — a same-named clone's, a fork's — gets the next
   free `{slug}-2`, `{slug}-3`.
 - Branch → named by the agent after the repository's convention, with the issue number when there is
@@ -62,7 +64,9 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   inside a worktree, where Claude Code refuses it. A skill that needs it from inside a worktree
   leaves first (`ExitWorktree` `keep`); a session that cannot leave prints the command instead.
 - An existing worktree → entered only after saying it exists and asking once, because another
-  session may be working in it; there is no lock to tell.
+  session may be working in it; there is no lock to tell. `ali-next-task` resuming its issue skips
+  the question: the user named the task, it says which worktree it enters, and the `EnterWorktree`
+  approval is the one confirmation.
 - Tracking → `git worktree list` plus each branch's PR state from `gh pr list --head`; the board only
   where a repository uses it. No registry.
 - Cleanup → only `ali-merge-pr` removes a worktree, and only the merged PR's worktree the session
@@ -116,7 +120,8 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
 - [ ] 2. **`ali-worktree`: creating and entering.**
   - Take a branch name from the caller, or name the branch.
   - An existing branch:
-    - with a worktree → enter it after asking once;
+    - with a worktree → enter it after asking once, or without asking for `ali-next-task`'s
+      resume;
     - checked out in the main checkout, for a session that came from another worktree → stop as
       the Main-checkout decision says: on a clean tree
       print `git -C {main} switch {base}` for the user to run before trying again; with
@@ -161,7 +166,8 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
 
 - [ ] 4. **`next-task` step 4.**
   - Keep the lookup by issue number. A worktree found for the issue (an old `../{name}-{N}` one
-    too) is entered through `ali-worktree`, after asking once.
+    too) is entered through `ali-worktree` without a question: step 4 says which worktree it
+    enters, and the `EnterWorktree` approval is the one confirmation.
   - A clean tree on the base branch, with no worktree asked for → as today: `git switch {branch}`
     for a found branch, `git switch --no-track -c {branch} origin/{base}` for a new one.
   - Anything else — uncommitted changes, another task's branch, or the user asked for a worktree →
@@ -174,29 +180,33 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
       worktree itself;
     - a run on a busy checkout, with no request in the session, ends with the session in the new
       worktree through `EnterWorktree` (checked live: the invoked skill counts as the explicit
-      instruction).
+      instruction);
+    - a run for an issue whose worktree exists enters it with the one approval and no question.
 
 - [ ] 5. **`merge-pr`.**
   - It runs from the PR's own worktree or from the main checkout; from any other worktree it stops
     before anything else and says where to run it.
   - Find the PR's worktree by its branch in `git worktree list --porcelain`.
-  - Step 1's gate (`git status --porcelain`, the `--is-ancestor` test against `headRefOid`) runs in
-    the PR's worktree when there is one, and stops the run when it cannot be read.
+  - Step 1's gate (`git status --porcelain`, the `--is-ancestor` test against `headRefOid`) runs
+    where the session stands, as today, and also in the PR's worktree when there is one; it stops
+    the run when it cannot be read.
   - Step 6:
+    - from the main checkout → today's `git checkout {base}` and `git pull --ff-only --prune`,
+      whatever branch it was on; a PR worktree is left and its removal command printed;
     - from the PR's own worktree (`git rev-parse --show-toplevel` equals its path) → leave it
       (`ExitWorktree` `keep`; a session that cannot leave prints the commands instead); keep it and
       say why when a `.worktreeinclude` copy differs from the main checkout's file, otherwise
-      `git worktree remove {path}`;
-    - from the main checkout → a PR worktree is left and its removal command printed, and a PR
-      branch checked out in the main checkout keeps today's `git checkout {base}`;
-    - then, in the main checkout, `git pull --ff-only --prune` when it is clean on the base branch,
-      else `git fetch origin {base} --prune`, so another task's branch there is left alone.
+      `git worktree remove {path}`; then, in the main checkout, `git pull --ff-only --prune` when it
+      is clean on the base branch, else `git fetch origin {base} --prune`, so another session's
+      branch there is left alone.
   - Step 7 gets the matching close lines.
   - Step 8 checks the chosen PR out with today's `gh pr checkout` when the main checkout is clean
     on the base branch, and otherwise opens it through `ali-worktree` by its number.
   - **Files:** `skills/merge-pr/SKILL.md`. **Lenses:** none.
   - **Done when:** `npm run check` is green, and
     - a run in the main checkout on the PR's branch, with no worktrees, ends as it does today;
+    - a run in the main checkout, clean on another task's branch, ends on the base branch pulled,
+      and step 8 checks the next PR out in place, as today;
     - a run from the main checkout on a PR whose worktree holds an uncommitted change stops before
       merging;
     - a merge run from the PR's worktree ends in the main checkout on the updated base, with that
