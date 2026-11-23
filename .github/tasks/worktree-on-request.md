@@ -101,6 +101,8 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
     checkout unless the user asked to move the task into a worktree.
   - Asked to move the task it stands on in the main checkout → its uncommitted work travels in two
     temporary commits on the task's branch, never in the stash, whose stack all worktrees share:
+    - a merge, rebase, cherry-pick or revert in progress → stop and say to finish or abort it
+      first, since the first commit would consume its state (`MERGE_HEAD` and the like);
     - only when the tree is dirty: `git commit --no-verify --allow-empty -m "ali-worktree: staged"`
       for what is staged, then `git add -A` and the same commit with `ali-worktree: unstaged`;
     - `git switch {base}`, then step 2's `git worktree add {path} {branch}`;
@@ -126,7 +128,8 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
     - a request to move the task from the main checkout, with a staged file, a modified one and a
       new untracked one, leaves the main checkout clean on the base branch and, in the worktree,
       the first file staged, the other two uncommitted and the task's branch at the commit it had
-      before; the same request on a clean tree leaves every commit of the branch in place;
+      before; the same request on a clean tree leaves every commit of the branch in place, and
+      during a `git merge --no-commit` it stops with `MERGE_HEAD` still there;
     - a run from another task's worktree goes on from the main checkout;
     - a worktree whose PR is merged is listed, not removed.
 
@@ -173,9 +176,16 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
     `gh pr checkout {number}` inside it, which also finds a head branch this clone never had or
     one in a fork.
   - The PR's branch has a worktree → step 2's existing-branch path.
-  - **Files:** `skills/worktree/SKILL.md`. **Lenses:** none.
-  - **Done when:** `npm run check` is green, and a PR number whose head branch exists only on the
-    remote opens a worktree on that PR's commits with the main checkout untouched.
+  - Then step 2's copy, install and entry, except for a PR whose author is not the `gh` user
+    (`gh pr view {number} --json author`): no `.worktreeinclude` copy and no install, since both
+    would hand the contributor's scripts the user's machine and secrets before the diff is read.
+    The skill says so and prints the install command to run after reading it.
+  - **Files:** `skills/worktree/SKILL.md`. **Lenses:** security.
+  - **Done when:** `npm run check` is green, and
+    - a PR number whose head branch exists only on the remote opens a worktree on that PR's
+      commits with the main checkout untouched;
+    - a PR by another author opens with nothing copied, nothing installed and the install command
+      printed.
 
 - [ ] 4. **`next-task` step 4.**
   - Keep the lookup by issue number. A worktree found for the issue (an old `../{name}-{N}` one
