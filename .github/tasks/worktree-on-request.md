@@ -289,7 +289,10 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   `.worktreeinclude` glob copying only ignored files; the `{slug}-2` suffix next to a stray
   directory; a remote-only branch created tracking `origin`; `npm ci` giving the worktree its own
   `node_modules`; a `prunable` entry; the worktree gate; removal when the include copies match and
-  keeping when one differs.
+  keeping when one differs; undoing a lone `ali-worktree: staged` commit with one soft reset.
+- Review suggestion to replace step 3's detached worktree with `gh pr checkout --worktree`: not
+  taken. The flag needs gh 2.102 (2026-09-30), and the written path works with any gh; step 3 now
+  passes `--branch` instead, so a fork's `main` cannot be mistaken for this repository's.
 
 ## Parked
 - Step 4 stays open: whether a model running `ali-next-task` on a busy checkout calls

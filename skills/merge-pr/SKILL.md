@@ -255,8 +255,8 @@ A worktree of the PR, when it has one, is left where it is: the session never st
 
 The worktree has done its job; the main checkout may be another session's, so it is updated and never switched.
 
-1. **Leave the worktree** — `ExitWorktree` with `keep`. A session that cannot leave — no worktree tools, or `ExitWorktree` reporting no worktree session because the session was started in this directory — prints the commands of items 2 and 3 for the user and stops there.
-2. **Remove it**, unless it holds a `.worktreeinclude` copy that differs from the main checkout's file — then keep it and say which file, since the worktree has the newer one:
+1. **Leave the worktree** — `ExitWorktree` with `keep`. A session that cannot leave — no worktree tools, or `ExitWorktree` reporting no worktree session because the session was started in this directory — prints the commands of items 2 and 3 for the user and closes with step 7's block, its `Now on` line saying the session is still in `{path}`.
+2. **Remove it**, unless it holds a `.worktreeinclude` copy that differs from the main checkout's file — then keep it and say which file, since the worktree has the newer one. Without `{main}/.worktreeinclude` there is nothing to compare, and the first two commands are skipped:
 
    ```sh
    git -C {path} ls-files --others --ignored --exclude-from={main}/.worktreeinclude
@@ -265,7 +265,7 @@ The worktree has done its job; the main checkout may be another session's, so it
    ```
 
    No `--force`: git refuses a dirty tree, which step 1's gate already ruled out, and initialized submodules — report that and leave the worktree. It deletes the worktree's ignored files without a word; that is the accepted price, and the README says so.
-3. **Update the main checkout** — clean and on `{baseRefName}` → `git pull --ff-only --prune`; anything else → `git fetch origin {baseRefName} --prune`, leaving that branch and its work alone. Then `git rev-parse --short {baseRefName}` for the close block.
+3. **Update the main checkout** — clean and on `{baseRefName}` → `git pull --ff-only --prune`; anything else → `git fetch origin {baseRefName} --prune`, leaving that branch and its work alone. The close block's SHA is then `git rev-parse --short {baseRefName}` after the pull, or `git rev-parse --short origin/{baseRefName}` after the fetch — the fetch moves only the remote-tracking ref, so the local branch would still name the commit from before the merge.
 
 The head branch stays on disk either way. Report it by name so the user can delete it in one command if they want to.
 
@@ -287,7 +287,7 @@ Now on {base} at {sha}. Local branch {head} kept — `git branch -d {head}` to d
 
 The `Now on` line follows step 6:
 
-- **Run from the PR's worktree** → `Back in the main checkout, on {base} at {sha}` — or `, left on {branch}; {base} fetched at {sha}` when it was busy — then `Worktree {path} removed.` or `Worktree {path} kept: {why}.`
+- **Run from the PR's worktree** → `Back in the main checkout, on {base} at {sha}` — or `, left on {branch}; origin/{base} fetched at {sha}, local {base} not moved` when it was busy — then `Worktree {path} removed.` or `Worktree {path} kept: {why}.`
 - **Run from the main checkout while the PR has a worktree** → one more line: `Worktree {path} left — `git worktree remove {path}` to drop it.`
 
 When something blocked it, the block is the same with the verdict replaced by the one blocker that stopped the run:

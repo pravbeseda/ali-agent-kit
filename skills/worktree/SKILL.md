@@ -30,16 +30,16 @@ git status --porcelain
 The first entry of the listing is `{main}`; an entry marked `prunable` is a directory deleted by hand and counts as no worktree. The base branch is the repository's default (`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`), or `origin/HEAD`'s target off GitHub.
 
 - **Already on the task's branch** → nothing to do in its worktree; in the main checkout nothing to do either, unless the user asked to move the task — then [§4](#4-move-the-current-task).
-- **In another worktree** (`--show-toplevel` is not `{main}`) → `ExitWorktree` with `keep` first. Everything below runs git in the main checkout, and Claude Code refuses that from inside a worktree. A session that cannot leave prints the commands it would run and stops.
-- **A temporary pair at the tip of the task's branch** — the two commits [§4](#4-move-the-current-task) makes, left by a run that stopped halfway → undo it first, as §4's last item says, wherever the branch is checked out.
+- **In another worktree** (`--show-toplevel` is not `{main}`) → stay there until the run is about to create or enter a worktree and every check of [§2](#2-create-and-enter) that can stop it has passed; only then `ExitWorktree` with `keep`. Creating one runs git in the main checkout, which Claude Code refuses from inside a worktree, and `EnterWorktree` switches from a worktree only into `.claude/worktrees/`. A listing, or a run that stops, leaves the session where it was. A session that cannot leave prints the commands it would run and stops.
+- **A temporary pair at the tip of the task's branch** — the commits [§4](#4-move-the-current-task) makes, left by a run that stopped halfway → undo it first, as §4's step 4 says: where the branch is checked out, or, checked out nowhere, inside the worktree §2 creates for it, before anything else happens there.
 
-Then, from the main checkout:
+Before `git worktree add`, from the main checkout:
 
 ```sh
 git worktree prune
 ```
 
-so a worktree directory deleted by hand no longer blocks `git worktree add`. Gather [§5](#5-the-listing)'s listing now, while git in the main checkout still answers; a run that creates or enters a worktree reports only its stale entries at the end.
+so a worktree directory deleted by hand no longer blocks it. A run that creates or enters a worktree reports [§5](#5-the-listing)'s stale entries at the end.
 
 ## 2. Create and enter
 
@@ -64,6 +64,8 @@ In a repository without `origin`, from the local `{base}`.
 
 ### Prepare it
 
+Only a worktree this run created gets items 1 and 3. Entering an existing one skips them: its ignored files may be newer than the main checkout's — the copy `ali-merge-pr` keeps a worktree for — and its dependencies are already there.
+
 1. **Ignored files the build needs.** Only when `{main}/.worktreeinclude` exists — the skill never creates it. Its lines are gitignore patterns; git does the matching:
 
    ```sh
@@ -71,6 +73,8 @@ In a repository without `origin`, from the local `{base}`.
    ```
 
    Keep each listed file that `git check-ignore -q -- {file}` confirms is ignored (an untracked file the user is still writing is not config), and copy it to the same relative path under `{path}`, creating its directory.
+
+   **Files the caller hands over** — `ali-autopilot`'s plan file — come along too, and the main checkout gets its copy back as it was: copy each to the same path under `{path}`, then delete the original when it is untracked, or `git restore --source=HEAD --staged --worktree -- {file}` when it is tracked.
 2. **Enter** with `EnterWorktree` (`path: {path}`). Say first that Claude Code asks to approve the entry: outside `.claude/worktrees/` it asks every time, and no setting turns that off.
 3. **Dependencies**, inside the worktree: the setup command the repository documents (`AGENTS.md`, `CONTRIBUTING.md`, README); otherwise the lockfile's package manager in frozen mode — `package-lock.json` → `npm ci`, `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `yarn.lock` → `yarn install --immutable` (`--frozen-lockfile` for Yarn 1), `bun.lock` or `bun.lockb` → `bun install --frozen-lockfile`; another ecosystem's lockfile likewise. No lockfile, no documented command → nothing.
 
@@ -83,11 +87,13 @@ Where the session now stands, on which branch, what was copied and installed —
 ## 3. A PR by number
 
 ```sh
-gh pr view {number} --json headRefName,baseRefName,author,state
+gh pr view {number} --json headRefName,headRepositoryOwner,isCrossRepository,baseRefName,author
 gh api user --jq .login
 ```
 
-- **The PR's branch has a worktree** → [§2](#2-create-and-enter)'s existing-branch case.
+**The local branch** is `headRefName` for a PR from this repository and `{owner}/{headRefName}` for one from a fork, `{owner}` being `headRepositoryOwner.login`. A fork's head is often its own `main`, and that name would match this repository's `main` in the main checkout; the prefix keeps the two apart, and `--branch` below makes `gh` use it.
+
+- **That branch has a worktree** → [§2](#2-create-and-enter)'s existing-branch case.
 - **Otherwise** → a detached worktree on the base, checked out onto the PR from inside, since `gh pr checkout` also finds a head branch this clone never had, or one in a fork:
 
   ```sh
@@ -95,7 +101,7 @@ gh api user --jq .login
   git worktree add --detach {path} origin/{baseRefName}
   ```
 
-  Then [§2](#2-create-and-enter)'s preparation, with `gh pr checkout {number}` run inside the worktree right after entering, before the dependencies. `{slug}` comes from `headRefName`.
+  Then [§2](#2-create-and-enter)'s preparation, with `gh pr checkout {number} --branch {local branch}` run inside the worktree right after entering, before the dependencies. `{slug}` comes from the local branch.
 
 **A PR whose author is not the `gh` user** gets no `.worktreeinclude` copy and no dependency install: the install would run the contributor's scripts on this machine, next to the user's secrets, before anyone read the diff. Say so, and print the dependency command for the user to run once they have read it.
 
@@ -119,25 +125,31 @@ The session stands in the main checkout on the task's branch, and the user asked
    git worktree add {path} {branch}
    ```
 
-4. **Undo the pair** — only when the two newest commits of the branch are exactly `ali-worktree: unstaged` over `ali-worktree: staged` (`git -C {path} log -2 --format=%s`):
+4. **Undo the pair**, by what the two newest commits of the branch say (`git -C {path} log -2 --format=%s`):
 
-   ```sh
-   git -C {path} reset -q HEAD~1
-   git -C {path} reset -q --soft HEAD~1
-   ```
+   - `ali-worktree: unstaged` over `ali-worktree: staged` →
 
-   The first brings the index back to what was staged with every edit in the working tree; the second puts the branch back on its old commit without touching that index. On a clean tree there is no pair, and nothing is reset.
+     ```sh
+     git -C {path} reset -q HEAD~1
+     git -C {path} reset -q --soft HEAD~1
+     ```
 
-Then [§2](#2-create-and-enter)'s preparation and entry. **A failure after step 2** stops the run and says the edits are in the pair at the tip of `{branch}`; the next run finds the pair ([§1](#1-where-the-session-stands)) and undoes it with step 4's two commands, run wherever the branch is checked out, before going on — so the pair never rides along into a push.
+     The first brings the index back to what was staged with every edit in the working tree; the second puts the branch back on its old commit without touching that index.
+   - `ali-worktree: staged` alone on top — a run that stopped between the two commits → only `git -C {path} reset -q --soft HEAD~1`; the rest never left the working tree.
+   - Neither → nothing to undo. A clean tree makes no pair, so nothing is reset.
+
+Then [§2](#2-create-and-enter)'s preparation and entry. **A failure after the first temporary commit** stops the run and says the edits are in temporary commits at the tip of `{branch}`; the next run finds them ([§1](#1-where-the-session-stands)) and undoes them with step 4, before going on — so they never ride along into a push.
 
 ## 5. The listing
 
-Every linked worktree of this repository, from `git worktree list --porcelain` — prunable entries aside — with its PR:
+Every linked worktree of this repository, from `git worktree list --porcelain` — prunable entries aside — with its PR. Both answer from wherever the session stands, so a listing never leaves the current worktree:
 
 ```sh
 gh pr list --head {branch} --state all --json number,state --limit 1
 git -C {worktree} status --porcelain
 ```
+
+Claude Code may refuse the `git -C` from inside a worktree; then list without the clean-or-dirty column and say why.
 
 - **Stale** — its PR is merged or closed. Print `git worktree remove {worktree}`; git refuses it on a dirty tree or initialized submodules, and deletes the worktree's ignored files.
 - **Unfinished** — everything else: branch (or detached), clean or dirty, its PR number and state or "no PR".
