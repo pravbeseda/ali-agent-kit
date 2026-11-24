@@ -295,8 +295,12 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
 - A PR's local branch is the name `gh pr checkout` gives it — `headRefName`, or
   `{owner}/{headRefName}` for a fork's PR whose head is the repository's default branch — and
   `ali-worktree` §3, its listing and `ali-merge-pr` steps 1 and 8 all look the PR's worktree up by
-  that name. The listing keeps only a PR whose `headRepositoryOwner` owns the branch, since
-  `--head` matches the name in every fork.
+  that name. The listing links a worktree to its PR by branch name: an `{owner}/{head}` branch keeps
+  only `{owner}`'s PR, since every fork's `main` shares the name; any other branch takes the newest
+  PR of its name, whoever owns the head, so a task pushed to the user's fork or a contributor's
+  branch is found. Accepted limit: a same-named branch in another fork can lend its PR, which at
+  worst lists a worktree under the wrong PR — the listing deletes nothing. Settled after three
+  rounds on this link; matching by owner for plain names lost every fork-based PR.
 - An existing worktree gets no copy and no install: a missing install may be another author's PR,
   left so on purpose.
 - Step 1's "`ExitWorktree` `keep` first" became "leave only right before creating or entering a

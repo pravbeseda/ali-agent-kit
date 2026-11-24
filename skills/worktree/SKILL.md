@@ -149,7 +149,7 @@ gh pr list --head {head} --state all --json number,state,headRepositoryOwner
 git -C {worktree} status --porcelain
 ```
 
-`--head` matches the branch name in every fork, so keep the newest PR whose `headRepositoryOwner` is the branch's owner: `{owner}` for a branch named `{owner}/{head}` by [§3](#3-a-pr-by-number)'s rule, looked up as `--head {head}`; this repository's owner for any other branch, looked up by its own name. Claude Code may refuse the `git -C` from inside a worktree; then list without the clean-or-dirty column and say why.
+`--head` matches the branch name in every fork. A branch named `{owner}/{head}` by [§3](#3-a-pr-by-number)'s rule is looked up as `--head {head}`, keeping the newest PR whose `headRepositoryOwner` is `{owner}` — every fork's `main` shares that name. Any other branch is looked up by its own name and takes its newest PR, whoever owns the head, since a task's branch may live in the user's fork or come from a contributor's. A same-named branch in another fork can lend its PR to that lookup; at worst a worktree is listed under the wrong PR, and the listing deletes nothing. Claude Code may refuse the `git -C` from inside a worktree; then list without the clean-or-dirty column and say why.
 
 - **Stale** — its PR is merged or closed. Print `git worktree remove {worktree}`; git refuses it on a dirty tree or initialized submodules, and deletes the worktree's ignored files.
 - **Unfinished** — everything else: branch (or detached), clean or dirty, its PR number and state or "no PR".
