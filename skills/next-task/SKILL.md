@@ -83,7 +83,7 @@ git branch --all --list '*{N}*'
 ```
 
 - **One worktree that plainly belongs to this issue** — an old `../{name}-{N}` one too → enter it through `ali-worktree`, saying which. Ask nothing: the user chose the task, and the `EnterWorktree` approval is the one confirmation.
-- **One such branch without a worktree** → the rule below, with that branch: `git switch {branch}` where it says to work here, `ali-worktree` with it otherwise. A name with any character other than letters, digits, `.`, `_`, `/` and `-` stops the run first, as it stops `ali-worktree`: a contributor's branch left by `gh pr checkout` can carry shell syntax.
+- **One such branch without a worktree** → the rule below, with that branch: `git switch {branch}` where it says to work here, `ali-worktree` with it otherwise. A name that does not start with a letter or digit, or holds any character other than letters, digits and `.` `_` `/` `-` `+` `@` `#` `%` `,` `=`, stops the run first, as it stops `ali-worktree`: a contributor's branch left by `gh pr checkout` can carry shell syntax.
 - **Several candidates** → ask the user which one.
 - **Nothing found** → the issue gets a new branch below.
 
