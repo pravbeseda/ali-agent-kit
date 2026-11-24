@@ -27,7 +27,7 @@ git rev-parse --abbrev-ref HEAD
 git status --porcelain
 ```
 
-The first entry of the listing is `{main}`; an entry marked `prunable` is a directory deleted by hand and counts as no worktree. The base branch is the repository's default (`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`), or `origin/HEAD`'s target off GitHub.
+The first entry of the listing is `{main}`; an entry marked `prunable` is a directory deleted by hand and counts as no worktree. The base branch is the caller's when it hands one over, else the repository's default (`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`), or `origin/HEAD`'s target off GitHub.
 
 - **Already on the task's branch** → nothing to do in its worktree; in the main checkout nothing to do either, unless the user asked to move the task — then [§4](#4-move-the-current-task).
 - **In another worktree** (`--show-toplevel` is not `{main}`) → stay there until the run is about to create or enter a worktree and every check of [§2](#2-create-and-enter) that can stop it has passed; only then `ExitWorktree` with `keep`. Creating one runs git in the main checkout, which Claude Code refuses from inside a worktree, and `EnterWorktree` switches from a worktree only into `.claude/worktrees/`. A listing, or a run that stops, leaves the session where it was. A session that cannot leave prints the commands it would run and stops.
@@ -66,6 +66,8 @@ In a repository without `origin`, from the local `{base}`.
 
 Only a worktree this run created gets items 1 and 4. Entering an existing one skips both: its ignored files may be newer than the main checkout's — the very copy `ali-merge-pr` keeps a worktree for — and a worktree without dependencies may be another author's PR, left so on purpose ([§3](#3-a-pr-by-number)).
 
+**A created worktree on an existing branch gets them only when the branch's own commits are all the user's** — `git log --format=%ae origin/{base}..{branch}` (`{base}..{branch}` without `origin`) lists no address but `git config user.email`. A branch named by the user or a caller, or moved by [§4](#4-move-the-current-task), may carry a bot's or a contributor's commits; such a branch is handled as another author's PR in §3.
+
 1. **Ignored files the build needs.** Only when `{main}/.worktreeinclude` exists — the skill never creates it. Its lines are gitignore patterns; git does the matching:
 
    ```sh
@@ -92,6 +94,8 @@ gh api user --jq .login
 ```
 
 **The PR's local branch** is the name `gh pr checkout` gives it: `headRefName`, or `{owner}/{headRefName}` when the PR comes from a fork (`isCrossRepository`) and `headRefName` is this repository's default branch — a fork's PR from its own `main` — `{owner}` being `headRepositoryOwner.login`. Every lookup of a PR's worktree uses that name, here, in the listing and in `ali-merge-pr`; `--branch` below pins it.
+
+**A name the shell would read stops the run, before any command uses it.** The PR's author chooses `headRefName`, git accepts `$(…)`, backticks, `;`, `|` and quotes in a branch name, and the name reaches the commands below and the ones printed for the user, directly and through `{slug}` in `{path}`. A local branch name with any character other than letters, digits, `.`, `_`, `/` and `-` → say it holds characters a shell would expand, and print no command with it.
 
 - **That branch has a worktree** → [§2](#2-create-and-enter)'s existing-branch case.
 - **Otherwise** → a detached worktree on the base, checked out onto the PR from inside, since `gh pr checkout` also finds a head branch this clone never had, or one in a fork:
