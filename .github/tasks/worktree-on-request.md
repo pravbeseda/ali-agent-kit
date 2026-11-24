@@ -308,6 +308,20 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
 - `ali-autopilot` hands its plan file to `ali-worktree` only on a new branch. A resumed run keeps
   the dirty-tree rule even when asked for a worktree — uncommitted work besides the plan file is a
   half-done step — and moves its branch with the plan through §4.
+- Branch names reach shell commands, and a PR's author or a contributor's branch left by
+  `gh pr checkout` chooses some of them; git accepts `$(…)`, backticks, `;` and `|` in a name.
+  `ali-worktree` checks every branch name before its first command and stops on any character
+  outside letters, digits, `.`, `_`, `/` and `-`; `ali-next-task` checks a branch it finds by issue
+  number the same way, and `ali-merge-pr` prints `git branch -d {head}` only for such a name.
+  Accepted limit: a PR whose head holds `#`, `+`, `@` or a non-ASCII letter cannot be opened in a
+  worktree.
+- A worktree created on an existing branch gets the copy and the install only when no PR by
+  anyone but the `gh` user has that branch as its head. A first version compared commit author
+  addresses with `user.email`; that field is the committer's own text, so a contributor could pass
+  as the maintainer. Accepted limit: a fork's branch fetched by hand, with no PR, counts as the
+  user's.
+- `ali-worktree` takes the base branch from its caller before the repository default, so
+  `ali-autopilot`'s integration-branch base holds in a worktree too.
 
 ## Parked
 - Step 4 stays open: whether a model running `ali-next-task` on a busy checkout calls

@@ -18,6 +18,8 @@ What it does, in one line each:
 
 The names used below: `{main}` is the main checkout's path, `{repo}` its directory name, `{base}` the base branch, `{slug}` the branch name with `/` turned into `-`, `{path}` the worktree's directory.
 
+**A branch name the shell would read never goes into a command.** git accepts `$(…)`, backticks, `;`, `|` and quotes in a branch name, and others choose some of the names this skill handles — a PR's head, a contributor's branch left by `gh pr checkout`. Every branch name — the caller's, the user's, a PR's local branch, one found on disk — is checked before the first command that uses it, directly or through `{slug}` in `{path}`: one with any character other than letters, digits, `.`, `_`, `/` and `-` stops the run with a word that it holds characters a shell would expand, and no command carrying it is printed. The listing shows such a worktree without commands and without its PR.
+
 ## 1. Where the session stands
 
 ```sh
@@ -66,7 +68,7 @@ In a repository without `origin`, from the local `{base}`.
 
 Only a worktree this run created gets items 1 and 4. Entering an existing one skips both: its ignored files may be newer than the main checkout's — the very copy `ali-merge-pr` keeps a worktree for — and a worktree without dependencies may be another author's PR, left so on purpose ([§3](#3-a-pr-by-number)).
 
-**A created worktree on an existing branch gets them only when the branch's own commits are all the user's** — `git log --format=%ae origin/{base}..{branch}` (`{base}..{branch}` without `origin`) lists no address but `git config user.email`. A branch named by the user or a caller, or moved by [§4](#4-move-the-current-task), may carry a bot's or a contributor's commits; such a branch is handled as another author's PR in §3.
+**A created worktree on an existing branch gets them only when nobody else's PR has that branch as its head.** A branch named by the user or a caller, or moved by [§4](#4-move-the-current-task), may be a bot's or a contributor's, and one left by `gh pr checkout` always has its PR. Look it up as [§5](#5-the-listing) does, with `author` among the fields and every match counted, not only the newest: a PR whose `author.login` is not the `gh` user's sends the branch down §3's rule for another author's PR. GitHub records that author; a commit's author address is whatever its committer typed. No PR, or no GitHub → the user's branch.
 
 1. **Ignored files the build needs.** Only when `{main}/.worktreeinclude` exists — the skill never creates it. Its lines are gitignore patterns; git does the matching:
 
@@ -94,8 +96,6 @@ gh api user --jq .login
 ```
 
 **The PR's local branch** is the name `gh pr checkout` gives it: `headRefName`, or `{owner}/{headRefName}` when the PR comes from a fork (`isCrossRepository`) and `headRefName` is this repository's default branch — a fork's PR from its own `main` — `{owner}` being `headRepositoryOwner.login`. Every lookup of a PR's worktree uses that name, here, in the listing and in `ali-merge-pr`; `--branch` below pins it.
-
-**A name the shell would read stops the run, before any command uses it.** The PR's author chooses `headRefName`, git accepts `$(…)`, backticks, `;`, `|` and quotes in a branch name, and the name reaches the commands below and the ones printed for the user, directly and through `{slug}` in `{path}`. A local branch name with any character other than letters, digits, `.`, `_`, `/` and `-` → say it holds characters a shell would expand, and print no command with it.
 
 - **That branch has a worktree** → [§2](#2-create-and-enter)'s existing-branch case.
 - **Otherwise** → a detached worktree on the base, checked out onto the PR from inside, since `gh pr checkout` also finds a head branch this clone never had, or one in a fork:
