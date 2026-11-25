@@ -175,15 +175,13 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
     one in a fork.
   - The PR's branch has a worktree → step 2's existing-branch path.
   - Then step 2's copy, install and entry, except for a PR whose author is not the `gh` user
-    (`gh pr view {number} --json author`): no `.worktreeinclude` copy and no install, since both
-    would hand the contributor's scripts the user's machine and secrets before the diff is read.
-    The skill says so and prints the install command to run after reading it.
+    (`gh pr view {number} --json author`): it is not opened at all, and the skill stops with the
+    commands to read the diff, check it out and install (superseded in review; see Rulings).
   - **Files:** `skills/worktree/SKILL.md`. **Lenses:** security.
   - **Done when:** `npm run check` is green, and
     - a PR number whose head branch exists only on the remote opens a worktree on that PR's
       commits with the main checkout untouched;
-    - a PR by another author opens with nothing copied, nothing installed and the install command
-      printed.
+    - a PR by another author stops before any worktree is made, with the commands printed.
 
 - [ ] 4. **`next-task` step 4.**
   - Keep the lookup by issue number. A worktree found for the issue (an old `../{name}-{N}` one
@@ -303,8 +301,8 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   branch is found. Accepted limit: a same-named branch in another fork can lend its PR, which at
   worst lists a worktree under the wrong PR — the listing deletes nothing. Settled after three
   rounds on this link; matching by owner for plain names lost every fork-based PR.
-- An existing worktree gets no copy and no install: a missing install may be another author's PR,
-  left so on purpose.
+- An existing worktree gets no copy and no install: it is entered as it was left, and its ignored
+  files may be newer than the main checkout's.
 - Step 1's "`ExitWorktree` `keep` first" became "leave only right before creating or entering a
   worktree": a listing, or a run that stops, now leaves the session where it was.
 - `ali-autopilot` hands its plan file to `ali-worktree` only on a new branch. A resumed run keeps
@@ -323,7 +321,7 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   (`feature/#12-…`, `_12-fix`) or let `#` through unquoted, which zsh's `extendedglob` reads as a
   pattern — `git branch -d d#ocs` deleted `docs`.
 - `ali-worktree` does not open another author's code: their PR by number, or an existing branch
-  that is the head of one, stops the run with the commands for the user to read the diff, check it
+  that is the head of one, the task §4 moves included, stops the run with the commands for the user to read the diff, check it
   out and install. That code runs before any install — a hook under a tracked `core.hooksPath` ran
   on `gh pr checkout` in a scratch test, and per the Claude Code docs a session that enters a
   worktree takes its `.claude/settings.json` hooks and `.mcp.json` as its own. Earlier versions

@@ -66,7 +66,7 @@ In a repository without `origin`, from the local `{base}`.
 
 ### Prepare it
 
-Only a worktree this run created gets items 1 and 4. Entering an existing one skips both: it was prepared when it was made, and its ignored files may be newer than the main checkout's — the very copy `ali-merge-pr` keeps a worktree for.
+Only a worktree this run created gets items 1 and 4. Entering an existing one skips both: it is entered as it was left, and its ignored files may be newer than the main checkout's — the very copy `ali-merge-pr` keeps a worktree for.
 
 1. **Ignored files the build needs.** Only when `{main}/.worktreeinclude` exists — the skill never creates it. Its lines are gitignore patterns; git does the matching:
 
@@ -122,6 +122,8 @@ The user's own PR:
 ## 4. Move the current task
 
 The session stands in the main checkout on the task's branch, and the user asked to move that task into a worktree. A branch can be checked out in one place only, so the main checkout has to leave it — and its uncommitted work has to come along rather than land on the base branch. It travels in two temporary commits on the task's branch, which only this checkout holds. The stash is the wrong carrier: its stack is shared by every worktree, so another session's entry can slip in between.
+
+A branch that is the head of another author's PR stops the move first, checked as [§2](#2-create-and-enter) checks an existing branch: the copy and the install below would open their code in the new worktree, which [§3](#3-a-pr-by-number) leaves to the user.
 
 1. **An operation in progress** — `git status` (long form) says a merge, rebase, cherry-pick or revert is under way → stop, and say to finish or abort it first. The first temporary commit would consume its state (`MERGE_HEAD` and the like), and the pending merge would end up an ordinary commit.
 2. **A dirty tree only** — the staged part, then the rest:
