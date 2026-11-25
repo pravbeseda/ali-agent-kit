@@ -310,8 +310,9 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   half-done step — and moves its branch with the plan through §4.
 - Branch names reach shell commands, and a PR's author or a contributor's branch left by
   `gh pr checkout` chooses some of them; git accepts `$(…)`, backticks, `;` and `|` in a name.
-  Every branch name and worktree path goes into a command single-quoted, where no shell expands
-  anything. `ali-worktree` refuses, before its first command, a name that starts with `-` (git
+  Every branch name, the base included, and every worktree path goes into a command single-quoted,
+  where no shell expands anything; a path holding `'`, from the main checkout's directory name,
+  stops the run, since no single-quoted form carries it. `ali-worktree` refuses, before its first command, a name that starts with `-` (git
   reads it as an option even quoted: a fetched `--detach` turns `git worktree add {path} {branch}`
   into a detached worktree) or holds `'` `"` `$` `` ` `` `;` `|` `&` `<` `>` `(` `)` `{` `}` `!`,
   which act if a quote is ever left out; `ali-next-task` checks a branch it finds by issue number

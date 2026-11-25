@@ -90,7 +90,7 @@ git branch --all --list '*{N}*'
 ```sh
 git status --porcelain
 git rev-parse --abbrev-ref HEAD
-git fetch origin {base}
+git fetch origin '{base}'
 ```
 
 A new branch starts from `origin/{base}`, not from the local `{base}`: commits on the local base branch that were never pushed belong to other work and stay out of this task.

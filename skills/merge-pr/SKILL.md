@@ -240,7 +240,7 @@ Only after the PR actually reached `MERGED`. Where the session stands, as step 1
 Whatever branch it is on:
 
 ```sh
-git checkout {baseRefName}
+git checkout '{baseRefName}'
 git pull --ff-only --prune
 git rev-parse --short HEAD
 ```
@@ -265,7 +265,7 @@ The worktree has done its job; the main checkout may be another session's, so it
    ```
 
    No `--force`: git refuses a dirty tree, which step 1's gate already ruled out, and initialized submodules — report that and leave the worktree. It deletes the worktree's ignored files without a word; that is the accepted price, and the README says so.
-3. **Update the main checkout** — clean and on `{baseRefName}` → `git pull --ff-only --prune`; anything else → `git fetch origin {baseRefName} --prune`, leaving that branch and its work alone. The close block's SHA is then `git rev-parse --short {baseRefName}` after the pull, or `git rev-parse --short origin/{baseRefName}` after the fetch — the fetch moves only the remote-tracking ref, so the local branch would still name the commit from before the merge.
+3. **Update the main checkout** — clean and on `{baseRefName}` → `git pull --ff-only --prune`; anything else → `git fetch origin '{baseRefName}' --prune`, leaving that branch and its work alone. The close block's SHA is then `git rev-parse --short '{baseRefName}'` after the pull, or `git rev-parse --short 'origin/{baseRefName}'` after the fetch — the fetch moves only the remote-tracking ref, so the local branch would still name the commit from before the merge.
 
 The head branch stays on disk either way. Report it by name so the user can delete it in one command if they want to. A fork's author chooses that name, so the command carries it single-quoted — `git branch -d 'feat/#12-login'` — and comes only when the name neither starts with `-` nor holds any of `'` `"` `$` `` ` `` `;` `|` `&` `<` `>` `(` `)` `{` `}` `!`; any other name is reported without one — pasted, its shell syntax would run.
 
