@@ -275,8 +275,10 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   and `gh pr checkout` inside the entered worktree need no `cd {path} &&`, which Claude Code's guard
   turns into an extra prompt; the copy stays before entering because it runs git in the main
   checkout. An agent without `EnterWorktree` gets the remaining commands printed.
-- The temporary commits run with `--no-verify` and `-c commit.gpgsign=false`: hooks and signing
-  must not block or prompt on two commits undone a moment later. Claude Code's own note on entering
+- The temporary commits run with `-c core.hooksPath=/dev/null` and `-c commit.gpgsign=false`: no
+  hook or signing may block, prompt or rewrite two commits undone a moment later. `--no-verify`
+  was not enough: it leaves `prepare-commit-msg` running, and a ticket-key hook turned the
+  subjects into `ABC-12: ali-worktree: …`, which step 4 then did not recognize. Claude Code's own note on entering
   a worktree recommends a temporary commit over the shared stash, as step 1 does.
 - Live check (2026-11-23, Claude Code 2.1.330, git 2.54), in this repository: `EnterWorktree` with
   a path under `~/worktrees/ali-agent-kit/` moved the session; an edit, a command and a commit there
@@ -326,7 +328,15 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   as the maintainer. A lookup that fails or fills its `--limit 100` counts as another author's PR,
   and an `{owner}/{default branch}`-shaped name is also looked up under its full name, since a
   contributor's branch may itself be called `fix-12/main`. Accepted limit: a fork's branch fetched
-  by hand, with no PR, counts as the user's.
+  by hand, with no PR, counts as the user's. A task §4 moves is exempt: the main checkout already
+  holds it beside the same files.
+- Another author's code (their PR, or a branch that is the head of one) is never entered by the
+  session. Its tree runs code without any install: a hook under a tracked `core.hooksPath` ran on
+  `gh pr checkout` in a scratch test, and per the Claude Code docs, entering a worktree makes its
+  `.claude/settings.json` hooks, `.mcp.json` and `CLAUDE.md` the session's own. So it is fetched
+  from `refs/pull/{number}/head` and added with `core.hooksPath=/dev/null` from the main checkout,
+  and the user gets the commands to read the diff, enter it and install. The price: the
+  conversation does not follow into another author's PR.
 - `ali-worktree` takes the base branch from its caller before the repository default, so
   `ali-autopilot`'s integration-branch base holds in a worktree too.
 
