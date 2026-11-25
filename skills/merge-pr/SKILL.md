@@ -34,7 +34,7 @@ git worktree list --porcelain
 git rev-parse --show-toplevel
 ```
 
-The first entry is the main checkout. The PR's local branch is the name `gh pr checkout` gives it — `headRefName`, or `{owner}/{headRefName}` when the PR comes from a fork (`isCrossRepository`) and `headRefName` is the repository's default branch — a fork's PR from its own `main` (`{owner}` is `headRepositoryOwner.login`). The PR's worktree is the entry on that branch; an entry marked `prunable` is a directory deleted by hand and counts as none.
+The first entry is the main checkout. The PR's local branch is the name `gh pr checkout` gives it — `headRefName`, or `{owner}/{headRefName}` when the PR comes from a fork (`isCrossRepository`) and `headRefName` is the repository's default branch — a fork's PR from its own `main` (`{owner}` is `headRepositoryOwner.login`). The PR's worktree is the entry on that branch; an entry marked `prunable` is a directory deleted by hand and counts as none. Its path goes into every command below single-quoted, as `ali-worktree` writes it.
 
 - **The session stands in the main checkout or in the PR's own worktree** → go on.
 - **In any other worktree** → stop before anything else, and say to run it from the main checkout or from the PR's worktree, naming both paths. Step 6 needs git in the main checkout, which Claude Code refuses from inside a worktree, and leaving this one would drop another task's session out of its directory.
@@ -267,7 +267,7 @@ The worktree has done its job; the main checkout may be another session's, so it
    No `--force`: git refuses a dirty tree, which step 1's gate already ruled out, and initialized submodules — report that and leave the worktree. It deletes the worktree's ignored files without a word; that is the accepted price, and the README says so.
 3. **Update the main checkout** — clean and on `{baseRefName}` → `git pull --ff-only --prune`; anything else → `git fetch origin {baseRefName} --prune`, leaving that branch and its work alone. The close block's SHA is then `git rev-parse --short {baseRefName}` after the pull, or `git rev-parse --short origin/{baseRefName}` after the fetch — the fetch moves only the remote-tracking ref, so the local branch would still name the commit from before the merge.
 
-The head branch stays on disk either way. Report it by name so the user can delete it in one command if they want to. A fork's author chooses that name, so the command comes only when it starts with a letter or digit and holds nothing but letters, digits and `.` `_` `/` `-` `+` `@` `#` `%` `,` `=`; any other name is reported without one — pasted, its shell syntax would run.
+The head branch stays on disk either way. Report it by name so the user can delete it in one command if they want to. A fork's author chooses that name, so the command carries it single-quoted — `git branch -d 'feat/#12-login'` — and comes only when the name neither starts with `-` nor holds any of `'` `"` `$` `` ` `` `;` `|` `&` `<` `>` `(` `)` `{` `}` `!`; any other name is reported without one — pasted, its shell syntax would run.
 
 ## Step 7. Close the pass
 

@@ -310,14 +310,15 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   half-done step — and moves its branch with the plan through §4.
 - Branch names reach shell commands, and a PR's author or a contributor's branch left by
   `gh pr checkout` chooses some of them; git accepts `$(…)`, backticks, `;` and `|` in a name.
-  `ali-worktree` checks every branch name before its first command and stops on a first character
-  other than a letter or digit, or on any character outside letters, digits and
-  `.` `_` `/` `-` `+` `@` `#` `%` `,` `=`; `ali-next-task` checks a branch it finds by issue number
-  the same way, and `ali-merge-pr` prints `git branch -d {head}` only for such a name. A leading
-  `-` is refused because git reads it as an option: a fetched `--detach` turns
-  `git worktree add {path} {branch}` into a detached worktree. The first version allowed only
-  `.` `_` `/` `-` and refused the user's own `feature/#12-…` on the in-place path. Accepted limit:
-  in zsh with `extendedglob`, a pasted command holding `#` fails to match; nothing runs.
+  Every branch name and worktree path goes into a command single-quoted, where no shell expands
+  anything. `ali-worktree` refuses, before its first command, a name that starts with `-` (git
+  reads it as an option even quoted: a fetched `--detach` turns `git worktree add {path} {branch}`
+  into a detached worktree) or holds `'` `"` `$` `` ` `` `;` `|` `&` `<` `>` `(` `)` `{` `}` `!`,
+  which act if a quote is ever left out; `ali-next-task` checks a branch it finds by issue number
+  the same way, and `ali-merge-pr` prints `git branch -d '{head}'` only for such a name. Settled
+  after three rounds of a character allowlist: each version either refused the user's own names
+  (`feature/#12-…`, `_12-fix`) or let `#` through unquoted, which zsh's `extendedglob` reads as a
+  pattern — `git branch -d d#ocs` deleted `docs`.
 - A worktree created on an existing branch gets the copy and the install only when no PR by
   anyone but the `gh` user has that branch as its head. A first version compared commit author
   addresses with `user.email`; that field is the committer's own text, so a contributor could pass
