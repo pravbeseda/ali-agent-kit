@@ -98,6 +98,8 @@ A new branch starts from `origin/{base}`, not from the local `{base}`: commits o
 - **Clean tree on the base branch, and no worktree asked for** → work here: `git switch --no-track -c '{branch}' 'origin/{base}'`.
 - **Anything else** — uncommitted changes, another task's branch checked out, or the user asked for a worktree → this checkout belongs to other work, or the user wants the task beside it. Hand the branch name to `ali-worktree`: it creates the worktree off `origin/{base}`, prepares it and moves this session into it, at the price of one approval. Leave the checkout itself untouched.
 
+When `ali-worktree` stops instead of entering — another author's branch, a name it refuses, a busy main checkout — this run stops there too and reports why: working on from this checkout is what the hand-over was for avoiding.
+
 Name the branch the way the repository already names them (look at `AGENTS.md`, `CONTRIBUTING.md` or recent branches), with the issue number always in it — `feat/{N}-{short-slug}`, not `feat/{short-slug}` — because the lookup above finds an earlier session's branch only by that number; with no convention, `{N}-{short-slug}`.
 
 ## 5. Brief, then work

@@ -322,21 +322,19 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   after three rounds of a character allowlist: each version either refused the user's own names
   (`feature/#12-…`, `_12-fix`) or let `#` through unquoted, which zsh's `extendedglob` reads as a
   pattern — `git branch -d d#ocs` deleted `docs`.
-- A worktree created on an existing branch gets the copy and the install only when no PR by
-  anyone but the `gh` user has that branch as its head. A first version compared commit author
-  addresses with `user.email`; that field is the committer's own text, so a contributor could pass
-  as the maintainer. A lookup that fails or fills its `--limit 100` counts as another author's PR,
-  and an `{owner}/{default branch}`-shaped name is also looked up under its full name, since a
-  contributor's branch may itself be called `fix-12/main`. Accepted limit: a fork's branch fetched
-  by hand, with no PR, counts as the user's. A task §4 moves is exempt: the main checkout already
-  holds it beside the same files.
-- Another author's code (their PR, or a branch that is the head of one) is never entered by the
-  session. Its tree runs code without any install: a hook under a tracked `core.hooksPath` ran on
-  `gh pr checkout` in a scratch test, and per the Claude Code docs, entering a worktree makes its
-  `.claude/settings.json` hooks, `.mcp.json` and `CLAUDE.md` the session's own. So it is fetched
-  from `refs/pull/{number}/head` and added with `core.hooksPath=/dev/null` from the main checkout,
-  and the user gets the commands to read the diff, enter it and install. The price: the
-  conversation does not follow into another author's PR.
+- `ali-worktree` does not open another author's code: their PR by number, or an existing branch
+  that is the head of one, stops the run with the commands for the user to read the diff, check it
+  out and install. That code runs before any install — a hook under a tracked `core.hooksPath` ran
+  on `gh pr checkout` in a scratch test, and per the Claude Code docs a session that enters a
+  worktree takes its `.claude/settings.json` hooks and `.mcp.json` as its own. Earlier versions
+  opened such a PR without copies or installs, then with hooks off and without entering; each
+  round found another gap (the wrong remote under `upstream`, a force-pushed head, a caller left
+  in the main checkout), and the stop removes the path. A branch is judged by its PR's author as
+  GitHub records it, every match and the full name of an `{owner}/{default branch}`-shaped name
+  counted, and a failed or full (`--limit 100`) lookup stops too; commit author addresses were
+  dropped as the committer's own text. Accepted limits: a fork's branch fetched by hand, with no
+  PR, counts as the user's, and a same-named branch in another fork's PR stops the user's own.
+  A caller stops when `ali-worktree` does.
 - `ali-worktree` takes the base branch from its caller before the repository default, so
   `ali-autopilot`'s integration-branch base holds in a worktree too.
 

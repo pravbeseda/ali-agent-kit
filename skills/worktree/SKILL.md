@@ -10,7 +10,7 @@ Work normally stays in the current checkout. This skill runs only when a worktre
 What it does, in one line each:
 
 - **A task** → a worktree at `~/worktrees/{repo}/{slug}` on the task's branch, prepared and entered by this same session ([§2](#2-create-and-enter)).
-- **A PR by number** → the same, on the PR's head ([§3](#3-a-pr-by-number)).
+- **A PR by number** → the same, on the PR's head, for the user's own PR; another author's gets the commands instead ([§3](#3-a-pr-by-number)).
 - **The task this session stands on in the main checkout** → moved into a worktree with its uncommitted work ([§4](#4-move-the-current-task)).
 - **A listing** → this repository's worktrees, stale and unfinished, with ready commands ([§5](#5-the-listing)).
 
@@ -18,7 +18,7 @@ What it does, in one line each:
 
 The names used below: `{main}` is the main checkout's path, `{repo}` its directory name, `{base}` the base branch, `{slug}` the branch name with `/` turned into `-`, `{path}` the worktree's directory.
 
-**A branch name goes into a command single-quoted, and only when quoting can hold it.** git accepts `$(…)`, backticks, `;`, `|` and quotes in a branch name, and others choose some of the names this skill handles — a PR's head, a contributor's branch left by `gh pr checkout`. Every branch name — the caller's, the user's, a PR's local branch, one found on disk — is checked before the first command that uses it, directly or through `{slug}` in `{path}`: one that starts with `-`, or holds any of `'` `"` `$` `` ` `` `;` `|` `&` `<` `>` `(` `)` `{` `}` `!`, stops the run with a word that a shell or git would read it as syntax, and no command carrying it is printed. Any other name, and `{path}` written absolute — quotes keep a `~` from expanding — goes into every command run or printed in single quotes — `git switch 'feat/#12-login'` — where no shell expands anything, zsh's `extendedglob` included. The base branch is quoted the same way, and a `{path}` holding `'` — the main checkout's own directory name is part of it — stops the run as well, since no single-quoted form can carry it. A leading `-` is refused because git reads it as an option even quoted: `git branch` refuses one, but a fetched ref need not, and `git worktree add '{path}' '--detach'` makes a detached worktree without a word. The listing shows a refused name's worktree without commands and without its PR.
+**Branch names and paths go into commands single-quoted.** git accepts `$(…)`, backticks, `;`, `|` and quotes in a branch name, and others choose some of the names here — a PR's head, a contributor's branch left by `gh pr checkout`. Before the first command that uses a branch name, directly or through `{slug}` in `{path}`, the run stops on one that starts with `-` — git reads it as an option even quoted, so `git worktree add '{path}' '--detach'` silently makes a detached worktree — or holds any of `'` `"` `$` `` ` `` `;` `|` `&` `<` `>` `(` `)` `{` `}` `!`, and on a `{path}` holding `'`, which the main checkout's directory name can bring in; no command carrying it is printed. Every other branch name, the base included, and `{path}` written absolute (quotes keep a `~` from expanding) go into every command, run or printed, in single quotes — `git switch 'feat/#12-login'` — where no shell expands anything, zsh's `extendedglob` included. The listing shows a refused name's worktree without commands and without its PR.
 
 ## 1. Where the session stands
 
@@ -49,7 +49,7 @@ so a worktree directory deleted by hand no longer blocks it. A run that creates 
 
 **The path** is `~/worktrees/{repo}/{slug}`. When it exists and is not this branch's worktree — a same-named clone's, a fork's, a stray directory — take the first free one of `{slug}-2`, `{slug}-3`, … and write nothing into the existing one.
 
-**An existing branch** (local, or `origin/{branch}` only) is first checked for whose code it is. A branch named by the user or a caller may be a bot's or a contributor's, and one left by `gh pr checkout` always has its PR. Look it up as [§5](#5-the-listing) does, with `author` among the fields, `--limit 100`, and every match counted, not only the newest; a name of the `{owner}/{default branch}` shape is also looked up under its full name, since a contributor's branch may itself be called `fix-12/main`. A PR from either lookup whose `author.login` is not the `gh` user's makes it another author's code, handled as [§3](#3-a-pr-by-number) says, and so does a lookup that fails or returns a full 100 rows — it has not shown there is no such PR. GitHub records that author; a commit's author address is whatever its committer typed. No PR, or a repository not on GitHub → the user's branch:
+**An existing branch** (local, or `origin/{branch}` only) may be another author's — a contributor's branch left by `gh pr checkout`, a bot's — and that code is not this skill's to open ([§3](#3-a-pr-by-number)). Look its PR up as [§5](#5-the-listing) does, with `author` among the fields, `--limit 100` and every match counted, and a name of the `{owner}/{default branch}` shape under its full name as well, since a contributor's branch may itself be called `fix-12/main`. A PR whose `author.login` is not the `gh` user's, or a lookup that fails or fills its 100 rows, stops the run as §3 does, naming that PR or the failed lookup. GitHub records that author; a commit's author address is whatever its committer typed. No such PR, or no GitHub:
 
 - **It has a worktree** → say it exists and where, and ask once before entering: another session may be working in it, and there is no lock to tell. A caller that names that worktree as its task's own — `ali-next-task` resuming its issue — skips the question; the `EnterWorktree` approval is the one confirmation.
 - **It is checked out in the main checkout**, and this session came from another worktree → stop. The main checkout may be another session's, and only the user knows. On a clean tree there, print `git -C '{main}' switch '{base}'` for the user to run before trying again; with uncommitted changes, print no switch command — it would carry that work onto the base branch — and say the work must be committed there first.
@@ -66,7 +66,7 @@ In a repository without `origin`, from the local `{base}`.
 
 ### Prepare it
 
-Only a worktree this run created gets items 1 and 4. Entering an existing one skips both: its ignored files may be newer than the main checkout's — the very copy `ali-merge-pr` keeps a worktree for — and a worktree without dependencies may be another author's PR, left so on purpose ([§3](#3-a-pr-by-number)). A task [§4](#4-move-the-current-task) moves gets them however its branch came about: it is already checked out in the main checkout, beside the same files and configuration, so the move exposes nothing new.
+Only a worktree this run created gets items 1 and 4. Entering an existing one skips both: it was prepared when it was made, and its ignored files may be newer than the main checkout's — the very copy `ali-merge-pr` keeps a worktree for.
 
 1. **Ignored files the build needs.** Only when `{main}/.worktreeinclude` exists — the skill never creates it. Its lines are gitignore patterns; git does the matching:
 
@@ -95,10 +95,22 @@ gh api user --jq .login
 
 **The PR's local branch** is the name `gh pr checkout` gives it: `headRefName`, or `{owner}/{headRefName}` when the PR comes from a fork (`isCrossRepository`) and `headRefName` is this repository's default branch — a fork's PR from its own `main` — `{owner}` being `headRepositoryOwner.login`. Every lookup of a PR's worktree uses that name, here, in the listing and in `ali-merge-pr`; `--branch` below pins it.
 
-**A PR whose author is not the `gh` user is another author's code**, and so is a branch [§2](#2-create-and-enter) finds to be the head of one. Its tree can run scripts with no install at all: a hook under a tracked `core.hooksPath` such as `.husky` runs on checkout, and once a session enters the worktree, Claude Code takes its `.claude/settings.json` hooks, `.mcp.json` and `CLAUDE.md` as the session's own. So it is checked out with every git hook off, gets no `.worktreeinclude` copy and no install, and is never entered, an existing worktree included; the session does not move into it. Say why, and print `gh pr diff {number}` to read first, then `cd '{path}'` and the dependency command — a session started there takes that configuration too.
+**A PR whose author is not the `gh` user is not this skill's to open.** Its tree can run code before anyone reads it and without any install: a hook under a tracked `core.hooksPath` such as `.husky` runs on checkout, and a session that enters the worktree takes its `.claude/settings.json` hooks and `.mcp.json` as its own. Stop, say why, and print the commands for the user — the first two only when that branch has no worktree yet — with a word to read the diff, `.claude/`, `.mcp.json` and hook changes included, before the checkout:
 
-- **That branch has a worktree** → the user's own PR: [§2](#2-create-and-enter)'s existing-branch case; another author's code: its path and the commands above.
-- **Otherwise, the user's own PR** → a detached worktree on the base, checked out onto the PR from inside, since `gh pr checkout` also finds a head branch this clone never had, or one in a fork:
+```sh
+git fetch origin '{baseRefName}'
+git worktree add --detach '{path}' 'origin/{baseRefName}'
+gh pr diff {number}
+cd '{path}'
+gh pr checkout {number} --branch '{local branch}'
+```
+
+and the dependency command after them.
+
+The user's own PR:
+
+- **Its branch has a worktree** → [§2](#2-create-and-enter)'s existing-branch case.
+- **Otherwise** → a detached worktree on the base, checked out onto the PR from inside, since `gh pr checkout` also finds a head branch this clone never had, or one in a fork:
 
   ```sh
   git fetch origin '{baseRefName}'
@@ -106,14 +118,6 @@ gh api user --jq .login
   ```
 
   Then [§2](#2-create-and-enter)'s preparation, with `gh pr checkout {number} --branch '{local branch}'` run inside the worktree right after entering, before the dependencies. `{slug}` comes from the local branch.
-- **Otherwise, another author's code** → a worktree on the PR's head, made from the main checkout without entering it. GitHub keeps every PR's head, a fork's too, at `refs/pull/{number}/head`:
-
-  ```sh
-  git fetch origin 'refs/pull/{number}/head:refs/heads/{local branch}'
-  git -c core.hooksPath=/dev/null worktree add '{path}' '{local branch}'
-  ```
-
-  The branch tracks nothing; `gh pr checkout {number}` inside, once the diff is read, sets that up. A branch [§2](#2-create-and-enter) found to be another author's is added the same way, with `-c core.hooksPath=/dev/null`.
 
 ## 4. Move the current task
 
