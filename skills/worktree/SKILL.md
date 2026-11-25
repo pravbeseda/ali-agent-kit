@@ -18,7 +18,7 @@ What it does, in one line each:
 
 The names used below: `{main}` is the main checkout's path, `{repo}` its directory name, `{base}` the base branch, `{slug}` the branch name with `/` turned into `-`, `{path}` the worktree's directory.
 
-**A branch name goes into a command single-quoted, and only when quoting can hold it.** git accepts `$(…)`, backticks, `;`, `|` and quotes in a branch name, and others choose some of the names this skill handles — a PR's head, a contributor's branch left by `gh pr checkout`. Every branch name — the caller's, the user's, a PR's local branch, one found on disk — is checked before the first command that uses it, directly or through `{slug}` in `{path}`: one that starts with `-`, or holds any of `'` `"` `$` `` ` `` `;` `|` `&` `<` `>` `(` `)` `{` `}` `!`, stops the run with a word that a shell or git would read it as syntax, and no command carrying it is printed. Any other name, and `{path}` written absolute — quotes keep a `~` from expanding — goes into every command run or printed in single quotes — `git switch 'feat/#12-login'` — where no shell expands anything, zsh's `extendedglob` included. A leading `-` is refused because git reads it as an option even quoted: `git branch` refuses one, but a fetched ref need not, and `git worktree add {path} '--detach'` makes a detached worktree without a word. The listing shows a refused name's worktree without commands and without its PR.
+**A branch name goes into a command single-quoted, and only when quoting can hold it.** git accepts `$(…)`, backticks, `;`, `|` and quotes in a branch name, and others choose some of the names this skill handles — a PR's head, a contributor's branch left by `gh pr checkout`. Every branch name — the caller's, the user's, a PR's local branch, one found on disk — is checked before the first command that uses it, directly or through `{slug}` in `{path}`: one that starts with `-`, or holds any of `'` `"` `$` `` ` `` `;` `|` `&` `<` `>` `(` `)` `{` `}` `!`, stops the run with a word that a shell or git would read it as syntax, and no command carrying it is printed. Any other name, and `{path}` written absolute — quotes keep a `~` from expanding — goes into every command run or printed in single quotes — `git switch 'feat/#12-login'` — where no shell expands anything, zsh's `extendedglob` included. A leading `-` is refused because git reads it as an option even quoted: `git branch` refuses one, but a fetched ref need not, and `git worktree add '{path}' '--detach'` makes a detached worktree without a word. The listing shows a refused name's worktree without commands and without its PR.
 
 ## 1. Where the session stands
 
@@ -52,14 +52,14 @@ so a worktree directory deleted by hand no longer blocks it. A run that creates 
 **An existing branch** (local, or `origin/{branch}` only):
 
 - **It has a worktree** → say it exists and where, and ask once before entering: another session may be working in it, and there is no lock to tell. A caller that names that worktree as its task's own — `ali-next-task` resuming its issue — skips the question; the `EnterWorktree` approval is the one confirmation.
-- **It is checked out in the main checkout**, and this session came from another worktree → stop. The main checkout may be another session's, and only the user knows. On a clean tree there, print `git -C {main} switch {base}` for the user to run before trying again; with uncommitted changes, print no switch command — it would carry that work onto the base branch — and say the work must be committed there first.
-- **Otherwise** → `git worktree add {path} {branch}`. A branch that exists only on `origin` is created from it, tracking it.
+- **It is checked out in the main checkout**, and this session came from another worktree → stop. The main checkout may be another session's, and only the user knows. On a clean tree there, print `git -C '{main}' switch '{base}'` for the user to run before trying again; with uncommitted changes, print no switch command — it would carry that work onto the base branch — and say the work must be committed there first.
+- **Otherwise** → `git worktree add '{path}' '{branch}'`. A branch that exists only on `origin` is created from it, tracking it.
 
 **A new branch** → off the remote base, so local commits that were never pushed stay out of the task:
 
 ```sh
-git fetch origin {base}
-git worktree add --no-track -b {branch} {path} origin/{base}
+git fetch origin '{base}'
+git worktree add --no-track -b '{branch}' '{path}' 'origin/{base}'
 ```
 
 In a repository without `origin`, from the local `{base}`.
@@ -76,13 +76,13 @@ Only a worktree this run created gets items 1 and 4. Entering an existing one sk
    git ls-files --others --ignored --exclude-from=.worktreeinclude
    ```
 
-   Keep each listed file that `git check-ignore -q -- {file}` confirms is ignored (an untracked file the user is still writing is not config), and copy it to the same relative path under `{path}`, creating its directory.
+   Keep each listed file that `git check-ignore -q -- '{file}'` confirms is ignored (an untracked file the user is still writing is not config), and copy it to the same relative path under `{path}`, creating its directory.
 
-2. **Files the caller hands over** — `ali-autopilot`'s plan file — come along, and the main checkout gets its copy back as it was: copy each to the same path under `{path}`, then delete the original when it is untracked, or `git restore --source=HEAD --staged --worktree -- {file}` when it is tracked.
+2. **Files the caller hands over** — `ali-autopilot`'s plan file — come along, and the main checkout gets its copy back as it was: copy each to the same path under `{path}`, then delete the original when it is untracked, or `git restore --source=HEAD --staged --worktree -- '{file}'` when it is tracked.
 3. **Enter** with `EnterWorktree` (`path: {path}`). Say first that Claude Code asks to approve the entry: outside `.claude/worktrees/` it asks every time, and no setting turns that off.
 4. **Dependencies**, inside the worktree: the setup command the repository documents (`AGENTS.md`, `CONTRIBUTING.md`, README); otherwise the lockfile's package manager in frozen mode — `package-lock.json` → `npm ci`, `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`, `yarn.lock` → `yarn install --immutable` (`--frozen-lockfile` for Yarn 1), `bun.lock` or `bun.lockb` → `bun install --frozen-lockfile`; another ecosystem's lockfile likewise. No lockfile, no documented command → nothing.
 
-**An agent without `EnterWorktree`** — Codex, Copilot, Claude Code with the worktree tools off — stops after item 2. Its sandbox lets it write only where it was started, so working on the task from the main checkout fails or asks on every edit. Print what the new session runs — `cd {path}`, the PR checkout when [§3](#3-a-pr-by-number) asked for one, the dependency command — and the agent to start there, and say the conversation does not come along.
+**An agent without `EnterWorktree`** — Codex, Copilot, Claude Code with the worktree tools off — stops after item 2. Its sandbox lets it write only where it was started, so working on the task from the main checkout fails or asks on every edit. Print what the new session runs — `cd '{path}'`, the PR checkout when [§3](#3-a-pr-by-number) asked for one, the dependency command — and the agent to start there, and say the conversation does not come along.
 
 ### Report
 
@@ -101,11 +101,11 @@ gh api user --jq .login
 - **Otherwise** → a detached worktree on the base, checked out onto the PR from inside, since `gh pr checkout` also finds a head branch this clone never had, or one in a fork:
 
   ```sh
-  git fetch origin {baseRefName}
-  git worktree add --detach {path} origin/{baseRefName}
+  git fetch origin '{baseRefName}'
+  git worktree add --detach '{path}' 'origin/{baseRefName}'
   ```
 
-  Then [§2](#2-create-and-enter)'s preparation, with `gh pr checkout {number} --branch {local branch}` run inside the worktree right after entering, before the dependencies. `{slug}` comes from the local branch.
+  Then [§2](#2-create-and-enter)'s preparation, with `gh pr checkout {number} --branch '{local branch}'` run inside the worktree right after entering, before the dependencies. `{slug}` comes from the local branch.
 
 **A PR whose author is not the `gh` user** gets no `.worktreeinclude` copy and no dependency install: the install would run the contributor's scripts on this machine, next to the user's secrets, before anyone read the diff. Say so, and print the dependency command for the user to run once they have read it.
 
@@ -125,21 +125,21 @@ The session stands in the main checkout on the task's branch, and the user asked
 3. Free the branch and give it its worktree:
 
    ```sh
-   git switch {base}
-   git worktree add {path} {branch}
+   git switch '{base}'
+   git worktree add '{path}' '{branch}'
    ```
 
-4. **Undo the pair**, by what the two newest commits of the branch say (`git -C {path} log -2 --format=%s`):
+4. **Undo the pair**, by what the two newest commits of the branch say (`git -C '{path}' log -2 --format=%s`):
 
    - `ali-worktree: unstaged` over `ali-worktree: staged` →
 
      ```sh
-     git -C {path} reset -q HEAD~1
-     git -C {path} reset -q --soft HEAD~1
+     git -C '{path}' reset -q HEAD~1
+     git -C '{path}' reset -q --soft HEAD~1
      ```
 
      The first brings the index back to what was staged with every edit in the working tree; the second puts the branch back on its old commit without touching that index.
-   - `ali-worktree: staged` alone on top — a run that stopped between the two commits → only `git -C {path} reset -q --soft HEAD~1`; the rest never left the working tree.
+   - `ali-worktree: staged` alone on top — a run that stopped between the two commits → only `git -C '{path}' reset -q --soft HEAD~1`; the rest never left the working tree.
    - Neither → nothing to undo. A clean tree makes no pair, so nothing is reset.
 
 Then [§2](#2-create-and-enter)'s preparation and entry. **A failure after the first temporary commit** stops the run and says the edits are in temporary commits at the tip of `{branch}`; the next run finds them ([§1](#1-where-the-session-stands)) and undoes them with step 4, before going on — so they never ride along into a push.
@@ -149,13 +149,13 @@ Then [§2](#2-create-and-enter)'s preparation and entry. **A failure after the f
 Every linked worktree of this repository, from `git worktree list --porcelain` — prunable entries aside — with its PR. Both answer from wherever the session stands, so a listing never leaves the current worktree:
 
 ```sh
-gh pr list --head {head} --state all --json number,state,headRepositoryOwner
-git -C {worktree} status --porcelain
+gh pr list --head '{head}' --state all --json number,state,headRepositoryOwner
+git -C '{worktree}' status --porcelain
 ```
 
 `--head` matches the branch name in every fork. A branch named `{owner}/{head}` by [§3](#3-a-pr-by-number)'s rule is looked up as `--head {head}`, keeping the newest PR whose `headRepositoryOwner` is `{owner}` — every fork's `main` shares that name. Any other branch is looked up by its own name and takes its newest PR, whoever owns the head, since a task's branch may live in the user's fork or come from a contributor's. A same-named branch in another fork can lend its PR to that lookup; at worst a worktree is listed under the wrong PR, and the listing deletes nothing. Claude Code may refuse the `git -C` from inside a worktree; then list without the clean-or-dirty column and say why.
 
-- **Stale** — its PR is merged or closed. Print `git worktree remove {worktree}`; git refuses it on a dirty tree or initialized submodules, and deletes the worktree's ignored files.
+- **Stale** — its PR is merged or closed. Print `git worktree remove '{worktree}'`; git refuses it on a dirty tree or initialized submodules, and deletes the worktree's ignored files.
 - **Unfinished** — everything else: branch (or detached), clean or dirty, its PR number and state or "no PR".
 
 A repository not on GitHub has no PR state, so all its worktrees list as unfinished. Remove nothing, whatever the listing says.

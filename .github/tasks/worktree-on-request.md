@@ -315,7 +315,7 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
   reads it as an option even quoted: a fetched `--detach` turns `git worktree add {path} {branch}`
   into a detached worktree) or holds `'` `"` `$` `` ` `` `;` `|` `&` `<` `>` `(` `)` `{` `}` `!`,
   which act if a quote is ever left out; `ali-next-task` checks a branch it finds by issue number
-  the same way, and `ali-merge-pr` prints `git branch -d '{head}'` only for such a name. Settled
+  the same way, and `ali-merge-pr` prints `git branch -d '{head}'` only for a name that passes. Settled
   after three rounds of a character allowlist: each version either refused the user's own names
   (`feature/#12-…`, `_12-fix`) or let `#` through unquoted, which zsh's `extendedglob` reads as a
   pattern — `git branch -d d#ocs` deleted `docs`.

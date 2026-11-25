@@ -83,7 +83,7 @@ git branch --all --list '*{N}*'
 ```
 
 - **One worktree that plainly belongs to this issue** — an old `../{name}-{N}` one too → enter it through `ali-worktree`, saying which. Ask nothing: the user chose the task, and the `EnterWorktree` approval is the one confirmation.
-- **One such branch without a worktree** → the rule below, with that branch: `git switch {branch}` where it says to work here, `ali-worktree` with it otherwise. A name that starts with `-`, or holds any of `'` `"` `$` `` ` `` `;` `|` `&` `<` `>` `(` `)` `{` `}` `!`, stops the run first, as it stops `ali-worktree`: a contributor's branch left by `gh pr checkout` can carry shell syntax. Any other name goes into `git switch` single-quoted.
+- **One such branch without a worktree** → the rule below, with that branch: `git switch '{branch}'` where it says to work here, `ali-worktree` with it otherwise. A name that starts with `-`, or holds any of `'` `"` `$` `` ` `` `;` `|` `&` `<` `>` `(` `)` `{` `}` `!`, stops the run first, as it stops `ali-worktree`: a contributor's branch left by `gh pr checkout` can carry shell syntax. Any other name goes into `git switch` single-quoted.
 - **Several candidates** → ask the user which one.
 - **Nothing found** → the issue gets a new branch below.
 
@@ -95,7 +95,7 @@ git fetch origin {base}
 
 A new branch starts from `origin/{base}`, not from the local `{base}`: commits on the local base branch that were never pushed belong to other work and stay out of this task.
 
-- **Clean tree on the base branch, and no worktree asked for** → work here: `git switch --no-track -c {branch} origin/{base}`.
+- **Clean tree on the base branch, and no worktree asked for** → work here: `git switch --no-track -c '{branch}' 'origin/{base}'`.
 - **Anything else** — uncommitted changes, another task's branch checked out, or the user asked for a worktree → this checkout belongs to other work, or the user wants the task beside it. Hand the branch name to `ali-worktree`: it creates the worktree off `origin/{base}`, prepares it and moves this session into it, at the price of one approval. Leave the checkout itself untouched.
 
 Name the branch the way the repository already names them (look at `AGENTS.md`, `CONTRIBUTING.md` or recent branches), with the issue number always in it — `feat/{N}-{short-slug}`, not `feat/{short-slug}` — because the lookup above finds an earlier session's branch only by that number; with no convention, `{N}-{short-slug}`.

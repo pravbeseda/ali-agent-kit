@@ -67,7 +67,7 @@ Two outcomes otherwise, and they are not the same:
 - **`HEAD` equals `headRefOid`, or `--is-ancestor` exits `0`** — the checkout is the PR head or merely behind it. Nothing local is at risk. Say the checkout is behind, if it is, and go on.
 - **`--is-ancestor` exits `1`** — the checkout holds commits the PR does not. Those are exactly the commits the merge would exclude and then orphan. Report `HEAD` and `headRefOid` and stop.
 
-**The PR's worktree gets the same gate** when the session does not stand in it: `git -C {worktree} status --porcelain` must be empty, and its `HEAD` (`git -C {worktree} rev-parse HEAD`) must equal `headRefOid` or be its ancestor (`git merge-base --is-ancestor`, after the same `fetch`). Uncommitted work or commits there are this PR's work GitHub never saw, exactly as on the PR's branch here. Either command failing stops the run as an unanswered gate.
+**The PR's worktree gets the same gate** when the session does not stand in it: `git -C '{worktree}' status --porcelain` must be empty, and its `HEAD` (`git -C '{worktree}' rev-parse HEAD`) must equal `headRefOid` or be its ancestor (`git merge-base --is-ancestor`, after the same `fetch`). Uncommitted work or commits there are this PR's work GitHub never saw, exactly as on the PR's branch here. Either command failing stops the run as an unanswered gate.
 
 The whole gate sits here rather than in step 6 on purpose: a merge cannot be taken back, so the state that would make it wrong is checked while it still can be.
 
@@ -249,7 +249,7 @@ git rev-parse --short HEAD
 
 **A `git checkout` that fails leaves the pass merged but not switched.** Say exactly that — the merge is not in doubt, only the local checkout is. Never `--force` the switch, and never stash or discard anything to get past it: step 1's gate is what makes this case rare, and forcing it would spend the user's uncommitted work to tidy up a branch name.
 
-A worktree of the PR, when it has one, is left where it is: the session never stood in it, and another session may. Name it with its removal command, `git worktree remove {path}`.
+A worktree of the PR, when it has one, is left where it is: the session never stood in it, and another session may. Name it with its removal command, `git worktree remove '{path}'`.
 
 ### From the PR's own worktree
 
@@ -259,9 +259,9 @@ The worktree has done its job; the main checkout may be another session's, so it
 2. **Remove it**, unless it holds a `.worktreeinclude` copy that differs from the main checkout's file — then keep it and say which file, since the worktree has the newer one. Without `{main}/.worktreeinclude` there is nothing to compare, and the first two commands are skipped:
 
    ```sh
-   git -C {path} ls-files --others --ignored --exclude-from={main}/.worktreeinclude
-   cmp -s {path}/{file} {main}/{file}
-   git worktree remove {path}
+   git -C '{path}' ls-files --others --ignored --exclude-from='{main}/.worktreeinclude'
+   cmp -s '{path}/{file}' '{main}/{file}'
+   git worktree remove '{path}'
    ```
 
    No `--force`: git refuses a dirty tree, which step 1's gate already ruled out, and initialized submodules — report that and leave the worktree. It deletes the worktree's ignored files without a word; that is the accepted price, and the README says so.
@@ -281,14 +281,14 @@ Threads: all resolved
 {Branch: updated from {base}{, {n} times} — only when this pass updated it}
 
 ## ✅ MERGED ({method})
-Now on {base} at {sha}. Local branch {head} kept — `git branch -d {head}` to drop it.
+Now on {base} at {sha}. Local branch {head} kept — `git branch -d '{head}'` to drop it.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 The `Now on` line follows step 6:
 
 - **Run from the PR's worktree** → `Back in the main checkout, on {base} at {sha}` — or `, left on {branch}; origin/{base} fetched at {sha}, local {base} not moved` when it was busy — then `Worktree {path} removed.` or `Worktree {path} kept: {why}.`
-- **Run from the main checkout while the PR has a worktree** → one more line: `Worktree {path} left — `git worktree remove {path}` to drop it.`
+- **Run from the main checkout while the PR has a worktree** → one more line: `Worktree {path} left — `git worktree remove '{path}'` to drop it.`
 
 When something blocked it, the block is the same with the verdict replaced by the one blocker that stopped the run:
 
@@ -305,7 +305,7 @@ verdict is:
 ```
 ## ✅ ALREADY MERGED
 Merged before this pass started{, by {author}, on {mergedAt}}.
-Now on {base} at {sha}. Local branch {head} kept — `git branch -d {head}` to drop it.
+Now on {base} at {sha}. Local branch {head} kept — `git branch -d '{head}'` to drop it.
 ```
 
 And when the merge went to a queue rather than to the base branch:
