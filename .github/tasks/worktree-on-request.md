@@ -323,8 +323,10 @@ in parallel with the one in the main checkout. A new `ali-worktree` skill does t
 - A worktree created on an existing branch gets the copy and the install only when no PR by
   anyone but the `gh` user has that branch as its head. A first version compared commit author
   addresses with `user.email`; that field is the committer's own text, so a contributor could pass
-  as the maintainer. Accepted limit: a fork's branch fetched by hand, with no PR, counts as the
-  user's.
+  as the maintainer. A lookup that fails or fills its `--limit 100` counts as another author's PR,
+  and an `{owner}/{default branch}`-shaped name is also looked up under its full name, since a
+  contributor's branch may itself be called `fix-12/main`. Accepted limit: a fork's branch fetched
+  by hand, with no PR, counts as the user's.
 - `ali-worktree` takes the base branch from its caller before the repository default, so
   `ali-autopilot`'s integration-branch base holds in a worktree too.
 
