@@ -21,7 +21,7 @@ Several agents may use one emulator at the same time, so no agent knows whether 
 node <skill>/scripts/with-emulator.mjs <avd> -- <command...>
 ```
 
-It boots `<avd>` headless if it is not running and waits for the boot to finish, runs the command with `ANDROID_SERIAL` set to that emulator — `adb` and `./gradlew connectedAndroidTest` pick it up — and exits with the command's code. It never shuts the emulator down, so the next command reuses it without a reboot. Wrap every command, one at a time:
+It boots `<avd>` headless if it is not running and waits for the boot to finish, wakes a headless emulator's screen and keeps it on — while it is off, Android takes no activity past `CREATED` and tests that wait for a visible screen fail —, runs the command with `ANDROID_SERIAL` set to that emulator — `adb` and `./gradlew connectedAndroidTest` pick it up — and exits with the command's code. It never shuts the emulator down, so the next command reuses it without a reboot. Wrap every command, one at a time:
 
 ```bash
 node <skill>/scripts/with-emulator.mjs Medium_Phone_API_36.0 -- ./gradlew connectedDebugAndroidTest

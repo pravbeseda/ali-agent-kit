@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { platform, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { packageRoot } from '../src/config.js';
-import { decide, parseProcesses, readAvdState, reaperSilent, tryLock, unlock } from '../skills/android-emulator/scripts/lib.mjs';
+import { decide, parseProcesses, readAvdState, reaperSilent, runningEmulators, tryLock, unlock } from '../skills/android-emulator/scripts/lib.mjs';
 
 const SCRIPTS = join(packageRoot, 'skills', 'android-emulator', 'scripts');
 const LIB = join(SCRIPTS, 'lib.mjs');
@@ -164,6 +164,69 @@ test('with-emulator refuses malformed arguments before touching anything', () =>
     assert.match(r.stderr, /usage: /);
   }
   assert.equal(existsSync(join(state, 'test26')), false);
+});
+
+/**
+ * An SDK whose emulator is a shell loop named like qemu, so `ps` sees it, and
+ * whose adb answers for one booted emulator and logs every call.
+ */
+function fakeSdk(avd) {
+  const sdk = tmp();
+  const script = (path, body) => writeFileSync(join(sdk, path), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+  mkdirSync(join(sdk, 'platform-tools'));
+  mkdirSync(join(sdk, 'emulator'));
+  script('emulator/qemu-system-aarch64-headless', 'while :; do sleep 1; done');
+  script('emulator/qemu-system-aarch64', 'while :; do sleep 1; done');
+  script('emulator/emulator', 'exec "$(dirname "$0")/qemu-system-aarch64-headless" "$@"');
+  script(
+    'platform-tools/adb',
+    [
+      `echo "$*" >> '${join(sdk, 'adb.log')}'`,
+      'case "$*" in',
+      `  devices) printf 'List of devices attached\\nemulator-5554\\tdevice\\n' ;;`,
+      `  *"emu avd name") printf '${avd}\\r\\nOK\\r\\n' ;;`,
+      '  *"getprop sys.boot_completed") echo 1 ;;',
+      'esac'
+    ].join('\n')
+  );
+  const env = { ...process.env, ANDROID_HOME: sdk, ALI_EMULATOR_STATE: join(sdk, 'state') };
+  return {
+    run: () => spawnSync(process.execPath, [join(SCRIPTS, 'with-emulator.mjs'), avd, '--', 'true'], { encoding: 'utf8', env }),
+    startWindowed: () => spawn(join(sdk, 'emulator', 'qemu-system-aarch64'), ['-avd', avd], { stdio: 'ignore' }),
+    shellCalls: () => readFileSync(join(sdk, 'adb.log'), 'utf8').split('\n').filter((line) => line.includes(' shell ') && !line.endsWith('sys.boot_completed')),
+    stop: () => runningEmulators().filter((e) => e.avd === avd).forEach((e) => process.kill(e.pid, 'SIGKILL'))
+  };
+}
+
+const KEEP_AWAKE = ['-s emulator-5554 shell svc power stayon true', '-s emulator-5554 shell input keyevent KEYCODE_WAKEUP', '-s emulator-5554 shell wm dismiss-keyguard'];
+
+test('with-emulator keeps a headless emulator awake on boot and on every reuse', macOnly, () => {
+  const sdk = fakeSdk(`ali_wake_${process.pid}`);
+  try {
+    const first = sdk.run();
+    assert.equal(first.status, 0, first.stderr);
+    assert.deepEqual(sdk.shellCalls(), KEEP_AWAKE);
+    const reused = sdk.run();
+    assert.equal(reused.status, 0, reused.stderr);
+    assert.doesNotMatch(reused.stderr, /booting/);
+    assert.deepEqual(sdk.shellCalls(), [...KEEP_AWAKE, ...KEEP_AWAKE]);
+  } finally {
+    sdk.stop();
+  }
+});
+
+test('with-emulator leaves the screen of a windowed emulator alone', macOnly, async () => {
+  const sdk = fakeSdk(`ali_windowed_${process.pid}`);
+  const windowed = sdk.startWindowed();
+  try {
+    await once(windowed, 'spawn');
+    const r = sdk.run();
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stderr, /booting/);
+    assert.deepEqual(sdk.shellCalls(), []);
+  } finally {
+    windowed.kill('SIGKILL');
+  }
 });
 
 test('off macOS the scripts refuse instead of running without a lock', { skip: platform() === 'darwin' && 'macOS runs them' }, () => {
