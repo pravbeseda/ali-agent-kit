@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // with-emulator <avd> -- <command...>
-// Boots the AVD headless unless it is running, holds a lease on it while the
-// command runs with ANDROID_SERIAL set, then stamps last-used and lets go. It
-// never kills the emulator: reap.mjs does that once nobody has used it for a
-// while, so back-to-back runs do not reboot it.
+// Boots the AVD headless unless it is running, keeps a headless one's screen
+// on, holds a lease on it while the command runs with ANDROID_SERIAL set, then
+// stamps last-used and lets go. It never kills the emulator: reap.mjs does that
+// once nobody has used it for a while, so back-to-back runs do not reboot it.
 //
 // Exit code: the command's own, 128 + n when stopped by signal n, 2 when the
 // arguments are wrong or this is not macOS, 1 when the emulator could not be
@@ -79,6 +79,17 @@ function booted(serial) {
   }
 }
 
+// A headless emulator's screen times out like a phone's, and Android takes no activity past CREATED while it is off.
+function keepAwake(serial) {
+  for (const command of ['svc power stayon true', 'input keyevent KEYCODE_WAKEUP', 'wm dismiss-keyguard']) {
+    try {
+      execFileSync(adbPath(), ['-s', serial, 'shell', ...command.split(' ')], { stdio: 'ignore' });
+    } catch {
+      console.error(`ali-android-emulator: "adb shell ${command}" failed on ${avd}, its screen may fall asleep`);
+    }
+  }
+}
+
 /** Under the AVD's lock: the reaper cannot kill it between the lease and the check, nor two wrappers boot it twice. */
 async function acquire() {
   const deadline = Date.now() + BOOT_TIMEOUT_MS;
@@ -87,8 +98,9 @@ async function acquire() {
     mkdirSync(join(dir, 'leases'), { recursive: true });
     writeFileSync(lease, '');
 
+    const running = runningEmulators().find((e) => e.avd === avd);
     let emulator = null;
-    if (!runningEmulators().some((e) => e.avd === avd)) {
+    if (!running) {
       const log = logPath(avd);
       const out = openSync(log, 'w');
       emulator = spawn(emulatorPath(), ['-avd', avd, '-no-window', '-no-audio', '-no-boot-anim', '-no-snapshot-save'], {
@@ -104,6 +116,8 @@ async function acquire() {
     const serial = await waitFor('the adb serial', () => serialOf(avd), deadline);
     await waitFor('boot to complete', () => booted(serial), deadline);
     emulator?.removeAllListeners('exit');
+    // Every time, not only after a boot: a reused emulator is the one that had time to fall asleep.
+    if (!running || running.headless) keepAwake(serial);
     return serial;
   } finally {
     unlock(lock);
