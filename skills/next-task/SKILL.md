@@ -82,7 +82,7 @@ git worktree list
 git branch --all --list '*{N}*'
 ```
 
-One worktree that plainly belongs to this issue → work in it. One such branch without a worktree → the busy-checkout rule below still applies: only on a clean tree on the base branch `git switch {branch}`, otherwise — uncommitted changes, or another task's branch checked out — `git worktree add ../{name}-{N} {branch}`, so no other task's checkout is moved or carried along. Say which. Several candidates → ask the user which one. Only with nothing found does the issue get a new branch below.
+One worktree that plainly belongs to this issue → work in it. One such branch without a worktree → the rules below apply with that branch: `git switch {branch}` where they say to create the branch here — a clean tree on the base branch, or a fresh worktree — and `git worktree add ../{name}-{N} {branch}` otherwise, so no other task's checkout is moved or carried along. Say which. Several candidates → ask the user which one. Only with nothing found does the issue get a new branch below.
 
 ```sh
 git status --porcelain

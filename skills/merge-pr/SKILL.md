@@ -246,7 +246,7 @@ The head branch stays on disk. Report it by name so the user can delete it in on
 Nothing is switched here: the base branch is checked out in the main checkout, and git refuses it in a second place. Update what can be updated without touching anyone's work:
 
 - **The main checkout is clean and on `{baseRefName}`** (`git -C '{main}' status --porcelain`, `git -C '{main}' rev-parse --abbrev-ref HEAD`) → `git -C '{main}' pull --ff-only --prune`, then `git rev-parse --short '{baseRefName}'` for the close block.
-- **Anything else** — or git refusing the main checkout, as Claude Code does for a session it moved into a worktree → `git fetch origin '{baseRefName}' --prune`, then `git rev-parse --short 'origin/{baseRefName}'`: the fetch moves only the remote-tracking ref.
+- **Anything else** — or git refusing the main checkout, as Claude Code does for a session it moved into a worktree → `git fetch --prune origin`, then `git rev-parse --short 'origin/{baseRefName}'`: the fetch moves only the remote-tracking ref.
 
 The PR's worktree stays: whoever made it removes it. Say it has done its job, and name both ways — the delete action of the terminal app it came from, which runs that app's own cleanup, or `git worktree remove '{path}'`, which also deletes the ignored files in it, a `.env` put there by hand included.
 
@@ -318,7 +318,9 @@ gh pr list --state open --author @me --limit 30 --json number,title,headRefName,
 
 Switch only once the user has picked one. What makes the switch safe is that the working tree is clean — step 1 saw to that, and the merge did not dirty it — so no work of theirs rides on the branch being left; it is still their choice which branch to be on.
 
-Which branch that is depends on how step 6 went, and it is worth saying which: normally the base branch, but on a run where the `git checkout` failed, whichever branch the run started on — step 1 admits any branch with a clean tree, so that need not be the merged PR's head; run from a worktree of its own, the merged PR's head in that worktree. Say where the checkout stands when the switch is offered. If `gh pr checkout` fails in turn — the head branch it wants may itself be held by another worktree — report it as step 6 does and leave the checkout where it is.
+**Run from a worktree of its own, list them without offering the switch.** That worktree was made for one task, and whoever made it decides what it holds: say to open the one picked in a worktree of its own — the terminal app's "new worktree" — or with `gh pr checkout {number}` in the main checkout.
+
+Which branch that is depends on how step 6 went, and it is worth saying which: normally the base branch, but on a run where the `git checkout` failed, whichever branch the run started on — step 1 admits any branch with a clean tree, so that need not be the merged PR's head. Say where the checkout stands when the switch is offered. If `gh pr checkout` fails in turn — the head branch it wants may itself be held by another worktree — report it as step 6 does and leave the checkout where it is.
 
 **While any such PR is open, say nothing about the plan and nothing about the issues.** Do not run the queries below, do not mention them as a second option, do not append them under the PR list. They come back into play only when this listing is empty.
 
@@ -341,7 +343,7 @@ Two sources, in this order:
 
 Append after the close block, separated by a blank line, in the user's chat language:
 
-- **The user has other open PRs** → that list, and nothing else. Offer the switch, and end the run there.
+- **The user has other open PRs** → that list, and nothing else. Offer the switch — from the main checkout only, as above — and end the run there.
 - **One obvious next item** — the plan's next unstarted item, or a single issue that plainly follows from what just merged. Name it in one line, with its issue number or plan item, and ask whether to start it.
 - **No single obvious one** → offer **at most four** candidates drawn from both sources, ordered by what you would do first, each with a few words on why it earns that place. Say which one you would take, and let the user choose. Where the repository provides `ali-one-by-one`, or the user asks for such decisions in that format, ask in that format instead of a bare list.
 - **The merge closed the last open plan item** → say the plan is done, and name it. Then the remaining open issues, if there are any, are the candidates; if there are none either, the plan being finished is the whole message.

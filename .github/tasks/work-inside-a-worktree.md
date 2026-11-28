@@ -23,6 +23,8 @@ the current checkout as today.
   naming the app's delete action and `git worktree remove`.
 - `ali-merge-pr` checks the PR's worktree for uncommitted or unpushed work before merging, wherever
   the session stands.
+- `ali-merge-pr` step 8 run from a worktree lists the user's open PRs without offering to switch
+  that worktree to one: it belongs to one task.
 
 ## Steps
 - [x] 1. `next-task` step 4: the fresh-worktree rule — files: `skills/next-task/SKILL.md` — done
