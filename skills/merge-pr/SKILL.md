@@ -1,6 +1,6 @@
 ---
 name: merge-pr
-description: Merge a pull request that is done, and refuse to while anything is still open — no unresolved review thread, no failing check, pending ones waited out — then switch the checkout to the base branch and pull — or, run from the PR's own worktree, remove it and update the main checkout — and point at what to work on next. Use when the user asks to merge, land or finish a PR, or runs /ali-merge-pr.
+description: Merge a pull request that is done, and refuse to while anything is still open — no unresolved review thread, no failing check, pending ones waited out — then switch the checkout to the base branch, pull, and point at what to work on next. Use when the user asks to merge, land or finish a PR, or runs /ali-merge-pr.
 ---
 
 # Merge PR
@@ -21,23 +21,15 @@ gh pr view --json number,title,state,isDraft,mergeable,mergeStateStatus,reviewDe
 gh repo view --json nameWithOwner,defaultBranchRef --jq '{repo: .nameWithOwner, default: .defaultBranchRef.name}'
 git rev-parse --abbrev-ref HEAD
 git status --porcelain
+git rev-parse --show-toplevel
+git worktree list --porcelain
 ```
 
 `gh pr view` without an argument resolves the PR of the current branch; pass the number explicitly when the user named one. If it fails because the branch has no open PR, **stop** and ask which PR to land.
 
 Every field is used later: `title` and `number` in the close block, `headRefOid` as the merge guard in step 5, `baseRefName` in step 6.
 
-### Where the run stands
-
-```sh
-git worktree list --porcelain
-git rev-parse --show-toplevel
-```
-
-The first entry is the main checkout. The PR's local branch is the name `gh pr checkout` gives it — `headRefName`, or `{owner}/{headRefName}` when the PR comes from a fork (`isCrossRepository`) and `headRefName` is the repository's default branch — a fork's PR from its own `main` (`{owner}` is `headRepositoryOwner.login`). The PR's worktree is the entry on that branch; an entry marked `prunable` is a directory deleted by hand and counts as none. Its path goes into every command below single-quoted, as `ali-worktree` writes it.
-
-- **The session stands in the main checkout or in the PR's own worktree** → go on.
-- **In any other worktree** → stop before anything else, and say to run it from the main checkout or from the PR's worktree, naming both paths. Step 6 needs git in the main checkout, which Claude Code refuses from inside a worktree, and leaving this one would drop another task's session out of its directory.
+The first entry of the worktree listing is the main checkout, `{main}`; the session stands in a worktree of its own when `--show-toplevel` is another path. The PR's worktree is the entry on its local branch — `headRefName`, or `{owner}/{headRefName}` (`headRepositoryOwner.login`) for a fork's PR (`isCrossRepository`) whose head is the repository's `default` branch, the name `gh pr checkout` gives it; an entry marked `prunable` is a directory deleted by hand and counts as none.
 
 ### The working tree has to be clean
 
@@ -67,7 +59,7 @@ Two outcomes otherwise, and they are not the same:
 - **`HEAD` equals `headRefOid`, or `--is-ancestor` exits `0`** — the checkout is the PR head or merely behind it. Nothing local is at risk. Say the checkout is behind, if it is, and go on.
 - **`--is-ancestor` exits `1`** — the checkout holds commits the PR does not. Those are exactly the commits the merge would exclude and then orphan. Report `HEAD` and `headRefOid` and stop.
 
-**The PR's worktree gets the same gate** when the session does not stand in it: `git -C '{worktree}' status --porcelain` must be empty, and its `HEAD` (`git -C '{worktree}' rev-parse HEAD`) must equal `headRefOid` or be its ancestor (`git merge-base --is-ancestor`, after the same `fetch`). Uncommitted work or commits there are this PR's work GitHub never saw, exactly as on the PR's branch here. Either command failing stops the run as an unanswered gate.
+**The PR's worktree gets the same gate when the session stands elsewhere:** `git -C '{path}' status --porcelain` must be empty, and `git -C '{path}' rev-parse HEAD` must equal `headRefOid` or be its ancestor (`git fetch origin refs/pull/{number}/head` first, `git merge-base --is-ancestor`). Work there is this PR's work GitHub never saw, exactly as on the PR's branch here. A command that fails stops the run as an unanswered gate.
 
 The whole gate sits here rather than in step 6 on purpose: a merge cannot be taken back, so the state that would make it wrong is checked while it still can be.
 
@@ -237,37 +229,26 @@ Only after the PR actually reached `MERGED`. Where the session stands, as step 1
 
 ### From the main checkout
 
-Whatever branch it is on:
-
 ```sh
-git checkout '{baseRefName}'
+git checkout {baseRefName}
 git pull --ff-only --prune
 git rev-parse --short HEAD
 ```
 
 `--ff-only` is not optional: if the local base branch has diverged from the remote, the pull stops instead of writing a merge commit onto it. Report that and stop — reconciling it is a separate decision, and the merge itself is already done either way. `--prune` drops the remote-tracking ref of the head branch when the repository deleted it on merge. The last command is the SHA the close block reports.
 
+The head branch stays on disk. Report it by name so the user can delete it in one command if they want to. A worktree of the PR, when it has one, stays too — name it with `git worktree remove '{path}'`.
+
 **A `git checkout` that fails leaves the pass merged but not switched.** Say exactly that — the merge is not in doubt, only the local checkout is. Never `--force` the switch, and never stash or discard anything to get past it: step 1's gate is what makes this case rare, and forcing it would spend the user's uncommitted work to tidy up a branch name.
 
-A worktree of the PR, when it has one, is left where it is: the session never stood in it, and another session may. Name it with its removal command, `git worktree remove '{path}'`.
+### From a worktree of its own
 
-### From the PR's own worktree
+Nothing is switched here: the base branch is checked out in the main checkout, and git refuses it in a second place. Update what can be updated without touching anyone's work:
 
-The worktree has done its job; the main checkout may be another session's, so it is updated and never switched.
+- **The main checkout is clean and on `{baseRefName}`** (`git -C '{main}' status --porcelain`, `git -C '{main}' rev-parse --abbrev-ref HEAD`) → `git -C '{main}' pull --ff-only --prune`, then `git rev-parse --short '{baseRefName}'` for the close block.
+- **Anything else** — or git refusing the main checkout, as Claude Code does for a session it moved into a worktree → `git fetch origin '{baseRefName}' --prune`, then `git rev-parse --short 'origin/{baseRefName}'`: the fetch moves only the remote-tracking ref.
 
-1. **Leave the worktree** — `ExitWorktree` with `keep`. A session that cannot leave — no worktree tools, or `ExitWorktree` reporting no worktree session because the session was started in this directory — prints the commands of items 2 and 3 for the user and closes with step 7's block, its `Now on` line saying the session is still in `{path}`.
-2. **Remove it**, unless it holds a `.worktreeinclude` copy that differs from the main checkout's file — then keep it and say which file, since the worktree has the newer one. Without `{main}/.worktreeinclude` there is nothing to compare, and the first two commands are skipped:
-
-   ```sh
-   git -C '{path}' ls-files --others --ignored --exclude-from='{main}/.worktreeinclude'
-   cmp -s '{path}/{file}' '{main}/{file}'
-   git worktree remove '{path}'
-   ```
-
-   No `--force`: git refuses a dirty tree, which step 1's gate already ruled out, and initialized submodules — report that and leave the worktree. It deletes the worktree's ignored files without a word; that is the accepted price, and the README says so.
-3. **Update the main checkout** — clean and on `{baseRefName}` → `git pull --ff-only --prune`; anything else → `git fetch origin '{baseRefName}' --prune`, leaving that branch and its work alone. The close block's SHA is then `git rev-parse --short '{baseRefName}'` after the pull, or `git rev-parse --short 'origin/{baseRefName}'` after the fetch — the fetch moves only the remote-tracking ref, so the local branch would still name the commit from before the merge.
-
-The PR's local branch — step 1's name, `{owner}/{headRefName}` for a fork's PR from its default branch — stays on disk either way, and is `{head}` in the close block below. Report it by name so the user can delete it in one command if they want to. A fork's author chooses that name, so the command carries it single-quoted — `git branch -d 'feat/#12-login'` — and comes only when the name neither starts with `-` nor holds any of `'` `"` `$` `` ` `` `;` `|` `&` `<` `>` `(` `)` `{` `}` `!`; any other name is reported without one — pasted, its shell syntax would run.
+The PR's worktree stays: whoever made it removes it. Say it has done its job, and name both ways — the delete action of the terminal app it came from, which runs that app's own cleanup, or `git worktree remove '{path}'`, which also deletes the ignored files in it, a `.env` put there by hand included.
 
 ## Step 7. Close the pass
 
@@ -281,14 +262,11 @@ Threads: all resolved
 {Branch: updated from {base}{, {n} times} — only when this pass updated it}
 
 ## ✅ MERGED ({method})
-Now on {base} at {sha}. Local branch {head} kept — `git branch -d '{head}'` to drop it.
+Now on {base} at {sha}. Local branch {head} kept — `git branch -d {head}` to drop it.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-The `Now on` line follows step 6:
-
-- **Run from the PR's worktree** → `Back in the main checkout, on {base} at {sha}` — or `, left on {branch}; origin/{base} fetched at {sha}, local {base} not moved` when it was busy — then `Worktree {path} removed.` or `Worktree {path} kept: {why}.`
-- **Run from the main checkout while the PR has a worktree** → one more line: `Worktree {path} left — `git worktree remove '{path}'` to drop it.`
+Run from a worktree of its own, the `Now on` line reads `Still in worktree {path} on {branch}; {base} pulled in the main checkout to {sha}` — or `origin/{base} fetched at {sha}` — followed by the line on removing the worktree.
 
 When something blocked it, the block is the same with the verdict replaced by the one blocker that stopped the run:
 
@@ -305,7 +283,7 @@ verdict is:
 ```
 ## ✅ ALREADY MERGED
 Merged before this pass started{, by {author}, on {mergedAt}}.
-Now on {base} at {sha}. Local branch {head} kept — `git branch -d '{head}'` to drop it.
+Now on {base} at {sha}. Local branch {head} kept — `git branch -d {head}` to drop it.
 ```
 
 And when the merge went to a queue rather than to the base branch:
@@ -333,18 +311,14 @@ Run it **only after a ✅ verdict** — `MERGED` or `ALREADY MERGED`. A 🛑 blo
 Before looking at anything else, ask whether the user has other pull requests still open here:
 
 ```sh
-gh pr list --state open --author @me --limit 30 --json number,title,headRefName,headRepositoryOwner,isCrossRepository,isDraft,updatedAt
+gh pr list --state open --author @me --limit 30 --json number,title,headRefName,isDraft,updatedAt
 ```
 
-**Any result at all takes over this step.** An open PR of the user's own is work already written and waiting on them — it outranks every plan item and every issue, because starting something new while it sits there only widens the queue. So list them for the user to pick from — number, title, branch, `draft` where it applies, oldest first, since the one that has waited longest is usually the one to look at — and offer to open one of them for review.
+**Any result at all takes over this step.** An open PR of the user's own is work already written and waiting on them — it outranks every plan item and every issue, because starting something new while it sits there only widens the queue. So list them for the user to pick from — number, title, branch, `draft` where it applies, oldest first, since the one that has waited longest is usually the one to look at — and offer to switch the checkout to one of them for review, with `gh pr checkout {number}`.
 
-Open it only once the user has picked one, and where depends on the state of the main checkout alone, wherever this run started — say which before opening:
+Switch only once the user has picked one. What makes the switch safe is that the working tree is clean — step 1 saw to that, and the merge did not dirty it — so no work of theirs rides on the branch being left; it is still their choice which branch to be on.
 
-- **The PR's local branch has a worktree** (step 1's naming rule, `git worktree list --porcelain`, prunable entries aside) → `ali-worktree` enters it. `gh pr checkout` would fail on a branch another worktree holds.
-- **The main checkout is clean and on the base branch** → `gh pr checkout {number}` there, as after every ordinary run. Nothing of the user's rides on the branch being left.
-- **Anything else** — uncommitted changes, or another branch, as after a run from the PR's worktree beside a busy main checkout, or one whose step-6 `git checkout` failed → `ali-worktree` opens the PR by its number in a worktree of its own, at the price of one approval, and leaves the main checkout alone.
-
-If `gh pr checkout` fails in turn, report it as step 6 does and leave the checkout where it is.
+Which branch that is depends on how step 6 went, and it is worth saying which: normally the base branch, but on a run where the `git checkout` failed, whichever branch the run started on — step 1 admits any branch with a clean tree, so that need not be the merged PR's head; run from a worktree of its own, the merged PR's head in that worktree. Say where the checkout stands when the switch is offered. If `gh pr checkout` fails in turn — the head branch it wants may itself be held by another worktree — report it as step 6 does and leave the checkout where it is.
 
 **While any such PR is open, say nothing about the plan and nothing about the issues.** Do not run the queries below, do not mention them as a second option, do not append them under the PR list. They come back into play only when this listing is empty.
 
@@ -367,7 +341,7 @@ Two sources, in this order:
 
 Append after the close block, separated by a blank line, in the user's chat language:
 
-- **The user has other open PRs** → that list, and nothing else. Offer to open one, and end the run there.
+- **The user has other open PRs** → that list, and nothing else. Offer the switch, and end the run there.
 - **One obvious next item** — the plan's next unstarted item, or a single issue that plainly follows from what just merged. Name it in one line, with its issue number or plan item, and ask whether to start it.
 - **No single obvious one** → offer **at most four** candidates drawn from both sources, ordered by what you would do first, each with a few words on why it earns that place. Say which one you would take, and let the user choose. Where the repository provides `ali-one-by-one`, or the user asks for such decisions in that format, ask in that format instead of a bare list.
 - **The merge closed the last open plan item** → say the plan is done, and name it. Then the remaining open issues, if there are any, are the candidates; if there are none either, the plan being finished is the whole message.
