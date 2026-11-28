@@ -82,7 +82,7 @@ git worktree list
 git branch --all --list '*{N}*'
 ```
 
-One worktree that plainly belongs to this issue → work in it. One such branch without a worktree → the busy-checkout rule below still applies: only on a clean tree on the base branch `git switch {branch}`, otherwise — uncommitted changes, or another task's branch checked out — `git worktree add ../{name}-{N} {branch}`, so no other task's checkout is moved or carried along. Say which. Several candidates → ask the user which one. Only with nothing found does the issue get a new branch below.
+One worktree that plainly belongs to this issue → work in it. One such branch without a worktree → the rules below apply with that branch: `git switch {branch}` where they say to create the branch here — a clean tree on the base branch, or a fresh worktree — and `git worktree add ../{name}-{N} {branch}` otherwise, so no other task's checkout is moved or carried along. Say which. Several candidates → ask the user which one. Only with nothing found does the issue get a new branch below.
 
 ```sh
 git status --porcelain
@@ -93,6 +93,7 @@ git fetch origin {base}
 Either way the branch starts from `origin/{base}`, not from the local `{base}`: commits on the local base branch that were never pushed belong to other work and stay out of this task.
 
 - **Clean tree on the base branch** → create the working branch here: `git switch --no-track -c {branch} origin/{base}`.
+- **A fresh worktree** — not the main checkout (`git rev-parse --show-toplevel` is not the first path `git worktree list` prints), a clean tree, and no commits of its own (`git rev-list --count origin/{base}..HEAD` prints `0`) → it was opened for this task, by hand or by a terminal app's "new worktree": create the working branch here the same way. The branch it was on, if any, is left empty — name it with `git branch -d '{old}'` to drop it.
 - **Anything else** — uncommitted changes, or another task's branch checked out — → this checkout belongs to other work. Leave it untouched and create a worktree next to it, then work in that directory from here on and tell the user its path:
 
   ```sh
